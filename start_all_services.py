@@ -175,6 +175,7 @@ def main():
     services = [
         ("录制器", "lifetrace.recorder"),
         ("处理器", "lifetrace.processor"),
+        ("OCR服务", "lifetrace.simple_ocr"),
         ("Web服务", "lifetrace.server")
     ]
     

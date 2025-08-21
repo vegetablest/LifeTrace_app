@@ -391,7 +391,13 @@ export default function App() {
   // 事件处理
   const handleThemeToggle = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   const handleSettingsClick = () => setShowSettings(true);
-  const handleCloseClick = () => console.log('Close clicked');
+  const handleCloseClick = () => {
+    if (window.electronAPI && window.electronAPI.minimizeToTray) {
+      window.electronAPI.minimizeToTray();
+    } else {
+      console.log('Electron API not available');
+    }
+  };
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);

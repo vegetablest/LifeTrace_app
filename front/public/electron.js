@@ -1,9 +1,10 @@
-const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, Tray } = require('electron');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
 // Keep a global reference of the window object
 let mainWindow;
+let tray = null;
 
 function createWindow() {
   // Create the browser window
@@ -12,6 +13,8 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    frame: false, // 无边框设计
+    fullscreen: true, // 默认全屏
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -19,7 +22,6 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     },
     icon: path.join(__dirname, 'icon.svg'), // 应用图标
-    titleBarStyle: 'default',
     show: false, // 先不显示，等加载完成后再显示
   });
 
@@ -46,13 +48,84 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // 阻止窗口关闭，改为隐藏到托盘
+  mainWindow.on('close', (event) => {
+    if (!app.isQuiting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
   // Emitted when the window is closed
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 
+  // 创建系统托盘
+  createTray();
+
   // Create application menu
   createMenu();
+}
+
+function createTray() {
+  // 创建托盘图标 - 使用 nativeImage 创建可见图标
+  const { nativeImage } = require('electron');
+  
+  try {
+    // 创建一个 16x16 的蓝色方块图标 (RGBA格式)
+    const width = 16;
+    const height = 16;
+    const buffer = Buffer.alloc(width * height * 4); // RGBA = 4 bytes per pixel
+    
+    // 填充蓝色像素 (R=37, G=99, B=235, A=255)
+    for (let i = 0; i < buffer.length; i += 4) {
+      buffer[i] = 37;     // Red
+      buffer[i + 1] = 99; // Green
+      buffer[i + 2] = 235; // Blue
+      buffer[i + 3] = 255; // Alpha
+    }
+    
+    const image = nativeImage.createFromBuffer(buffer, { width, height });
+    
+    if (!image.isEmpty()) {
+      console.log('成功创建托盘图标');
+      tray = new Tray(image);
+    } else {
+      throw new Error('图标创建失败');
+    }
+  } catch (error) {
+    console.log('托盘图标创建出错，使用系统默认图标:', error.message);
+    // 在 Windows 上，可以尝试使用系统图标
+    const { nativeImage } = require('electron');
+    const emptyImage = nativeImage.createEmpty();
+    tray = new Tray(emptyImage);
+  }
+  
+  // 设置托盘菜单
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '显示应用',
+      click: () => {
+        mainWindow.show();
+      }
+    },
+    {
+      label: '退出',
+      click: () => {
+        app.isQuiting = true;
+        app.quit();
+      }
+    }
+  ]);
+  
+  tray.setToolTip('LifeTrace');
+  tray.setContextMenu(contextMenu);
+  
+  // 双击托盘图标显示窗口
+  tray.on('double-click', () => {
+    mainWindow.show();
+  });
 }
 
 function createMenu() {
@@ -141,8 +214,9 @@ app.whenReady().then(createWindow);
 
 // Quit when all windows are closed
 app.on('window-all-closed', () => {
-  // On macOS, keep the app running even when all windows are closed
-  if (process.platform !== 'darwin') {
+  // 在 Windows 和 Linux 上，当所有窗口关闭时不退出应用，保持在托盘中
+  // 只有在 macOS 上才退出应用
+  if (process.platform === 'darwin') {
     app.quit();
   }
 });
@@ -169,4 +243,17 @@ ipcMain.handle('get-app-version', () => {
 
 ipcMain.handle('get-app-name', () => {
   return app.getName();
+});
+
+// 处理自定义关闭按钮
+ipcMain.handle('minimize-to-tray', () => {
+  if (mainWindow) {
+    mainWindow.hide();
+  }
+});
+
+// 处理退出应用
+ipcMain.handle('quit-app', () => {
+  app.isQuiting = true;
+  app.quit();
 });

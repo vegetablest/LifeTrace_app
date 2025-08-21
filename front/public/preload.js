@@ -6,6 +6,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getAppName: () => ipcRenderer.invoke('get-app-name'),
   
+  // 窗口控制 API
+  minimizeToTray: () => ipcRenderer.invoke('minimize-to-tray'),
+  quitApp: () => ipcRenderer.invoke('quit-app'),
+  
   // You can add more APIs here as needed
   platform: process.platform,
   isElectron: true
