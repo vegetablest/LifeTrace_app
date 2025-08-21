@@ -18,7 +18,7 @@ function createWindow() {
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, 'icon.png'), // 应用图标
+    icon: path.join(__dirname, 'icon.svg'), // 应用图标
     titleBarStyle: 'default',
     show: false, // 先不显示，等加载完成后再显示
   });
