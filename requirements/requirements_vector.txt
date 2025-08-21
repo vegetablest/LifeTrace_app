@@ -1,0 +1,20 @@
+# Vector Database Requirements for LifeTrace
+
+# Embedding models
+sentence-transformers>=2.2.0
+
+# Vector database
+chromadb>=0.4.0
+
+# Cross-encoder for reranking (included in sentence-transformers)
+# No separate package needed - use: from sentence_transformers import CrossEncoder
+
+# Google Generative AI (optional for generation)
+google-generativeai>=0.3.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Additional dependencies for vector operations
+numpy>=1.21.0
+scipy>=1.9.0

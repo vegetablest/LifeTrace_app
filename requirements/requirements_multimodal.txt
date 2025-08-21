@@ -1,0 +1,27 @@
+# 多模态功能依赖包
+
+# PyTorch (CLIP需要)
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Transformers (Hugging Face CLIP模型)
+transformers>=4.21.0
+
+# 原版OpenAI CLIP (备选)
+git+https://github.com/openai/CLIP.git
+
+# 图像处理
+Pillow>=10.0.0
+opencv-python>=4.8.0
+
+# 数值计算
+numpy>=1.21.0
+scipy>=1.9.0
+
+# 已包含在主要依赖中的包（确保版本兼容）
+sentence-transformers>=2.2.0
+chromadb>=0.4.0
+
+# 可选：中文CLIP支持
+# git+https://github.com/OFA-Sys/Chinese-CLIP.git

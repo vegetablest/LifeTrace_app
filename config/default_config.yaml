@@ -1,0 +1,70 @@
+# LifeTrace 默认配置文件
+
+# 基础设置
+base_dir: ~/.lifetrace
+database_path: lifetrace.db
+screenshots_dir: screenshots
+
+# 服务器配置
+server:
+  host: 127.0.0.1
+  port: 8840
+  debug: false
+
+# 截图记录配置
+record:
+  interval: 1  # 截图间隔（秒）
+  screens: all  # 截图屏幕：all 或屏幕编号列表
+  format: png  # 截图格式：png, jpg
+  quality: 85  # JPG质量（1-100）
+
+# OCR配置
+ocr:
+  enabled: true
+  use_gpu: false  # 是否使用GPU加速
+  language: ['ch', 'en']  # 支持的语言
+  confidence_threshold: 0.5  # 置信度阈值
+  
+# 数据存储配置
+storage:
+  max_days: 30  # 数据保留天数（0表示不限制）
+  deduplicate: true  # 启用图片去重
+  hash_threshold: 5  # 相似度阈值（0-64，越小越严格）
+
+# 处理配置
+processing:
+  batch_size: 10  # 批处理大小
+  queue_size: 100  # 队列最大长度
+  max_workers: 2  # 最大工作线程数
+  retry_limit: 3  # 重试次数限制
+
+# 应用黑名单（不截图的应用）
+app_blacklist: []
+
+# 隐私设置
+privacy:
+  blur_sensitive: false  # 模糊敏感内容
+  skip_fullscreen: true  # 跳过全屏应用
+
+# 向量数据库配置
+vector_db:
+  enabled: true  # 启用向量数据库
+  collection_name: 'lifetrace_ocr'  # 集合名称
+  embedding_model: 'shibing624/text2vec-base-chinese'  # 嵌入模型
+  rerank_model: 'BAAI/bge-reranker-base'  # 重排序模型
+  persist_directory: 'vector_db'  # 持久化目录
+  chunk_size: 512  # 文本块大小
+  chunk_overlap: 50  # 文本块重叠
+  batch_size: 32  # 批处理大小
+  auto_sync: true  # 自动同步
+  sync_interval: 300  # 同步间隔（秒）
+
+# 多模态配置
+multimodal:
+  enabled: true  # 启用多模态功能
+  model_name: 'openai/clip-vit-base-patch32'  # CLIP模型名称
+  text_weight: 0.6  # 文本相似度权重
+  image_weight: 0.4  # 图像相似度权重
+  batch_size: 16  # 批处理大小
+  auto_sync: true  # 自动同步多模态向量
+  sync_interval: 300  # 同步间隔（秒）
