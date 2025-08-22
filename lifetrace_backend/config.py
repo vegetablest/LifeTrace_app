@@ -39,7 +39,7 @@ class LifeTraceConfig:
                 'enabled': True,
                 'use_gpu': False,
                 'language': ['ch', 'en'],
-                'check_interval': 0.5,  # 检查间隔（秒）
+                'check_interval': 5,  # 数据库检查间隔（秒）
                 'confidence_threshold': 0.5
             },
             'storage': {
@@ -49,6 +49,9 @@ class LifeTraceConfig:
             'processing': {
                 'batch_size': 10,
                 'queue_size': 100
+            },
+            'consistency_check': {
+                'interval': 300  # 一致性检查间隔（秒）
             },
             'vector_db': {
                 'enabled': True,  # 启用向量数据库

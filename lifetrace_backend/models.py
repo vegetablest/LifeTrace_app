@@ -3,6 +3,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 import datetime
 
+def get_local_time():
+    """获取本地时间"""
+    return datetime.datetime.now()
+
 Base = declarative_base()
 
 class Screenshot(Base):
@@ -18,7 +22,7 @@ class Screenshot(Base):
     screen_id = Column(Integer, nullable=False, default=0)
     app_name = Column(String(200))  # 前台应用名称
     window_title = Column(String(500))  # 窗口标题
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=get_local_time)
     processed_at = Column(DateTime)  # OCR处理时间
     is_processed = Column(Boolean, default=False)
     
@@ -35,7 +39,7 @@ class OCRResult(Base):
     confidence = Column(Float)  # 置信度
     language = Column(String(10))  # 识别语言
     processing_time = Column(Float)  # 处理耗时（秒）
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=get_local_time)
     
     def __repr__(self):
         return f"<OCRResult(id={self.id}, screenshot_id={self.screenshot_id})>"
@@ -48,7 +52,7 @@ class SearchIndex(Base):
     screenshot_id = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)  # 用于搜索的内容
     keywords = Column(Text)  # 关键词（JSON格式）
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=get_local_time)
     
     def __repr__(self):
         return f"<SearchIndex(id={self.id}, screenshot_id={self.screenshot_id})>"
@@ -63,8 +67,8 @@ class ProcessingQueue(Base):
     status = Column(String(20), default='pending')  # pending, processing, completed, failed
     retry_count = Column(Integer, default=0)
     error_message = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=get_local_time)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
     
     def __repr__(self):
         return f"<ProcessingQueue(id={self.id}, task={self.task_type}, status={self.status})>"

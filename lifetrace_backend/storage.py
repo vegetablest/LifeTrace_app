@@ -68,11 +68,17 @@ class DatabaseManager:
         """添加截图记录"""
         try:
             with self.get_session() as session:
+                # 首先检查是否已存在相同路径的截图
+                existing_path = session.query(Screenshot).filter_by(file_path=file_path).first()
+                if existing_path:
+                    logging.debug(f"跳过重复路径截图: {file_path}")
+                    return existing_path.id
+                
                 # 检查是否已存在相同哈希的截图
-                existing = session.query(Screenshot).filter_by(file_hash=file_hash).first()
-                if existing and config.get('storage.deduplicate', True):
-                    logging.debug(f"跳过重复截图: {file_path}")
-                    return existing.id
+                existing_hash = session.query(Screenshot).filter_by(file_hash=file_hash).first()
+                if existing_hash and config.get('storage.deduplicate', True):
+                    logging.debug(f"跳过重复哈希截图: {file_path}")
+                    return existing_hash.id
                 
                 file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
                 

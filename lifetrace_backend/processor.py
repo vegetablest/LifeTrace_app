@@ -16,6 +16,7 @@ from .config import config
 from .storage import db_manager
 from .utils import get_file_hash, get_active_window_info
 from .logging_config import setup_logging
+from .consistency_checker import ConsistencyChecker
 
 # 设置日志系统
 logger_manager = setup_logging(config)
@@ -66,6 +67,11 @@ class FileProcessor:
         # 文件监听
         self.observer = Observer()
         self.event_handler = ScreenshotHandler(self)
+        
+        # 一致性检查器
+        self.consistency_checker = ConsistencyChecker(
+            check_interval=self.config.get('consistency_check.interval', 300)
+        )
         
         logging.info("文件处理器初始化完成")
     
@@ -131,8 +137,6 @@ class FileProcessor:
             )
             
             if screenshot_id:
-                # 添加OCR处理任务
-                db_manager.add_processing_task(screenshot_id, 'ocr')
                 logging.info(f"文件处理完成: {file_path} (ID: {screenshot_id})")
                 
                 # 标记为已处理
@@ -221,7 +225,10 @@ class FileProcessor:
         self.observer.schedule(self.event_handler, self.screenshots_dir, recursive=False)
         self.observer.start()
         
-        logging.info("文件处理器启动完成")
+        # 启动一致性检查器
+        self.consistency_checker.start()
+        
+        logging.info("文件处理器启动完成（包含一致性检查功能）")
         
         try:
             while self.running:
@@ -242,6 +249,9 @@ class FileProcessor:
         logging.info("正在停止文件处理器...")
         
         self.running = False
+        
+        # 停止一致性检查器
+        self.consistency_checker.stop()
         
         # 停止文件监听
         if self.observer.is_alive():
@@ -295,10 +305,7 @@ def main():
     
     args = parser.parse_args()
     
-    # 设置日志
-    log_level = "DEBUG" if args.debug else "INFO"
-    from .utils import setup_logging
-    setup_logging(os.path.join(config.base_dir, 'logs'), log_level)
+    # 日志已在模块顶部通过logging_config配置
     
     # 更新配置
     if args.workers:

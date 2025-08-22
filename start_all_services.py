@@ -16,14 +16,12 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from lifetrace_backend.config import config
-from lifetrace_backend.sync_service import sync_service_manager
 
 
 class ServiceManager:
     def __init__(self):
         self.processes = {}
         self.running = True
-        self.sync_service_started = False
     
     def start_service(self, name, module):
         """启动单个服务"""
@@ -50,15 +48,6 @@ class ServiceManager:
     def stop_all_services(self):
         """停止所有服务"""
         print(f"\n🛑 正在停止所有服务...")
-        
-        # 先停止同步服务
-        if self.sync_service_started:
-            try:
-                sync_service_manager.stop_all()
-                print(f"✅ 同步服务已停止")
-                self.sync_service_started = False
-            except Exception as e:
-                print(f"❌ 停止同步服务失败: {e}")
         
         for name, process in self.processes.items():
             if process and process.poll() is None:
@@ -201,16 +190,6 @@ def main():
         return
     
     print(f"\n✅ 成功启动 {success_count}/{len(services)} 个服务")
-    
-    # 启动同步服务
-    if success_count > 0:
-        try:
-            print(f"\n🔄 启动同步服务...")
-            sync_service_manager.start_all()
-            manager.sync_service_started = True
-            print(f"✅ 同步服务已启动")
-        except Exception as e:
-            print(f"❌ 启动同步服务失败: {e}")
     
     print(f"\n📱 Web界面: http://localhost:8840")
     print(f"💡 按 Ctrl+C 停止所有服务")

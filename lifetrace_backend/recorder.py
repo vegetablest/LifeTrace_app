@@ -205,10 +205,7 @@ def main():
     
     args = parser.parse_args()
     
-    # 设置日志级别
-    log_level = "DEBUG" if args.debug else "INFO"
-    from .utils import setup_logging
-    setup_logging(os.path.join(config.base_dir, 'logs'), log_level)
+    # 日志已在模块顶部通过logging_config配置
     
     # 更新配置
     if args.interval:

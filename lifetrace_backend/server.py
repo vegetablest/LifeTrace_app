@@ -19,6 +19,13 @@ from lifetrace_backend.vector_service import create_vector_service
 from lifetrace_backend.multimodal_vector_service import create_multimodal_vector_service
 from lifetrace_backend.logging_config import setup_logging
 
+# 导入系统资源分析模块
+import psutil
+import sys
+import json
+from pathlib import Path
+from datetime import datetime
+
 # 设置日志系统
 logger_manager = setup_logging(config)
 logger = logger_manager.get_server_logger()
@@ -104,6 +111,23 @@ class MultimodalStatsResponse(BaseModel):
     text_database: Dict[str, Any]
     image_database: Dict[str, Any]
     error: Optional[str] = None
+
+class ProcessInfo(BaseModel):
+    pid: int
+    name: str
+    cmdline: str
+    memory_mb: float
+    memory_vms_mb: float
+    cpu_percent: float
+
+class SystemResourcesResponse(BaseModel):
+    memory: Dict[str, float]
+    cpu: Dict[str, Any]
+    disk: Dict[str, Dict[str, float]]
+    lifetrace_processes: List[ProcessInfo]
+    storage: Dict[str, Any]
+    summary: Dict[str, Any]
+    timestamp: datetime
 
 
 # 创建FastAPI应用
@@ -565,6 +589,276 @@ async def reset_vector_database():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# 系统资源监控路由
+@app.get("/system-monitor", response_class=HTMLResponse)
+async def system_monitor_page(request: Request):
+    """系统资源监控页面"""
+    # 直接返回HTML内容，不使用模板
+    return HTMLResponse("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>LifeTrace 系统资源监控</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+                .container { max-width: 1200px; margin: 0 auto; }
+                .card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .header { text-align: center; color: #333; }
+                .metric { display: inline-block; margin: 10px; padding: 15px; background: #f8f9fa; border-radius: 5px; min-width: 150px; }
+                .metric-value { font-size: 24px; font-weight: bold; color: #007bff; }
+                .metric-label { font-size: 14px; color: #666; }
+                .process-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                .process-table th, .process-table td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+                .process-table th { background-color: #f8f9fa; }
+                .status-good { color: #28a745; }
+                .status-warning { color: #ffc107; }
+                .status-danger { color: #dc3545; }
+                .refresh-btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+                .refresh-btn:hover { background: #0056b3; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1 class="header">LifeTrace 系统资源监控</h1>
+                <div class="card">
+                    <button class="refresh-btn" onclick="loadSystemResources()">刷新数据</button>
+                    <div id="system-resources">加载中...</div>
+                </div>
+            </div>
+            <script>
+                async function loadSystemResources() {
+                    try {
+                        const response = await fetch('/api/system-resources');
+                        const data = await response.json();
+                        displaySystemResources(data);
+                    } catch (error) {
+                        document.getElementById('system-resources').innerHTML = '<p style="color: red;">加载失败: ' + error.message + '</p>';
+                    }
+                }
+                
+                function displaySystemResources(data) {
+                    const container = document.getElementById('system-resources');
+                    const timestamp = new Date(data.timestamp).toLocaleString('zh-CN');
+                    
+                    let html = `
+                        <p><strong>更新时间:</strong> ${timestamp}</p>
+                        
+                        <h3>系统整体资源</h3>
+                        <div>
+                            <div class="metric">
+                                <div class="metric-value">${data.memory.percent.toFixed(1)}%</div>
+                                <div class="metric-label">内存使用率</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">${data.memory.used_gb.toFixed(1)}GB</div>
+                                <div class="metric-label">已用内存</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">${data.cpu.percent.toFixed(1)}%</div>
+                                <div class="metric-label">CPU使用率</div>
+                            </div>
+                        </div>
+                        
+                        <h3>LifeTrace 进程 (${data.lifetrace_processes.length}个)</h3>
+                        <table class="process-table">
+                            <thead>
+                                <tr>
+                                    <th>PID</th>
+                                    <th>进程名</th>
+                                    <th>内存(MB)</th>
+                                    <th>CPU(%)</th>
+                                    <th>命令行</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    
+                    data.lifetrace_processes.forEach(proc => {
+                        const memoryClass = proc.memory_mb > 500 ? 'status-danger' : proc.memory_mb > 200 ? 'status-warning' : 'status-good';
+                        const cpuClass = proc.cpu_percent > 50 ? 'status-danger' : proc.cpu_percent > 20 ? 'status-warning' : 'status-good';
+                        
+                        html += `
+                            <tr>
+                                <td>${proc.pid}</td>
+                                <td>${proc.name}</td>
+                                <td class="${memoryClass}">${proc.memory_mb.toFixed(1)}</td>
+                                <td class="${cpuClass}">${proc.cpu_percent.toFixed(1)}</td>
+                                <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${proc.cmdline}</td>
+                            </tr>`;
+                    });
+                    
+                    html += `
+                            </tbody>
+                        </table>
+                        
+                        <h3>资源使用总结</h3>
+                        <div>
+                            <div class="metric">
+                                <div class="metric-value">${data.summary.total_memory_mb.toFixed(1)}MB</div>
+                                <div class="metric-label">LifeTrace总内存</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">${data.summary.total_cpu_percent.toFixed(1)}%</div>
+                                <div class="metric-label">LifeTrace总CPU</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">${data.summary.total_storage_mb.toFixed(1)}MB</div>
+                                <div class="metric-label">数据存储</div>
+                            </div>
+                        </div>
+                        
+                        <h3>磁盘使用情况</h3>
+                        <table class="process-table">
+                            <thead>
+                                <tr>
+                                    <th>磁盘</th>
+                                    <th>总容量(GB)</th>
+                                    <th>已用(GB)</th>
+                                    <th>可用(GB)</th>
+                                    <th>使用率</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    
+                    Object.entries(data.disk).forEach(([device, usage]) => {
+                        const percentClass = usage.percent > 90 ? 'status-danger' : usage.percent > 70 ? 'status-warning' : 'status-good';
+                        html += `
+                            <tr>
+                                <td>${device}</td>
+                                <td>${usage.total_gb.toFixed(1)}</td>
+                                <td>${usage.used_gb.toFixed(1)}</td>
+                                <td>${usage.free_gb.toFixed(1)}</td>
+                                <td class="${percentClass}">${usage.percent.toFixed(1)}%</td>
+                            </tr>`;
+                    });
+                    
+                    html += `
+                            </tbody>
+                        </table>`;
+                    
+                    container.innerHTML = html;
+                }
+                
+                // 页面加载时自动刷新数据
+                loadSystemResources();
+                
+                // 每30秒自动刷新
+                setInterval(loadSystemResources, 30000);
+            </script>
+        </body>
+        </html>
+        """)
+
+
+@app.get("/api/system-resources", response_model=SystemResourcesResponse)
+async def get_system_resources():
+    """获取系统资源使用情况"""
+    try:
+        # 获取LifeTrace相关进程
+        lifetrace_processes = []
+        total_memory = 0
+        total_cpu = 0
+        
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'memory_info']):
+            try:
+                cmdline = ' '.join(proc.info['cmdline']) if proc.info['cmdline'] else ''
+                
+                if any(keyword in cmdline.lower() for keyword in [
+                    'lifetrace', 'recorder.py', 'processor.py', 'server.py', 
+                    'start_all_services.py', 'start_ocr_service.py'
+                ]):
+                    # 使用非阻塞的CPU百分比获取，避免卡死
+                    try:
+                        cpu_percent = proc.cpu_percent(interval=None)  # 非阻塞调用
+                    except:
+                        cpu_percent = 0.0
+                    memory_mb = proc.info['memory_info'].rss / 1024 / 1024
+                    memory_vms_mb = proc.info['memory_info'].vms / 1024 / 1024
+                    
+                    process_info = ProcessInfo(
+                        pid=proc.info['pid'],
+                        name=proc.info['name'],
+                        cmdline=cmdline,
+                        memory_mb=memory_mb,
+                        memory_vms_mb=memory_vms_mb,
+                        cpu_percent=cpu_percent
+                    )
+                    lifetrace_processes.append(process_info)
+                    total_memory += memory_mb
+                    total_cpu += cpu_percent
+                    
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        # 获取系统资源信息
+        memory = psutil.virtual_memory()
+        # 使用非阻塞的CPU百分比获取，避免卡死
+        cpu_percent = psutil.cpu_percent(interval=None)  # 非阻塞调用
+        cpu_count = psutil.cpu_count()
+        
+        # 获取磁盘信息
+        disk_usage = {}
+        for partition in psutil.disk_partitions():
+            try:
+                usage = psutil.disk_usage(partition.mountpoint)
+                disk_usage[partition.device] = {
+                    'total_gb': usage.total / 1024**3,
+                    'used_gb': usage.used / 1024**3,
+                    'free_gb': usage.free / 1024**3,
+                    'percent': (usage.used / usage.total) * 100
+                }
+            except PermissionError:
+                continue
+        
+        # 获取数据库和截图存储信息
+        db_path = Path.home() / '.lifetrace' / 'lifetrace.db'
+        db_size_mb = db_path.stat().st_size / 1024 / 1024 if db_path.exists() else 0
+        
+        screenshots_path = Path.home() / '.lifetrace' / 'screenshots'
+        screenshots_size_mb = 0
+        screenshots_count = 0
+        if screenshots_path.exists():
+            for file_path in screenshots_path.glob('*.png'):
+                if file_path.is_file():
+                    screenshots_size_mb += file_path.stat().st_size / 1024 / 1024
+                    screenshots_count += 1
+        
+        total_storage_mb = db_size_mb + screenshots_size_mb
+        
+        return SystemResourcesResponse(
+            memory={
+                'total_gb': memory.total / 1024**3,
+                'available_gb': memory.available / 1024**3,
+                'used_gb': (memory.total - memory.available) / 1024**3,
+                'percent': memory.percent
+            },
+            cpu={
+                'percent': cpu_percent,
+                'count': cpu_count
+            },
+            disk=disk_usage,
+            lifetrace_processes=lifetrace_processes,
+            storage={
+                'database_mb': db_size_mb,
+                'screenshots_mb': screenshots_size_mb,
+                'screenshots_count': screenshots_count,
+                'total_mb': total_storage_mb
+            },
+            summary={
+                'total_memory_mb': total_memory,
+                'total_cpu_percent': total_cpu,
+                'process_count': len(lifetrace_processes),
+                'total_storage_mb': total_storage_mb
+            },
+            timestamp=datetime.now()
+        )
+        
+    except Exception as e:
+        logging.error(f"获取系统资源信息失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # 日志查看路由
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request):
@@ -647,10 +941,7 @@ def main():
     
     args = parser.parse_args()
     
-    # 设置日志
-    log_level = "DEBUG" if args.debug else "INFO"
-    from .utils import setup_logging
-    setup_logging(os.path.join(config.base_dir, 'logs'), log_level)
+    # 日志已在模块顶部通过logging_config配置
     
     # 使用配置中的服务器设置，但命令行参数优先
     host = args.host or config.get('server.host', '127.0.0.1')

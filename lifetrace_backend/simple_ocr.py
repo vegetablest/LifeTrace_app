@@ -39,7 +39,8 @@ class SimpleOCRProcessor:
     def start(self):
         """启动OCR处理服务"""
         self.is_running = True
-        main()
+        # 注意：这里不应该调用main()，因为main()会启动独立的服务进程
+        # 如果需要在server中使用OCR功能，应该直接调用process_image方法
         
     def stop(self):
         """停止OCR处理服务"""
@@ -236,8 +237,85 @@ def setup_logging():
     )
 
 
+def get_unprocessed_screenshots():
+    """从数据库获取未处理OCR的截图记录"""
+    try:
+        from .models import Screenshot, OCRResult
+        with db_manager.get_session() as session:
+            # 查询没有OCR结果的截图记录
+            unprocessed = session.query(Screenshot).outerjoin(
+                OCRResult, Screenshot.id == OCRResult.screenshot_id
+            ).filter(OCRResult.id.is_(None)).all()
+            
+            return [{
+                'id': screenshot.id,
+                'file_path': screenshot.file_path,
+                'created_at': screenshot.created_at
+            } for screenshot in unprocessed]
+    except Exception as e:
+        logging.error(f"查询未处理截图失败: {e}")
+        return []
+
+
+def process_screenshot_ocr(screenshot_info, ocr_engine, vector_service):
+    """处理单个截图的OCR"""
+    screenshot_id = screenshot_info['id']
+    file_path = screenshot_info['file_path']
+    
+    try:
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            logging.warning(f"截图文件不存在，跳过处理: {file_path}")
+            return False
+        
+        print(f"开始处理截图 ID {screenshot_id}: {os.path.basename(file_path)}")
+        
+        # 记录开始时间
+        start_time = time.time()
+        
+        # 图像预处理优化
+        with Image.open(file_path) as img:
+            img = img.convert("RGB")
+            # 缩放图像以提高处理速度
+            img.thumbnail((1920, 1080), Image.Resampling.LANCZOS)
+            img_array = np.array(img)
+        
+        # 使用RapidOCR进行识别
+        result, _ = ocr_engine(img_array)
+        
+        # 计算推理时间
+        elapsed_time = time.time() - start_time
+        
+        # 提取RapidOCR识别结果
+        ocr_text = ""
+        if result:
+            for item in result:
+                if len(item) >= 3:
+                    text = item[1]  # 文本内容
+                    confidence = float(item[2])  # 置信度
+                    if text and text.strip() and confidence > 0.5:  # 过滤低置信度结果
+                        ocr_text += text.strip() + "\n"
+        
+        # 保存到数据库
+        ocr_result = {
+            'text_content': ocr_text,
+            'confidence': 0.8,  # 简化版使用固定置信度
+            'language': 'ch',
+            'processing_time': elapsed_time
+        }
+        save_to_database(file_path, ocr_result, vector_service)
+        
+        print(f'OCR处理完成 ID {screenshot_id}, 用时: {elapsed_time:.2f}秒')
+        return True
+        
+    except Exception as e:
+        logging.error(f"处理截图 {screenshot_id} 失败: {e}")
+        print(f"处理截图 {screenshot_id} 失败: {e}")
+        return False
+
+
 def main():
-    """主函数"""
+    """主函数 - 基于数据库驱动的OCR处理"""
     print("LifeTrace 简化OCR处理器启动...")
     
     # 设置日志
@@ -265,110 +343,39 @@ def main():
     else:
         print("向量数据库服务未启用或不可用")
     
-    # 设置监控文件夹
-    screenshot_dir = config.screenshots_dir
-    print(f"监控目录: {screenshot_dir}")
+    # 获取检查间隔配置
+    check_interval = config.get('ocr.check_interval', 5)  # 默认5秒检查一次
+    print(f"数据库检查间隔: {check_interval}秒")
     
-    # 确保目录存在
-    os.makedirs(screenshot_dir, exist_ok=True)
-    
-    # 已处理文件记录
-    processed_files = set()
-    
-    print("开始监控截图文件...")
+    print("开始基于数据库的OCR处理...")
     print("按 Ctrl+C 停止服务")
     
     try:
         while True:
             try:
-                # 获取文件夹下所有文件
-                if not os.path.exists(screenshot_dir):
-                    time.sleep(1)
-                    continue
+                # 从数据库获取未处理的截图
+                unprocessed_screenshots = get_unprocessed_screenshots()
                 
-                files = os.listdir(screenshot_dir)
-                
-                # 只处理图片文件
-                image_files = [f for f in files if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-                
-                if image_files:
-                    # 找到最新的文件
-                    latest_file = max(image_files, key=lambda f: os.path.getmtime(os.path.join(screenshot_dir, f)))
-                    latest_file_path = os.path.join(screenshot_dir, latest_file)
+                if unprocessed_screenshots:
+                    print(f"发现 {len(unprocessed_screenshots)} 个未处理的截图")
                     
-                    # 检查是否已处理过
-                    if latest_file_path in processed_files:
-                        time.sleep(0.5)
-                        continue
+                    # 按创建时间排序，优先处理最新的
+                    unprocessed_screenshots.sort(key=lambda x: x['created_at'], reverse=True)
                     
-                    # 检查是否已有对应的txt文件
-                    txt_file = 'ocr_' + os.path.splitext(latest_file)[0] + '.txt'
-                    txt_file_path = os.path.join(screenshot_dir, txt_file)
-                    
-                    if txt_file in files:
-                        # 已有OCR结果，标记为已处理
-                        processed_files.add(latest_file_path)
-                        continue
-                    
-                    # 进行OCR处理
-                    if os.path.isfile(latest_file_path):
-                        print(f"开始处理新截图: {latest_file}")
-                        
-                        # 记录开始时间
-                        start_time = time.time()
-                        
-                        # 图像预处理优化（提高处理速度）
-                        with Image.open(latest_file_path) as img:
-                            img = img.convert("RGB")
-                            # 缩放图像以提高处理速度
-                            img.thumbnail((1920, 1080), Image.Resampling.LANCZOS)
-                            img_array = np.array(img)
-                        
-                        # 使用RapidOCR进行识别
-                        result, _ = ocr(img_array)
-                        
-                        # 计算推理时间
-                        elapsed_time = time.time() - start_time
-                        
-                        # 提取RapidOCR识别结果
-                        ocr_text = ""
-                        if result:
-                            for item in result:
-                                if len(item) >= 3:
-                                    text = item[1]  # 文本内容
-                                    confidence = float(item[2])  # 置信度
-                                    if text and text.strip() and confidence > 0.5:  # 过滤低置信度结果
-                                        ocr_text += text.strip() + "\n"
-                        
-                        # 保存结果到txt文件
-                        with open(txt_file_path, 'w', encoding='utf-8') as f:
-                            f.write(ocr_text)
-                        
-                        # 保存到数据库
-                        ocr_result = {
-                            'text_content': ocr_text,
-                            'confidence': 0.8,  # 简化版使用固定置信度
-                            'language': 'ch',
-                            'processing_time': elapsed_time
-                        }
-                        save_to_database(latest_file_path, ocr_result, vector_service)
-                        
-                        # 标记为已处理
-                        processed_files.add(latest_file_path)
-                        
-                        print(f'OCR处理完成: {txt_file}, 用时: {elapsed_time:.2f}秒')
-                        
-                        # 清理已处理文件记录（防止内存泄漏）
-                        if len(processed_files) > 1000:
-                            processed_files.clear()
-                            print("清理已处理文件记录")
+                    # 处理每个未处理的截图
+                    for screenshot_info in unprocessed_screenshots:
+                        success = process_screenshot_ocr(screenshot_info, ocr, vector_service)
+                        if success:
+                            # 处理成功后稍作停顿，避免过度占用资源
+                            time.sleep(0.1)
+                else:
+                    # 没有未处理的截图，等待一段时间再检查
+                    time.sleep(check_interval)
                 
             except Exception as e:
-                print(f'处理文件时出错: {str(e)}')
-                logging.error(f'处理文件时出错: {str(e)}')
-            
-            # 每隔0.5秒检查一次
-            time.sleep(0.5)
+                print(f'处理过程中出错: {str(e)}')
+                logging.error(f'处理过程中出错: {str(e)}')
+                time.sleep(check_interval)
             
     except KeyboardInterrupt:
         print("\n收到停止信号，正在退出...")
