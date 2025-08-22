@@ -15,8 +15,8 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from lifetrace.config import config
-from lifetrace.sync_service import sync_service_manager
+from lifetrace_backend.config import config
+from lifetrace_backend.sync_service import sync_service_manager
 
 
 class ServiceManager:
@@ -184,10 +184,10 @@ def main():
     
     # 启动服务
     services = [
-        ("录制器", "lifetrace.recorder"),
-        ("处理器", "lifetrace.processor"),
-        ("OCR服务", "lifetrace.simple_ocr"),
-        ("Web服务", "lifetrace.server")
+        ("录制器", "lifetrace_backend.recorder"),
+        ("处理器", "lifetrace_backend.processor"),
+        ("OCR服务", "lifetrace_backend.simple_ocr"),
+        ("Web服务", "lifetrace_backend.server")
     ]
     
     success_count = 0

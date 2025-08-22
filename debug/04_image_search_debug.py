@@ -1,41 +1,39 @@
 import requests
 import json
-from lifetrace.config import config
-from lifetrace.storage import db_manager
-from lifetrace.multimodal_vector_service import create_multimodal_vector_service
-from lifetrace.multimodal_embedding import get_multimodal_embedding
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.multimodal_vector_service import create_multimodal_vector_service
+from lifetrace_backend.multimodal_embedding import get_multimodal_embedding
 import numpy as np
 
 def test_direct_image_search():
     """直接测试图像向量搜索"""
     print("🔍 直接测试图像向量搜索...")
     
-    # 创建多模态向量服务
-    service = create_multimodal_vector_service(config, db_manager)
+    # 创建多模态向量服�?    service = create_multimodal_vector_service(config, db_manager)
     if not service.is_enabled():
-        print("❌ 多模态向量服务不可用")
+        print("�?多模态向量服务不可用")
         return
     
-    print("✅ 多模态向量服务可用")
+    print("�?多模态向量服务可�?)
     
     # 获取多模态嵌入器
     multimodal_embedding = get_multimodal_embedding()
     if not multimodal_embedding.is_available():
-        print("❌ 多模态嵌入器不可用")
+        print("�?多模态嵌入器不可�?)
         return
     
-    print("✅ 多模态嵌入器可用")
+    print("�?多模态嵌入器可用")
     
-    # 检查图像向量数据库状态
-    if service.image_vector_db is None:
-        print("❌ 图像向量数据库未初始化")
+    # 检查图像向量数据库状�?    if service.image_vector_db is None:
+        print("�?图像向量数据库未初始�?)
         return
     
     image_count = service.image_vector_db.collection.count()
     print(f"📊 图像向量数据库文档数: {image_count}")
     
     if image_count == 0:
-        print("❌ 图像向量数据库为空")
+        print("�?图像向量数据库为�?)
         return
     
     # 生成查询嵌入
@@ -44,13 +42,12 @@ def test_direct_image_search():
     
     query_embedding = multimodal_embedding.encode_text(query)
     if query_embedding is None:
-        print("❌ 无法生成查询嵌入")
+        print("�?无法生成查询嵌入")
         return
     
-    print(f"✅ 查询嵌入生成成功，维度: {query_embedding.shape}")
+    print(f"�?查询嵌入生成成功，维�? {query_embedding.shape}")
     
-    # 直接搜索图像向量数据库
-    print("\n🔍 直接搜索图像向量数据库...")
+    # 直接搜索图像向量数据�?    print("\n🔍 直接搜索图像向量数据�?..")
     try:
         collection = service.image_vector_db.collection
         
@@ -61,7 +58,7 @@ def test_direct_image_search():
             include=['documents', 'metadatas', 'distances']
         )
         
-        print(f"✅ 搜索完成，找到 {len(results['ids'][0])} 个结果")
+        print(f"�?搜索完成，找�?{len(results['ids'][0])} 个结�?)
         
         # 详细分析每个结果
         for i in range(len(results['ids'][0])):
@@ -78,17 +75,17 @@ def test_direct_image_search():
             
             if distance is not None:
                 similarity = 1.0 / (1.0 + distance)
-                print(f"    相似度: {similarity}")
+                print(f"    相似�? {similarity}")
             else:
-                print(f"    相似度: 无法计算 (距离为None)")
+                print(f"    相似�? 无法计算 (距离为None)")
             
-            print(f"    元数据: {metadata}")
+            print(f"    元数�? {metadata}")
             
             ocr_id = metadata.get('ocr_result_id')
             print(f"    OCR ID: {ocr_id} (类型: {type(ocr_id)})")
     
     except Exception as e:
-        print(f"❌ 图像向量搜索失败: {e}")
+        print(f"�?图像向量搜索失败: {e}")
         import traceback
         traceback.print_exc()
     
@@ -101,7 +98,7 @@ def test_direct_image_search():
             None
         )
         
-        print(f"✅ 服务方法搜索完成，找到 {len(image_results)} 个结果")
+        print(f"�?服务方法搜索完成，找�?{len(image_results)} 个结�?)
         
         for i, result in enumerate(image_results):
             print(f"\n  结果 {i+1}:")
@@ -113,18 +110,18 @@ def test_direct_image_search():
             distance = result.get('distance')
             if distance is not None:
                 similarity = 1.0 / (1.0 + distance)
-                print(f"    相似度: {similarity}")
+                print(f"    相似�? {similarity}")
             else:
-                print(f"    相似度: 无法计算 (距离为None)")
+                print(f"    相似�? 无法计算 (距离为None)")
             
             metadata = result.get('metadata', {})
-            print(f"    元数据: {metadata}")
+            print(f"    元数�? {metadata}")
             
             ocr_id = metadata.get('ocr_result_id')
             print(f"    OCR ID: {ocr_id} (类型: {type(ocr_id)})")
     
     except Exception as e:
-        print(f"❌ 服务方法搜索失败: {e}")
+        print(f"�?服务方法搜索失败: {e}")
         import traceback
         traceback.print_exc()
 

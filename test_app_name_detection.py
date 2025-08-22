@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-测试应用名称检测功能
-"""
+测试应用名称检测功�?"""
 
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from lifetrace.simple_ocr import SimpleOCRProcessor
+from lifetrace_backend.simple_ocr import SimpleOCRProcessor
 
 def test_app_name_detection():
-    """测试应用名称检测功能"""
-    print("🧪 测试应用名称检测功能")
+    """测试应用名称检测功�?""
+    print("🧪 测试应用名称检测功�?)
     print("=" * 50)
     
-    # 创建OCR处理器实例
-    ocr_processor = SimpleOCRProcessor()
+    # 创建OCR处理器实�?    ocr_processor = SimpleOCRProcessor()
     
     # 测试用例：不同的文件路径和文件名
     test_cases = [
@@ -25,13 +23,11 @@ def test_app_name_detection():
         ("D:\\Screenshots\\ShareX_screenshot_001.png", "ShareX_screenshot_001.png"),
         ("E:\\Images\\lightshot_capture.png", "lightshot_capture.png"),
         
-        # 浏览器
-        ("C:\\Users\\User\\Downloads\\chrome_page_screenshot.png", "chrome_page_screenshot.png"),
+        # 浏览�?        ("C:\\Users\\User\\Downloads\\chrome_page_screenshot.png", "chrome_page_screenshot.png"),
         ("D:\\Temp\\firefox_capture.png", "firefox_capture.png"),
         ("E:\\Browser\\edge_screenshot.png", "edge_screenshot.png"),
         
-        # 开发工具
-        ("C:\\Projects\\vscode_debug_screenshot.png", "vscode_debug_screenshot.png"),
+        # 开发工�?        ("C:\\Projects\\vscode_debug_screenshot.png", "vscode_debug_screenshot.png"),
         ("D:\\Code\\pycharm_interface.png", "pycharm_interface.png"),
         ("E:\\Dev\\sublime_text_capture.png", "sublime_text_capture.png"),
         
@@ -60,8 +56,7 @@ def test_app_name_detection():
         ("D:\\Captures\\capture_main_window.png", "capture_main_window.png"),
         ("E:\\Images\\screen_shot_001.png", "screen_shot_001.png"),
         
-        # 路径中包含应用名称
-        ("C:\\Program Files\\Google\\Chrome\\screenshot.png", "screenshot.png"),
+        # 路径中包含应用名�?        ("C:\\Program Files\\Google\\Chrome\\screenshot.png", "screenshot.png"),
         ("D:\\Applications\\Visual Studio Code\\debug_capture.png", "debug_capture.png"),
         ("E:\\Software\\Adobe\\Photoshop\\workspace.png", "workspace.png"),
         
@@ -70,7 +65,7 @@ def test_app_name_detection():
         ("D:\\Temp\\unknown_screenshot.png", "unknown_screenshot.png"),
     ]
     
-    print(f"📋 测试 {len(test_cases)} 个用例:\n")
+    print(f"📋 测试 {len(test_cases)} 个用�?\n")
     
     success_count = 0
     total_count = len(test_cases)
@@ -78,42 +73,40 @@ def test_app_name_detection():
     for i, (file_path, filename) in enumerate(test_cases, 1):
         detected_app = ocr_processor._detect_app_name_from_path(file_path, filename)
         
-        # 判断检测是否合理
-        is_reasonable = detected_app != "外部工具" or "unknown" in filename.lower() or "random" in filename.lower()
+        # 判断检测是否合�?        is_reasonable = detected_app != "外部工具" or "unknown" in filename.lower() or "random" in filename.lower()
         
-        status = "✅" if is_reasonable else "❌"
+        status = "�? if is_reasonable else "�?
         if is_reasonable:
             success_count += 1
         
         print(f"{i:2d}. {status} 文件: {filename}")
         print(f"    路径: {file_path}")
-        print(f"    检测结果: {detected_app}")
+        print(f"    检测结�? {detected_app}")
         print()
     
     # 统计结果
     success_rate = (success_count / total_count) * 100
     print("=" * 50)
     print(f"📊 测试结果统计:")
-    print(f"   总测试用例: {total_count}")
-    print(f"   成功检测: {success_count}")
-    print(f"   成功率: {success_rate:.1f}%")
+    print(f"   总测试用�? {total_count}")
+    print(f"   成功检�? {success_count}")
+    print(f"   成功�? {success_rate:.1f}%")
     
     if success_rate >= 80:
         print("🎉 应用名称检测功能工作良好！")
     elif success_rate >= 60:
-        print("⚠️  应用名称检测功能基本可用，但还有改进空间。")
+        print("⚠️  应用名称检测功能基本可用，但还有改进空间�?)
     else:
-        print("❌ 应用名称检测功能需要进一步优化。")
+        print("�?应用名称检测功能需要进一步优化�?)
 
 def test_specific_patterns():
-    """测试特定的应用名称模式"""
+    """测试特定的应用名称模�?""
     print("\n🔍 测试特定应用名称模式")
     print("=" * 50)
     
     ocr_processor = SimpleOCRProcessor()
     
-    # 测试常见的截图工具模式
-    patterns = {
+    # 测试常见的截图工具模�?    patterns = {
         "Snipaste_2024-01-15_14-30-25.png": "Snipaste",
         "Screenshot_20240115_143025.png": "系统截图工具",
         "screen_shot_001.png": "截图工具",
@@ -127,11 +120,11 @@ def test_specific_patterns():
     
     for filename, expected in patterns.items():
         detected = ocr_processor._detect_app_name_from_path(f"C:\\Test\\{filename}", filename)
-        status = "✅" if detected == expected else "❌"
+        status = "�? if detected == expected else "�?
         
         print(f"{status} {filename}")
         print(f"    期望: {expected}")
-        print(f"    检测: {detected}")
+        print(f"    检�? {detected}")
         print()
 
 if __name__ == "__main__":
@@ -139,11 +132,11 @@ if __name__ == "__main__":
         test_app_name_detection()
         test_specific_patterns()
         
-        print("\n🎯 测试完成！")
-        print("\n💡 提示: 如果检测效果不理想，可以在 _detect_app_name_from_path 方法中")
-        print("   添加更多的应用名称模式或调整检测逻辑。")
+        print("\n🎯 测试完成�?)
+        print("\n💡 提示: 如果检测效果不理想，可以在 _detect_app_name_from_path 方法�?)
+        print("   添加更多的应用名称模式或调整检测逻辑�?)
         
     except Exception as e:
-        print(f"❌ 测试过程中出现错误: {e}")
+        print(f"�?测试过程中出现错�? {e}")
         import traceback
         traceback.print_exc()

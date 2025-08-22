@@ -68,3 +68,38 @@ multimodal:
   batch_size: 16  # 批处理大小
   auto_sync: true  # 自动同步多模态向量
   sync_interval: 300  # 同步间隔（秒）
+
+# 同步服务配置
+sync_service:
+  enable_file_monitor: true  # 启用文件监控
+  enable_consistency_check: true  # 启用一致性检查
+  consistency_check_interval: 300  # 一致性检查间隔（秒）
+  vector_sync_interval: 600  # 向量同步间隔（秒）
+  file_monitor_delay: 2.0  # 文件监控延迟（秒）
+  cleanup_orphaned_files: true  # 清理孤立文件
+  log_level: 'INFO'  # 同步服务日志级别
+
+# 日志配置
+logging:
+  # 全局日志设置
+  global_log_level: 'INFO'  # 全局日志级别
+  enable_file_logging: true  # 启用文件日志
+  enable_console_logging: true  # 启用控制台日志
+  log_rotation_max_bytes: 10485760  # 日志文件最大大小（10MB）
+  log_rotation_backup_count: 5  # 备份文件数量
+  log_cleanup_days: 30  # 日志清理天数
+  
+  # 各模块日志级别
+  main_log_level: 'INFO'  # 主程序日志级别
+  server_log_level: 'INFO'  # 服务器日志级别
+  recorder_log_level: 'INFO'  # 录制器日志级别
+  processor_log_level: 'INFO'  # 处理器日志级别
+  ocr_log_level: 'INFO'  # OCR日志级别
+  vector_log_level: 'INFO'  # 向量数据库日志级别
+  sync_log_level: 'INFO'  # 同步服务日志级别
+  consistency_log_level: 'INFO'  # 一致性检查日志级别
+  file_monitor_log_level: 'INFO'  # 文件监控日志级别
+  
+  # 调试模式设置
+  debug_mode: false  # 调试模式
+  debug_modules: []  # 调试模块列表

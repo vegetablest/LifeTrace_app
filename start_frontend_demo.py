@@ -33,7 +33,7 @@ def start_backend():
     try:
         process = subprocess.Popen([
             str(venv_python),
-            "-m", "lifetrace.server",
+            "-m", "lifetrace_backend.server",
             "--port", "8840"
         ], 
         stdout=subprocess.PIPE,

@@ -14,7 +14,7 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from lifetrace.config import config
+from lifetrace_backend.config import config
 
 
 def setup_logging():
@@ -26,42 +26,42 @@ def setup_logging():
 
 
 def test_server_running(base_url="http://localhost:8840"):
-    """测试服务器是否运行"""
+    """测试服务器是否运�?""
     try:
         response = requests.get(f"{base_url}/health", timeout=5)
         if response.status_code == 200:
-            print("✅ LifeTrace 服务器正在运行")
+            print("�?LifeTrace 服务器正在运�?)
             return True
         else:
-            print(f"❌ 服务器响应异常: {response.status_code}")
+            print(f"�?服务器响应异�? {response.status_code}")
             return False
     except requests.exceptions.RequestException as e:
-        print(f"❌ 无法连接到服务器: {e}")
+        print(f"�?无法连接到服务器: {e}")
         return False
 
 
 def test_vector_database_status(base_url="http://localhost:8840"):
-    """测试向量数据库状态"""
+    """测试向量数据库状�?""
     try:
         response = requests.get(f"{base_url}/api/vector-stats", timeout=10)
         if response.status_code == 200:
             stats = response.json()
-            print(f"✅ 向量数据库状态: {stats}")
+            print(f"�?向量数据库状�? {stats}")
             
             if stats.get('enabled'):
-                print(f"  - 状态: 已启用")
+                print(f"  - 状�? 已启�?)
                 print(f"  - 文档数量: {stats.get('document_count', 0)}")
                 print(f"  - 集合名称: {stats.get('collection_name', 'N/A')}")
                 return True
             else:
-                print(f"  - 状态: 未启用")
-                print(f"  - 错误: {stats.get('error', '无')}")
+                print(f"  - 状�? 未启�?)
+                print(f"  - 错误: {stats.get('error', '�?)}")
                 return False
         else:
-            print(f"❌ 向量数据库状态获取失败: {response.status_code}")
+            print(f"�?向量数据库状态获取失�? {response.status_code}")
             return False
     except requests.exceptions.RequestException as e:
-        print(f"❌ 向量数据库状态请求失败: {e}")
+        print(f"�?向量数据库状态请求失�? {e}")
         return False
 
 
@@ -70,7 +70,7 @@ def test_semantic_search_api(base_url="http://localhost:8840"):
     test_queries = [
         "代码编程",
         "文件管理",
-        "浏览器",
+        "浏览�?,
         "设置配置"
     ]
     
@@ -95,10 +95,9 @@ def test_semantic_search_api(base_url="http://localhost:8840"):
             
             if response.status_code == 200:
                 results = response.json()
-                print(f"  ✅ 找到 {len(results)} 个结果")
+                print(f"  �?找到 {len(results)} 个结�?)
                 
-                for i, result in enumerate(results[:3]):  # 只显示前3个
-                    score = result.get('score', 0)
+                for i, result in enumerate(results[:3]):  # 只显示前3�?                    score = result.get('score', 0)
                     text = result.get('text', '')[:50]
                     metadata = result.get('metadata', {})
                     app_name = metadata.get('application', 'Unknown')
@@ -106,14 +105,14 @@ def test_semantic_search_api(base_url="http://localhost:8840"):
                     print(f"    {i+1}. [{app_name}] 分数: {score:.3f} - {text}...")
                     
             elif response.status_code == 503:
-                print(f"  ❌ 向量数据库服务不可用")
+                print(f"  �?向量数据库服务不可用")
                 return False
             else:
-                print(f"  ❌ 搜索失败: {response.status_code} - {response.text}")
+                print(f"  �?搜索失败: {response.status_code} - {response.text}")
                 return False
                 
         except requests.exceptions.RequestException as e:
-            print(f"  ❌ 搜索请求失败: {e}")
+            print(f"  �?搜索请求失败: {e}")
             return False
     
     return True
@@ -137,20 +136,20 @@ def test_traditional_search_api(base_url="http://localhost:8840"):
         
         if response.status_code == 200:
             results = response.json()
-            print(f"  ✅ 传统搜索找到 {len(results)} 个结果")
+            print(f"  �?传统搜索找到 {len(results)} 个结�?)
             return True
         else:
-            print(f"  ❌ 传统搜索失败: {response.status_code}")
+            print(f"  �?传统搜索失败: {response.status_code}")
             return False
             
     except requests.exceptions.RequestException as e:
-        print(f"  ❌ 传统搜索请求失败: {e}")
+        print(f"  �?传统搜索请求失败: {e}")
         return False
 
 
 def test_vector_sync(base_url="http://localhost:8840"):
-    """测试向量数据库同步"""
-    print("\n🔄 测试向量数据库同步...")
+    """测试向量数据库同�?""
+    print("\n🔄 测试向量数据库同�?..")
     
     try:
         response = requests.post(
@@ -162,14 +161,14 @@ def test_vector_sync(base_url="http://localhost:8840"):
         if response.status_code == 200:
             result = response.json()
             synced_count = result.get('synced_count', 0)
-            print(f"  ✅ 同步成功，处理了 {synced_count} 条记录")
+            print(f"  �?同步成功，处理了 {synced_count} 条记�?)
             return True
         else:
-            print(f"  ❌ 同步失败: {response.status_code} - {response.text}")
+            print(f"  �?同步失败: {response.status_code} - {response.text}")
             return False
             
     except requests.exceptions.RequestException as e:
-        print(f"  ❌ 同步请求失败: {e}")
+        print(f"  �?同步请求失败: {e}")
         return False
 
 
@@ -182,36 +181,35 @@ def test_web_interface(base_url="http://localhost:8840"):
         if response.status_code == 200:
             html_content = response.text
             
-            # 检查关键元素
-            checks = [
+            # 检查关键元�?            checks = [
                 ("搜索类型切换", "search-type-btn" in html_content),
                 ("语义搜索选项", "semantic-options" in html_content),
-                ("向量数据库状态", "vector-status" in html_content),
+                ("向量数据库状�?, "vector-status" in html_content),
                 ("分数显示", "score-badge" in html_content),
                 ("语义搜索函数", "performSemanticSearch" in html_content),
-                ("向量状态加载", "loadVectorStatus" in html_content)
+                ("向量状态加�?, "loadVectorStatus" in html_content)
             ]
             
             print("  检查Web界面组件:")
             all_passed = True
             for check_name, passed in checks:
-                status = "✅" if passed else "❌"
+                status = "�? if passed else "�?
                 print(f"    {status} {check_name}")
                 if not passed:
                     all_passed = False
             
             return all_passed
         else:
-            print(f"  ❌ Web界面访问失败: {response.status_code}")
+            print(f"  �?Web界面访问失败: {response.status_code}")
             return False
             
     except requests.exceptions.RequestException as e:
-        print(f"  ❌ Web界面请求失败: {e}")
+        print(f"  �?Web界面请求失败: {e}")
         return False
 
 
 def main():
-    """主测试函数"""
+    """主测试函�?""
     print("🚀 LifeTrace 语义搜索修复效果测试")
     print("=" * 50)
     
@@ -221,11 +219,11 @@ def main():
     
     # 测试序列
     tests = [
-        ("服务器连接", test_server_running),
-        ("向量数据库状态", test_vector_database_status),
+        ("服务器连�?, test_server_running),
+        ("向量数据库状�?, test_vector_database_status),
         ("Web界面组件", test_web_interface),
         ("传统搜索API", test_traditional_search_api),
-        ("向量数据库同步", test_vector_sync),
+        ("向量数据库同�?, test_vector_sync),
         ("语义搜索API", test_semantic_search_api),
     ]
     
@@ -238,12 +236,12 @@ def main():
             results.append((test_name, result))
             
             if result:
-                print(f"✅ {test_name} - 通过")
+                print(f"�?{test_name} - 通过")
             else:
-                print(f"❌ {test_name} - 失败")
+                print(f"�?{test_name} - 失败")
                 
         except Exception as e:
-            print(f"❌ {test_name} - 异常: {e}")
+            print(f"�?{test_name} - 异常: {e}")
             results.append((test_name, False))
     
     # 总结
@@ -254,7 +252,7 @@ def main():
     total = len(results)
     
     for test_name, result in results:
-        status = "✅ 通过" if result else "❌ 失败"
+        status = "�?通过" if result else "�?失败"
         print(f"  {test_name}: {status}")
     
     print(f"\n总体结果: {passed}/{total} 个测试通过")
@@ -262,16 +260,16 @@ def main():
     if passed == total:
         print("🎉 所有测试通过！语义搜索功能修复成功！")
         print("\n📋 使用指南:")
-        print("1. 打开浏览器访问: http://localhost:8840")
+        print("1. 打开浏览器访�? http://localhost:8840")
         print("2. 点击页面上的 '语义搜索' 按钮")
-        print("3. 输入搜索关键词，例如: '代码', '文件', '浏览器'")
+        print("3. 输入搜索关键词，例如: '代码', '文件', '浏览�?")
         print("4. 查看带有相关性分数的搜索结果")
-        print("5. 语义搜索结果会显示 'AI' 标记和相关度分数")
+        print("5. 语义搜索结果会显�?'AI' 标记和相关度分数")
     else:
-        print("⚠️  部分测试失败，请检查:")
+        print("⚠️  部分测试失败，请检�?")
         print("1. 确保LifeTrace服务正在运行: lifetrace start")
         print("2. 确保向量数据库依赖已安装: pip install -r requirements_vector.txt")
-        print("3. 确保数据库已初始化: lifetrace init")
+        print("3. 确保数据库已初始�? lifetrace init")
         print("4. 检查配置文件中 vector_db.enabled = true")
 
 

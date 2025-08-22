@@ -3,8 +3,7 @@
 """
 自动同步功能测试脚本
 
-测试文件监控和一致性检查功能，验证数据库与文件系统的同步机制。
-"""
+测试文件监控和一致性检查功能，验证数据库与文件系统的同步机制�?"""
 
 import os
 import sys
@@ -19,11 +18,11 @@ import logging
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from lifetrace.config import config
-from lifetrace.database import get_db_connection
-from lifetrace.sync_service import sync_service_manager
-from lifetrace.file_monitor import FileMonitorService
-from lifetrace.consistency_checker import ConsistencyChecker
+from lifetrace_backend.config import config
+from lifetrace_backend.database import get_db_connection
+from lifetrace_backend.sync_service import sync_service_manager
+from lifetrace_backend.file_monitor import FileMonitorService
+from lifetrace_backend.consistency_checker import ConsistencyChecker
 
 # 配置日志
 logging.basicConfig(
@@ -33,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class AutoSyncTester:
-    """自动同步功能测试器"""
+    """自动同步功能测试�?""
     
     def __init__(self):
         self.test_dir = None
@@ -53,8 +52,7 @@ class AutoSyncTester:
         # 临时修改配置
         config.screenshots_dir = self.test_dir
         
-        # 创建一些测试文件
-        self._create_test_files()
+        # 创建一些测试文�?        self._create_test_files()
         
         # 创建对应的数据库记录
         self._create_test_database_records()
@@ -79,7 +77,7 @@ class AutoSyncTester:
             logger.info(f"创建测试文件: {filename}")
     
     def _create_test_database_records(self):
-        """创建测试数据库记录"""
+        """创建测试数据库记�?""
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
@@ -105,7 +103,7 @@ class AutoSyncTester:
                         (screenshot_id, f"Test content for {filename}")
                     )
                     
-                    logger.info(f"创建数据库记录: {filename} (ID: {screenshot_id})")
+                    logger.info(f"创建数据库记�? {filename} (ID: {screenshot_id})")
                 
                 # 创建一个孤立的数据库记录（文件不存在）
                 cursor.execute(
@@ -119,12 +117,12 @@ class AutoSyncTester:
                     (orphan_id, "Orphan OCR text", 0.90)
                 )
                 
-                logger.info(f"创建孤立数据库记录: orphan_record.png (ID: {orphan_id})")
+                logger.info(f"创建孤立数据库记�? orphan_record.png (ID: {orphan_id})")
                 
                 conn.commit()
                 
         except Exception as e:
-            logger.error(f"创建测试数据库记录失败: {e}")
+            logger.error(f"创建测试数据库记录失�? {e}")
             raise
     
     def test_file_monitor(self):
@@ -133,15 +131,13 @@ class AutoSyncTester:
         
         try:
             # 启动文件监控服务
-            self.file_monitor = FileMonitorService(delay=1)  # 1秒延迟用于测试
-            self.file_monitor.start()
-            logger.info("文件监控服务已启动")
+            self.file_monitor = FileMonitorService(delay=1)  # 1秒延迟用于测�?            self.file_monitor.start()
+            logger.info("文件监控服务已启�?)
             
             # 等待服务启动
             time.sleep(2)
             
-            # 删除一个测试文件
-            test_file = Path(self.test_dir) / "test_screenshot_1.png"
+            # 删除一个测试文�?            test_file = Path(self.test_dir) / "test_screenshot_1.png"
             if test_file.exists():
                 test_file.unlink()
                 logger.info(f"删除文件: {test_file.name}")
@@ -149,8 +145,7 @@ class AutoSyncTester:
                 # 等待文件监控处理
                 time.sleep(3)
                 
-                # 检查数据库记录是否被清理
-                self._check_database_cleanup("test_screenshot_1.png")
+                # 检查数据库记录是否被清�?                self._check_database_cleanup("test_screenshot_1.png")
             
             # 移动一个文件（模拟重命名）
             old_file = Path(self.test_dir) / "test_screenshot_2.jpg"
@@ -162,8 +157,7 @@ class AutoSyncTester:
                 # 等待文件监控处理
                 time.sleep(3)
                 
-                # 检查数据库记录是否被清理
-                self._check_database_cleanup("test_screenshot_2.jpg")
+                # 检查数据库记录是否被清�?                self._check_database_cleanup("test_screenshot_2.jpg")
             
             logger.info("文件监控测试完成")
             
@@ -173,24 +167,23 @@ class AutoSyncTester:
         finally:
             if self.file_monitor:
                 self.file_monitor.stop()
-                logger.info("文件监控服务已停止")
+                logger.info("文件监控服务已停�?)
     
     def test_consistency_checker(self):
-        """测试一致性检查功能"""
-        logger.info("\n=== 测试一致性检查功能 ===")
+        """测试一致性检查功�?""
+        logger.info("\n=== 测试一致性检查功�?===")
         
         try:
             # 创建一致性检查器
             self.consistency_checker = ConsistencyChecker(check_interval=10)
             
-            # 执行一致性检查
-            result = self.consistency_checker.perform_consistency_check()
+            # 执行一致性检�?            result = self.consistency_checker.perform_consistency_check()
             
-            logger.info(f"一致性检查结果: {result}")
+            logger.info(f"一致性检查结�? {result}")
             
             # 验证结果
             if 'orphaned_db_records' in result:
-                logger.info(f"发现孤立数据库记录: {result['orphaned_db_records']}")
+                logger.info(f"发现孤立数据库记�? {result['orphaned_db_records']}")
             
             if 'orphaned_files' in result:
                 logger.info(f"发现孤立文件: {result['orphaned_files']}")
@@ -198,30 +191,28 @@ class AutoSyncTester:
             if 'cleaned_records' in result:
                 logger.info(f"清理的记录数: {result['cleaned_records']}")
             
-            logger.info("一致性检查测试完成")
+            logger.info("一致性检查测试完�?)
             
         except Exception as e:
-            logger.error(f"一致性检查测试失败: {e}")
+            logger.error(f"一致性检查测试失�? {e}")
             raise
     
     def test_sync_service_manager(self):
-        """测试同步服务管理器"""
-        logger.info("\n=== 测试同步服务管理器 ===")
+        """测试同步服务管理�?""
+        logger.info("\n=== 测试同步服务管理�?===")
         
         try:
-            # 获取服务状态
-            status = sync_service_manager.get_status()
-            logger.info(f"同步服务状态: {status}")
+            # 获取服务状�?            status = sync_service_manager.get_status()
+            logger.info(f"同步服务状�? {status}")
             
-            # 强制执行一致性检查
-            if sync_service_manager.running:
+            # 强制执行一致性检�?            if sync_service_manager.running:
                 result = sync_service_manager.force_consistency_check()
-                logger.info(f"强制一致性检查结果: {result}")
+                logger.info(f"强制一致性检查结�? {result}")
             
-            logger.info("同步服务管理器测试完成")
+            logger.info("同步服务管理器测试完�?)
             
         except Exception as e:
-            logger.error(f"同步服务管理器测试失败: {e}")
+            logger.error(f"同步服务管理器测试失�? {e}")
             raise
     
     def _check_database_cleanup(self, filename):
@@ -230,17 +221,15 @@ class AutoSyncTester:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 
-                # 检查截图记录
-                cursor.execute("SELECT COUNT(*) FROM screenshots WHERE filename = ?", (filename,))
+                # 检查截图记�?                cursor.execute("SELECT COUNT(*) FROM screenshots WHERE filename = ?", (filename,))
                 screenshot_count = cursor.fetchone()[0]
                 
                 if screenshot_count == 0:
-                    logger.info(f"✓ 文件 {filename} 的数据库记录已被正确清理")
+                    logger.info(f"�?文件 {filename} 的数据库记录已被正确清理")
                 else:
-                    logger.warning(f"✗ 文件 {filename} 的数据库记录未被清理 (剩余: {screenshot_count})")
+                    logger.warning(f"�?文件 {filename} 的数据库记录未被清理 (剩余: {screenshot_count})")
                 
-                # 检查相关记录
-                cursor.execute(
+                # 检查相关记�?                cursor.execute(
                     "SELECT COUNT(*) FROM ocr_results WHERE screenshot_id IN "
                     "(SELECT id FROM screenshots WHERE filename = ?)",
                     (filename,)
@@ -267,8 +256,7 @@ class AutoSyncTester:
             # 恢复原始配置
             config.screenshots_dir = self.original_screenshots_dir
             
-            # 清理测试数据库记录
-            self._cleanup_test_database_records()
+            # 清理测试数据库记�?            self._cleanup_test_database_records()
             
             # 删除测试目录
             if self.test_dir and os.path.exists(self.test_dir):
@@ -281,13 +269,12 @@ class AutoSyncTester:
             logger.error(f"清理测试环境失败: {e}")
     
     def _cleanup_test_database_records(self):
-        """清理测试数据库记录"""
+        """清理测试数据库记�?""
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 
-                # 删除测试相关的记录
-                test_patterns = ['test_screenshot_%', 'orphan_%', 'moved_%']
+                # 删除测试相关的记�?                test_patterns = ['test_screenshot_%', 'orphan_%', 'moved_%']
                 
                 for pattern in test_patterns:
                     # 获取要删除的截图ID
@@ -315,16 +302,16 @@ class AutoSyncTester:
                             screenshot_ids
                         )
                         
-                        logger.info(f"清理测试记录: {pattern} ({len(screenshot_ids)} 条)")
+                        logger.info(f"清理测试记录: {pattern} ({len(screenshot_ids)} �?")
                 
                 conn.commit()
                 
         except Exception as e:
-            logger.error(f"清理测试数据库记录失败: {e}")
+            logger.error(f"清理测试数据库记录失�? {e}")
     
     def run_all_tests(self):
-        """运行所有测试"""
-        logger.info("开始自动同步功能测试")
+        """运行所有测�?""
+        logger.info("开始自动同步功能测�?)
         
         try:
             self.setup_test_environment()
@@ -334,8 +321,8 @@ class AutoSyncTester:
             self.test_file_monitor()
             self.test_sync_service_manager()
             
-            logger.info("\n=== 所有测试完成 ===")
-            logger.info("✓ 自动同步功能测试通过")
+            logger.info("\n=== 所有测试完�?===")
+            logger.info("�?自动同步功能测试通过")
             
         except Exception as e:
             logger.error(f"测试失败: {e}")
@@ -344,12 +331,12 @@ class AutoSyncTester:
             self.cleanup_test_environment()
 
 def main():
-    """主函数"""
+    """主函�?""
     tester = AutoSyncTester()
     
     try:
         tester.run_all_tests()
-        print("\n测试成功完成！")
+        print("\n测试成功完成�?)
         return 0
     except Exception as e:
         print(f"\n测试失败: {e}")

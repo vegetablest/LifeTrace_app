@@ -1,27 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-调试OCR ID类型不匹配问题
-检查文本和图像向量搜索结果中OCR ID的类型
-"""
+调试OCR ID类型不匹配问�?检查文本和图像向量搜索结果中OCR ID的类�?"""
 
 import requests
 import json
-from lifetrace.multimodal_embedding import get_multimodal_embedding
-from lifetrace.multimodal_vector_service import MultimodalVectorService
-from lifetrace.config import config
-from lifetrace.storage import DatabaseManager
+from lifetrace_backend.multimodal_embedding import get_multimodal_embedding
+from lifetrace_backend.multimodal_vector_service import MultimodalVectorService
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import DatabaseManager
 
 def main():
     try:
         print("🔍 调试OCR ID类型匹配问题...")
         
-        # 获取数据库管理器和多模态向量服务
-        db_manager = DatabaseManager(config)
+        # 获取数据库管理器和多模态向量服�?        db_manager = DatabaseManager(config)
         multimodal_service = MultimodalVectorService(config, db_manager)
         
         if not multimodal_service.is_enabled():
-            print("❌ 多模态服务未启用")
+            print("�?多模态服务未启用")
             return
         
         # 获取多模态嵌入器
@@ -33,10 +30,9 @@ def main():
         
         print(f"\n📝 搜索查询: '{query}'")
         
-        # 1. 直接搜索文本向量数据库
-        print("\n🔍 直接搜索文本向量数据库...")
+        # 1. 直接搜索文本向量数据�?        print("\n🔍 直接搜索文本向量数据�?..")
         text_results = multimodal_service._search_text_with_embedding(query_embedding, 5)
-        print(f"找到 {len(text_results)} 个文本结果")
+        print(f"找到 {len(text_results)} 个文本结�?)
         
         text_ocr_ids = []
         for i, result in enumerate(text_results[:3]):
@@ -49,10 +45,9 @@ def main():
             print(f"    距离: {result.get('distance')}")
             print()
         
-        # 2. 直接搜索图像向量数据库
-        print("🖼️ 直接搜索图像向量数据库...")
+        # 2. 直接搜索图像向量数据�?        print("🖼�?直接搜索图像向量数据�?..")
         image_results = multimodal_service._search_image_with_text(query_embedding, 5)
-        print(f"找到 {len(image_results)} 个图像结果")
+        print(f"找到 {len(image_results)} 个图像结�?)
         
         image_ocr_ids = []
         for i, result in enumerate(image_results[:3]):
@@ -70,12 +65,11 @@ def main():
         print(f"文本OCR IDs: {text_ocr_ids}")
         print(f"图像OCR IDs: {image_ocr_ids}")
         
-        # 检查类型转换后的匹配
-        text_ocr_ids_str = [str(x) if x is not None else None for x in text_ocr_ids]
+        # 检查类型转换后的匹�?        text_ocr_ids_str = [str(x) if x is not None else None for x in text_ocr_ids]
         image_ocr_ids_str = [str(x) if x is not None else None for x in image_ocr_ids]
         
-        print(f"文本OCR IDs (字符串): {text_ocr_ids_str}")
-        print(f"图像OCR IDs (字符串): {image_ocr_ids_str}")
+        print(f"文本OCR IDs (字符�?: {text_ocr_ids_str}")
+        print(f"图像OCR IDs (字符�?: {image_ocr_ids_str}")
         
         # 找到匹配的ID
         matching_ids = set(text_ocr_ids_str) & set(image_ocr_ids_str)
@@ -97,7 +91,7 @@ def main():
             print()
         
         # 5. 模拟修复：统一OCR ID类型
-        print("🛠️ 测试修复方案：统一OCR ID类型...")
+        print("🛠�?测试修复方案：统一OCR ID类型...")
         
         # 修复文本结果
         fixed_text_results = []
@@ -106,8 +100,7 @@ def main():
             metadata = fixed_result.get('metadata', {}).copy()
             ocr_id = metadata.get('ocr_result_id')
             if ocr_id is not None:
-                metadata['ocr_result_id'] = str(ocr_id)  # 统一转为字符串
-            fixed_result['metadata'] = metadata
+                metadata['ocr_result_id'] = str(ocr_id)  # 统一转为字符�?            fixed_result['metadata'] = metadata
             fixed_text_results.append(fixed_result)
         
         # 修复图像结果
@@ -117,8 +110,7 @@ def main():
             metadata = fixed_result.get('metadata', {}).copy()
             ocr_id = metadata.get('ocr_result_id')
             if ocr_id is not None:
-                metadata['ocr_result_id'] = str(ocr_id)  # 统一转为字符串
-            fixed_result['metadata'] = metadata
+                metadata['ocr_result_id'] = str(ocr_id)  # 统一转为字符�?            fixed_result['metadata'] = metadata
             fixed_image_results.append(fixed_result)
         
         # 重新合并
@@ -128,7 +120,7 @@ def main():
         
         print(f"修复后合并结果数: {len(fixed_merged_results)}")
         for i, result in enumerate(fixed_merged_results[:3]):
-            print(f"  修复后结果 {i+1}:")
+            print(f"  修复后结�?{i+1}:")
             print(f"    OCR ID: {result.get('ocr_result_id')}")
             print(f"    文本分数: {result.get('text_score', 0):.3f}")
             print(f"    图像分数: {result.get('image_score', 0):.3f}")
@@ -136,7 +128,7 @@ def main():
             print()
         
     except Exception as e:
-        print(f"❌ 错误: {e}")
+        print(f"�?错误: {e}")
         import traceback
         traceback.print_exc()
 

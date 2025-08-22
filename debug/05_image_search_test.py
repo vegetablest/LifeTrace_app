@@ -18,8 +18,7 @@ for i, result in enumerate(results):
     print(f'    combined_score: {result["combined_score"]:.3f}')
     print()
 
-# 测试纯图像搜索
-response2 = requests.post('http://127.0.0.1:8843/api/multimodal-search', json={
+# 测试纯图像搜�?response2 = requests.post('http://127.0.0.1:8843/api/multimodal-search', json={
     'query': '页面',
     'top_k': 2,
     'text_weight': 0.0,
@@ -27,7 +26,7 @@ response2 = requests.post('http://127.0.0.1:8843/api/multimodal-search', json={
 })
 
 results2 = response2.json()
-print('🖼️ 纯图像搜索测试 (text_weight=0.0, image_weight=1.0):')
+print('🖼�?纯图像搜索测�?(text_weight=0.0, image_weight=1.0):')
 for i, result in enumerate(results2):
     print(f'  结果 {i+1}:')
     print(f'    text_score: {result["text_score"]:.3f}')

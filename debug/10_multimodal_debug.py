@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-多模态搜索问题诊断脚本
+多模态搜索问题诊断脚�?
 """
 
 import os
@@ -12,10 +12,10 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from lifetrace.config import config
-from lifetrace.storage import db_manager
-from lifetrace.multimodal_vector_service import create_multimodal_vector_service
-from lifetrace.multimodal_embedding import get_multimodal_embedding
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.multimodal_vector_service import create_multimodal_vector_service
+from lifetrace_backend.multimodal_embedding import get_multimodal_embedding
 
 
 def setup_logging():
@@ -27,45 +27,45 @@ def setup_logging():
 
 
 def test_multimodal_embedding():
-    """测试多模态嵌入模块"""
-    print("\n🔍 测试多模态嵌入模块...")
+    """测试多模态嵌入模�?""
+    print("\n🔍 测试多模态嵌入模�?..")
     
     try:
         # 测试嵌入器初始化
         embedding = get_multimodal_embedding()
-        print(f"✓ 多模态嵌入器初始化成功")
-        print(f"✓ 可用性: {embedding.is_available()}")
+        print(f"�?多模态嵌入器初始化成�?)
+        print(f"�?可用�? {embedding.is_available()}")
         
         if embedding.is_available():
             # 测试文本编码
             text_vector = embedding.encode_text("测试文本")
             if text_vector is not None:
-                print(f"✓ 文本编码成功，向量维度: {text_vector.shape}")
+                print(f"�?文本编码成功，向量维�? {text_vector.shape}")
             else:
-                print("✗ 文本编码失败")
+                print("�?文本编码失败")
         
         return embedding.is_available()
         
     except Exception as e:
-        print(f"✗ 多模态嵌入模块测试失败: {e}")
+        print(f"�?多模态嵌入模块测试失�? {e}")
         return False
 
 
 def test_multimodal_service():
-    """测试多模态向量服务"""
-    print("\n🔍 测试多模态向量服务...")
+    """测试多模态向量服�?""
+    print("\n🔍 测试多模态向量服�?..")
     
     try:
-        # 创建多模态向量服务
+        # 创建多模态向量服�?
         service = create_multimodal_vector_service(config, db_manager)
-        print(f"✓ 多模态向量服务创建成功")
-        print(f"✓ 服务启用状态: {service.is_enabled()}")
+        print(f"�?多模态向量服务创建成�?)
+        print(f"�?服务启用状�? {service.is_enabled()}")
         
         if service.is_enabled():
             # 获取统计信息
             stats = service.get_stats()
-            print(f"✓ 统计信息获取成功:")
-            print(f"  - 多模态可用: {stats.get('multimodal_available')}")
+            print(f"�?统计信息获取成功:")
+            print(f"  - 多模态可�? {stats.get('multimodal_available')}")
             print(f"  - 文本权重: {stats.get('text_weight')}")
             print(f"  - 图像权重: {stats.get('image_weight')}")
             
@@ -75,14 +75,14 @@ def test_multimodal_service():
                     query="测试查询",
                     top_k=5
                 )
-                print(f"✓ 多模态搜索测试成功，返回 {len(results)} 个结果")
+                print(f"�?多模态搜索测试成功，返回 {len(results)} 个结�?)
             except Exception as search_error:
-                print(f"✗ 多模态搜索测试失败: {search_error}")
+                print(f"�?多模态搜索测试失�? {search_error}")
         
         return service.is_enabled()
         
     except Exception as e:
-        print(f"✗ 多模态向量服务测试失败: {e}")
+        print(f"�?多模态向量服务测试失�? {e}")
         return False
 
 
@@ -91,22 +91,22 @@ def test_config():
     print("\n🔍 测试配置...")
     
     try:
-        print(f"✓ 多模态启用: {config.get('multimodal.enabled')}")
-        print(f"✓ 文本权重: {config.get('multimodal.text_weight')}")
-        print(f"✓ 图像权重: {config.get('multimodal.image_weight')}")
-        print(f"✓ 模型名称: {config.get('multimodal.model_name')}")
-        print(f"✓ 向量数据库启用: {config.get('vector_db.enabled')}")
+        print(f"�?多模态启�? {config.get('multimodal.enabled')}")
+        print(f"�?文本权重: {config.get('multimodal.text_weight')}")
+        print(f"�?图像权重: {config.get('multimodal.image_weight')}")
+        print(f"�?模型名称: {config.get('multimodal.model_name')}")
+        print(f"�?向量数据库启�? {config.get('vector_db.enabled')}")
         
         return True
         
     except Exception as e:
-        print(f"✗ 配置测试失败: {e}")
+        print(f"�?配置测试失败: {e}")
         return False
 
 
 def test_dependencies():
-    """测试依赖包"""
-    print("\n🔍 测试依赖包...")
+    """测试依赖�?""
+    print("\n🔍 测试依赖�?..")
     
     dependencies = [
         ('torch', 'PyTorch'),
@@ -121,27 +121,27 @@ def test_dependencies():
     for module, name in dependencies:
         try:
             __import__(module)
-            print(f"✓ {name} 可用")
+            print(f"�?{name} 可用")
         except ImportError:
-            print(f"✗ {name} 不可用")
+            print(f"�?{name} 不可�?)
             all_available = False
     
     return all_available
 
 
 def main():
-    """主函数"""
+    """主函�?""
     setup_logging()
     
-    print("🚀 LifeTrace 多模态搜索问题诊断")
+    print("🚀 LifeTrace 多模态搜索问题诊�?)
     print("=" * 50)
     
     # 测试步骤
     tests = [
-        ("依赖包", test_dependencies),
+        ("依赖�?, test_dependencies),
         ("配置", test_config),
-        ("多模态嵌入", test_multimodal_embedding),
-        ("多模态服务", test_multimodal_service)
+        ("多模态嵌�?, test_multimodal_embedding),
+        ("多模态服�?, test_multimodal_service)
     ]
     
     results = []
@@ -152,7 +152,7 @@ def main():
             result = test_func()
             results.append((test_name, result))
         except Exception as e:
-            print(f"✗ {test_name} 测试异常: {e}")
+            print(f"�?{test_name} 测试异常: {e}")
             results.append((test_name, False))
     
     # 总结
@@ -161,19 +161,19 @@ def main():
     
     all_passed = True
     for test_name, result in results:
-        status = "✓ 通过" if result else "✗ 失败"
+        status = "�?通过" if result else "�?失败"
         print(f"  {test_name}: {status}")
         if not result:
             all_passed = False
     
     if all_passed:
-        print("\n🎉 所有测试通过！多模态功能应该可以正常工作。")
+        print("\n🎉 所有测试通过！多模态功能应该可以正常工作�?)
     else:
-        print("\n⚠️  存在问题，请检查失败的测试项。")
+        print("\n⚠️  存在问题，请检查失败的测试项�?)
         print("\n💡 建议解决方案:")
-        print("1. 确保安装了所有多模态依赖: pip install -r requirements_multimodal.txt")
-        print("2. 检查配置文件中的多模态设置")
-        print("3. 确保有足够的内存和存储空间")
+        print("1. 确保安装了所有多模态依�? pip install -r requirements_multimodal.txt")
+        print("2. 检查配置文件中的多模态设�?)
+        print("3. 确保有足够的内存和存储空�?)
         print("4. 检查网络连接（首次运行需要下载模型）")
 
 

@@ -3,9 +3,7 @@
 """
 文本与图像相似度计算程序
 
-输入文本，返回与数据库中所有图像的相似度分数。
-基于CLIP模型的多模态语义搜索实现。
-"""
+输入文本，返回与数据库中所有图像的相似度分数�?基于CLIP模型的多模态语义搜索实现�?"""
 
 import sys
 import os
@@ -16,36 +14,31 @@ import argparse
 # 添加项目路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from lifetrace.config import config
-from lifetrace.storage import DatabaseManager
-from lifetrace.multimodal_vector_service import MultimodalVectorService
-from lifetrace.models import OCRResult, Screenshot
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import DatabaseManager
+from lifetrace_backend.multimodal_vector_service import MultimodalVectorService
+from lifetrace_backend.models import OCRResult, Screenshot
 
 
 class TextImageSimilarityCalculator:
-    """文本与图像相似度计算器"""
+    """文本与图像相似度计算�?""
     
     def __init__(self):
         """初始化计算器"""
         self.logger = logging.getLogger(__name__)
         
-        # 初始化数据库管理器
-        self.db_manager = DatabaseManager()
+        # 初始化数据库管理�?        self.db_manager = DatabaseManager()
         
-        # 初始化多模态向量服务
-        self.multimodal_service = MultimodalVectorService(config, self.db_manager)
+        # 初始化多模态向量服�?        self.multimodal_service = MultimodalVectorService(config, self.db_manager)
         
-        # 确保服务已启用
-        if not self.multimodal_service.is_enabled():
-            raise RuntimeError("多模态向量服务未启用，请检查配置")
+        # 确保服务已启�?        if not self.multimodal_service.is_enabled():
+            raise RuntimeError("多模态向量服务未启用，请检查配�?)
     
     def calculate_similarities(self, query_text: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """计算文本与所有图像的相似度
-        
+        """计算文本与所有图像的相似�?        
         Args:
             query_text: 查询文本
-            limit: 限制返回结果数量，None表示返回所有结果
-            
+            limit: 限制返回结果数量，None表示返回所有结�?            
         Returns:
             相似度结果列表，按相似度降序排列
         """
@@ -53,14 +46,12 @@ class TextImageSimilarityCalculator:
             return []
         
         try:
-            # 生成查询文本的嵌入
-            query_embedding = self.multimodal_service.multimodal_embedding.encode_text(query_text)
+            # 生成查询文本的嵌�?            query_embedding = self.multimodal_service.multimodal_embedding.encode_text(query_text)
             if query_embedding is None:
-                self.logger.error("无法生成查询文本的嵌入")
+                self.logger.error("无法生成查询文本的嵌�?)
                 return []
             
-            # 获取所有图像向量
-            image_results = self._get_all_image_similarities(query_embedding, limit)
+            # 获取所有图像向�?            image_results = self._get_all_image_similarities(query_embedding, limit)
             
             # 增强结果数据
             enhanced_results = []
@@ -72,15 +63,14 @@ class TextImageSimilarityCalculator:
             return enhanced_results
             
         except Exception as e:
-            self.logger.error(f"计算相似度失败: {e}")
+            self.logger.error(f"计算相似度失�? {e}")
             return []
     
     def _get_all_image_similarities(self, query_embedding, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """获取与所有图像的相似度"""
+        """获取与所有图像的相似�?""
         try:
-            # 获取图像向量数据库
-            if not self.multimodal_service.image_vector_db:
-                self.logger.error("图像向量数据库未初始化")
+            # 获取图像向量数据�?            if not self.multimodal_service.image_vector_db:
+                self.logger.error("图像向量数据库未初始�?)
                 return []
             
             collection = self.multimodal_service.image_vector_db.collection
@@ -101,12 +91,10 @@ class TextImageSimilarityCalculator:
                 include=['documents', 'metadatas', 'distances']
             )
             
-            # 格式化结果
-            formatted_results = []
+            # 格式化结�?            formatted_results = []
             for i in range(len(results['ids'][0])):
                 distance = results['distances'][0][i] if results['distances'] else 1.0
-                # 使用倒数公式计算相似度
-                similarity = 1.0 / (1.0 + distance)
+                # 使用倒数公式计算相似�?                similarity = 1.0 / (1.0 + distance)
                 
                 formatted_results.append({
                     'id': results['ids'][0][i],
@@ -122,7 +110,7 @@ class TextImageSimilarityCalculator:
             return formatted_results
             
         except Exception as e:
-            self.logger.error(f"获取图像相似度失败: {e}")
+            self.logger.error(f"获取图像相似度失�? {e}")
             return []
     
     def _enhance_image_result(self, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -182,7 +170,7 @@ class TextImageSimilarityCalculator:
             print("没有找到相关图像")
             return
         
-        print(f"\n找到 {len(results)} 个相关图像:\n")
+        print(f"\n找到 {len(results)} 个相关图�?\n")
         print("-" * 80)
         
         for i, result in enumerate(results, 1):
@@ -193,7 +181,7 @@ class TextImageSimilarityCalculator:
             text_content = result.get('text_content', '')[:100]  # 限制文本长度
             
             print(f"{i:3d}. OCR ID: {ocr_id}")
-            print(f"     相似度: {similarity:.4f} (距离: {distance:.4f})")
+            print(f"     相似�? {similarity:.4f} (距离: {distance:.4f})")
             print(f"     图像路径: {image_path}")
             
             if text_content:
@@ -203,15 +191,15 @@ class TextImageSimilarityCalculator:
                 print(f"     应用程序: {result.get('application', 'N/A')}")
                 print(f"     窗口标题: {result.get('window_title', 'N/A')}")
                 print(f"     创建时间: {result.get('created_at', 'N/A')}")
-                print(f"     置信度: {result.get('confidence', 'N/A')}")
+                print(f"     置信�? {result.get('confidence', 'N/A')}")
                 print(f"     语言: {result.get('language', 'N/A')}")
             
             print("-" * 80)
 
 
 def main():
-    """主函数"""
-    parser = argparse.ArgumentParser(description='计算文本与数据库中所有图像的相似度')
+    """主函�?""
+    parser = argparse.ArgumentParser(description='计算文本与数据库中所有图像的相似�?)
     parser.add_argument('query', help='查询文本')
     parser.add_argument('--limit', type=int, help='限制返回结果数量')
     parser.add_argument('--details', action='store_true', help='显示详细信息')
@@ -227,13 +215,11 @@ def main():
     )
     
     try:
-        # 创建计算器
-        calculator = TextImageSimilarityCalculator()
+        # 创建计算�?        calculator = TextImageSimilarityCalculator()
         
         print(f"查询文本: {args.query}")
         
-        # 计算相似度
-        results = calculator.calculate_similarities(args.query, args.limit)
+        # 计算相似�?        results = calculator.calculate_similarities(args.query, args.limit)
         
         # 打印结果
         calculator.print_results(results, args.details)

@@ -17,6 +17,11 @@ from .storage import db_manager
 from .simple_ocr import SimpleOCRProcessor
 from .vector_service import create_vector_service
 from .multimodal_vector_service import create_multimodal_vector_service
+from .logging_config import setup_logging
+
+# 设置日志系统
+logger_manager = setup_logging(config)
+logger = logger_manager.get_server_logger()
 
 
 # Pydantic模型

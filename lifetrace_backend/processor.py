@@ -15,6 +15,11 @@ import imagehash
 from .config import config
 from .storage import db_manager
 from .utils import get_file_hash, get_active_window_info
+from .logging_config import setup_logging
+
+# 设置日志系统
+logger_manager = setup_logging(config)
+logger = logger_manager.get_processor_logger()
 
 
 class ScreenshotHandler(FileSystemEventHandler):
@@ -26,13 +31,13 @@ class ScreenshotHandler(FileSystemEventHandler):
     def on_created(self, event):
         """文件创建事件"""
         if not event.is_directory and self._is_screenshot_file(event.src_path):
-            logging.debug(f"检测到新截图: {event.src_path}")
+            logger.debug(f"检测到新截图: {event.src_path}")
             self.processor.add_file_to_queue(event.src_path)
     
     def on_modified(self, event):
         """文件修改事件"""
         if not event.is_directory and self._is_screenshot_file(event.src_path):
-            logging.debug(f"检测到截图修改: {event.src_path}")
+            logger.debug(f"检测到截图修改: {event.src_path}")
             self.processor.add_file_to_queue(event.src_path)
     
     def _is_screenshot_file(self, file_path: str) -> bool:

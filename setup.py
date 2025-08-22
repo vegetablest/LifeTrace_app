@@ -7,7 +7,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
     requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
 
 setup(
-    name="lifetrace",
+    name="lifetrace_backend",
     version="0.1.0",
     author="LifeTrace Team",
     description="智能生活记录系统 - 基于屏幕截图的个人数字生活档案查询平台",
@@ -29,11 +29,11 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "lifetrace=lifetrace.commands:main",
+            "lifetrace=lifetrace_backend.commands:main",
         ],
     },
     package_data={
-        "lifetrace": [
+        "lifetrace_backend": [
             "templates/*.html",
             "static/**/*",
             "config/*.yaml",
