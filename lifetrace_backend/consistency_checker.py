@@ -17,13 +17,17 @@ import traceback
 from .storage import db_manager
 from .models import Screenshot, OCRResult, SearchIndex, ProcessingQueue
 from .config import config
+from .logging_config import setup_logging
+
+# 初始化日志系统
+logger_manager = setup_logging()
+logger = logger_manager.get_logger('consistency_checker', 'sync')
 
 
 class ConsistencyChecker:
     """数据库一致性检查器"""
     
     def __init__(self, check_interval: int = 300):  # 默认5分钟检查一次
-        self.logger = logging.getLogger(__name__)
         self.check_interval = check_interval
         self.running = False
         self.check_thread: Optional[threading.Thread] = None
@@ -37,26 +41,16 @@ class ConsistencyChecker:
             'errors': 0
         }
         
-        # 配置日志格式
-        if not self.logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-            handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
-            self.logger.setLevel(getattr(logging, getattr(config, 'sync_service_log_level', 'INFO'), logging.INFO))
-        
     def start(self):
         """启动一致性检查服务"""
         if self.running:
-            self.logger.warning("一致性检查服务已在运行")
+            logger.warning("一致性检查服务已在运行")
             return
         
         self.running = True
         self.check_thread = threading.Thread(target=self._check_loop, daemon=True)
         self.check_thread.start()
-        self.logger.info(f"一致性检查服务已启动，检查间隔: {self.check_interval}秒")
+        logger.info(f"一致性检查服务已启动，检查间隔: {self.check_interval}秒")
     
     def stop(self):
         """停止一致性检查服务"""
@@ -67,7 +61,7 @@ class ConsistencyChecker:
         if self.check_thread and self.check_thread.is_alive():
             self.check_thread.join(timeout=5)
         
-        self.logger.info("一致性检查服务已停止")
+        logger.info("一致性检查服务已停止")
     
     def _check_loop(self):
         """检查循环"""
@@ -77,7 +71,7 @@ class ConsistencyChecker:
                 self.stats['total_checks'] += 1
                 self.last_check_time = datetime.now()
                 
-                self.logger.info(
+                logger.info(
                     f"一致性检查完成: 孤立记录 {result.get('orphaned_db_records', 0)}, "
                     f"孤立文件 {result.get('orphaned_files', 0)}, "
                     f"清理操作 {result.get('cleaned_records', 0)}"
@@ -85,8 +79,8 @@ class ConsistencyChecker:
                 
             except Exception as e:
                 self.stats['errors'] += 1
-                self.logger.error(f"一致性检查失败: {e}")
-                self.logger.debug(traceback.format_exc())
+                logger.error(f"一致性检查失败: {e}")
+                logger.debug(traceback.format_exc())
             
             # 等待下次检查
             for _ in range(self.check_interval):
@@ -96,16 +90,16 @@ class ConsistencyChecker:
     
     def perform_consistency_check(self) -> dict:
         """执行一致性检查"""
-        self.logger.debug("开始执行一致性检查")
+        logger.debug("开始执行一致性检查")
         
         try:
             # 获取文件系统中的截图文件
             fs_files = self._get_filesystem_files()
-            self.logger.debug(f"文件系统中找到 {len(fs_files)} 个截图文件")
+            logger.debug(f"文件系统中找到 {len(fs_files)} 个截图文件")
             
             # 获取数据库中的截图记录
             db_files = self._get_database_files()
-            self.logger.debug(f"数据库中找到 {len(db_files)} 个截图记录")
+            logger.debug(f"数据库中找到 {len(db_files)} 个截图记录")
             
             # 找出不一致的数据
             orphaned_db_records = db_files - fs_files  # 数据库中有但文件系统中没有
@@ -130,31 +124,31 @@ class ConsistencyChecker:
                 cleaned_count = self._cleanup_orphaned_records(orphaned_db_records)
                 result['cleaned_records'] = cleaned_count
                 self.stats['cleanup_operations'] += cleaned_count
-                self.logger.info(f"清理了 {cleaned_count} 条孤立的数据库记录")
+                logger.info(f"清理了 {cleaned_count} 条孤立的数据库记录")
             
             # 记录孤立的文件（不自动处理，可能是新文件）
             if orphaned_files:
                 if len(orphaned_files) <= 5:
-                    self.logger.info(f"发现 {len(orphaned_files)} 个孤立文件（可能是新文件）: {list(orphaned_files)}")
+                    logger.info(f"发现 {len(orphaned_files)} 个孤立文件（可能是新文件）: {list(orphaned_files)}")
                 else:
-                    self.logger.info(f"发现 {len(orphaned_files)} 个孤立文件（可能是新文件）")
+                    logger.info(f"发现 {len(orphaned_files)} 个孤立文件（可能是新文件）")
                     for file_path in list(orphaned_files)[:5]:  # 只记录前5个
-                        self.logger.debug(f"孤立文件: {file_path}")
+                        logger.debug(f"孤立文件: {file_path}")
             
             if orphaned_db_records or orphaned_files:
-                self.logger.info(
+                logger.info(
                     f"一致性检查完成 - 文件系统: {len(fs_files)}, "
                     f"数据库: {len(db_files)}, 清理: {result['cleaned_records']}"
                 )
             else:
-                self.logger.debug("一致性检查完成 - 数据一致")
+                logger.debug("一致性检查完成 - 数据一致")
             
             return result
             
         except Exception as e:
             self.stats['errors'] += 1
-            self.logger.error(f"一致性检查执行失败: {e}")
-            self.logger.debug(traceback.format_exc())
+            logger.error(f"一致性检查执行失败: {e}")
+            logger.debug(traceback.format_exc())
             return {
                 'check_time': datetime.now().isoformat(),
                 'error': str(e)
@@ -172,7 +166,7 @@ class ConsistencyChecker:
                 if file_path.is_file() and file_path.suffix.lower() in ['.png', '.jpg', '.jpeg']:
                     files.add(str(file_path))
         except Exception as e:
-            self.logger.error(f"读取文件系统失败: {e}")
+            logger.error(f"读取文件系统失败: {e}")
         
         return files
     
@@ -185,7 +179,7 @@ class ConsistencyChecker:
                 screenshots = session.query(Screenshot.file_path).all()
                 files = {screenshot.file_path for screenshot in screenshots}
         except Exception as e:
-            self.logger.error(f"读取数据库失败: {e}")
+            logger.error(f"读取数据库失败: {e}")
         
         return files
     
@@ -232,25 +226,25 @@ class ConsistencyChecker:
                         session.delete(screenshot)
                         cleaned_count += 1
                         
-                        self.logger.debug(
+                        logger.debug(
                             f"清理孤立记录: {file_path} (ID: {screenshot_id}), "
                             f"关联记录: {total_related}"
                         )
                         
                     except Exception as e:
-                        self.logger.error(f"清理记录失败 {file_path}: {e}")
-                        self.logger.debug(traceback.format_exc())
+                        logger.error(f"清理记录失败 {file_path}: {e}")
+                        logger.debug(traceback.format_exc())
                         continue
                 
         except Exception as e:
-            self.logger.error(f"批量清理失败: {e}")
-            self.logger.debug(traceback.format_exc())
+            logger.error(f"批量清理失败: {e}")
+            logger.debug(traceback.format_exc())
         
         return cleaned_count
     
     def force_check(self) -> dict:
         """强制执行一次检查"""
-        self.logger.info("执行强制一致性检查")
+        logger.info("执行强制一致性检查")
         return self.perform_consistency_check()
     
     def get_status(self) -> dict:
@@ -289,7 +283,7 @@ class AdvancedConsistencyChecker(ConsistencyChecker):
                 result.update(vector_result)
                 self.last_vector_sync = now
             except Exception as e:
-                self.logger.error(f"向量数据库同步失败: {e}")
+                logger.error(f"向量数据库同步失败: {e}")
                 result['vector_sync_error'] = str(e)
         
         return result
@@ -312,7 +306,7 @@ class AdvancedConsistencyChecker(ConsistencyChecker):
             
             # 如果数量不一致，执行智能同步
             if sqlite_count != vector_count:
-                self.logger.info(f"向量数据库不一致 (SQLite: {sqlite_count}, Vector: {vector_count})，执行同步")
+                logger.info(f"向量数据库不一致 (SQLite: {sqlite_count}, Vector: {vector_count})，执行同步")
                 synced_count = vector_service.sync_from_database()
                 return {
                     'vector_sync': 'completed',
@@ -328,7 +322,7 @@ class AdvancedConsistencyChecker(ConsistencyChecker):
                 }
                 
         except Exception as e:
-            self.logger.error(f"向量数据库同步检查失败: {e}")
+            logger.error(f"向量数据库同步检查失败: {e}")
             raise
 
 

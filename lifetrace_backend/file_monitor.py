@@ -50,7 +50,7 @@ class ScreenshotFileHandler(FileSystemEventHandler):
             if self._is_screenshot_file(file_path):
                 with self.lock:
                     self.deleted_files.add(file_path)
-                self.logger.info(f"检测到截图文件删除: {file_path}")
+                # self.logger.info(f"检测到截图文件删除: {file_path}")
                 # 延迟处理，避免频繁的数据库操作
                 threading.Timer(2.0, self._process_deleted_file, args=[file_path]).start()
         except Exception as e:
@@ -67,7 +67,7 @@ class ScreenshotFileHandler(FileSystemEventHandler):
             if self._is_screenshot_file(src_path):
                 with self.lock:
                     self.deleted_files.add(src_path)
-                self.logger.info(f"检测到截图文件移动: {src_path} -> {event.dest_path}")
+                # self.logger.info(f"检测到截图文件移动: {src_path} -> {event.dest_path}")
                 threading.Timer(2.0, self._process_deleted_file, args=[src_path]).start()
         except Exception as e:
             self.logger.error(f"处理文件移动事件失败: {e}")

@@ -7,17 +7,17 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Depends, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .config import config
-from .storage import db_manager
-from .simple_ocr import SimpleOCRProcessor
-from .vector_service import create_vector_service
-from .multimodal_vector_service import create_multimodal_vector_service
-from .logging_config import setup_logging
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.simple_ocr import SimpleOCRProcessor
+from lifetrace_backend.vector_service import create_vector_service
+from lifetrace_backend.multimodal_vector_service import create_multimodal_vector_service
+from lifetrace_backend.logging_config import setup_logging
 
 # 设置日志系统
 logger_manager = setup_logging(config)
@@ -116,7 +116,7 @@ app = FastAPI(
 # 添加CORS中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8844", "http://127.0.0.1:8844"],
+    allow_origins=["http://localhost:8840", "http://127.0.0.1:8840"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -565,9 +565,73 @@ async def reset_vector_database():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def create_app() -> FastAPI:
-    """创建应用实例"""
-    return app
+# 日志查看路由
+@app.get("/logs", response_class=HTMLResponse)
+async def logs_page(request: Request):
+    """日志查看页面"""
+    if templates is not None:
+        return templates.TemplateResponse("logs.html", {"request": request})
+    else:
+        return HTMLResponse("<h1>模板系统未初始化</h1>", status_code=500)
+
+@app.get("/api/logs/files")
+async def get_log_files():
+    """获取日志文件列表"""
+    try:
+        logs_dir = Path(config.base_dir) / "logs"
+        if not logs_dir.exists():
+            return []
+        
+        log_files = []
+        # 递归扫描所有子目录中的.log文件
+        for file_path in logs_dir.rglob("*.log"):
+            # 获取相对于logs目录的路径
+            relative_path = file_path.relative_to(logs_dir)
+            # 获取文件大小
+            file_size = file_path.stat().st_size
+            size_str = f"{file_size // 1024}KB" if file_size > 1024 else f"{file_size}B"
+            
+            log_files.append({
+                "name": str(relative_path),
+                "path": str(file_path),
+                "size": size_str,
+                "category": relative_path.parent.name if relative_path.parent.name != '.' else 'root'
+            })
+        
+        return sorted(log_files, key=lambda x: x["name"])
+    except Exception as e:
+        logger.error(f"获取日志文件列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/logs/content", response_class=PlainTextResponse)
+async def get_log_content(file: str = Query(..., description="日志文件相对路径")):
+    """获取日志文件内容"""
+    try:
+        logs_dir = Path(config.base_dir) / "logs"
+        log_file = logs_dir / file
+        
+        # 安全检查：确保文件在logs目录内
+        if not str(log_file.resolve()).startswith(str(logs_dir.resolve())):
+            raise HTTPException(status_code=400, detail="无效的文件路径")
+        
+        if not log_file.exists():
+            raise HTTPException(status_code=404, detail="日志文件不存在")
+        
+        # 读取文件内容（最后1000行）
+        with open(log_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            # 只返回最后1000行，避免内存问题
+            if len(lines) > 1000:
+                lines = lines[-1000:]
+            return ''.join(lines)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"读取日志文件失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 
 def main():

@@ -12,6 +12,11 @@ import imagehash
 from .config import config
 from .utils import ensure_dir, get_active_window_info, get_screenshot_filename
 from .storage import db_manager
+from .logging_config import setup_logging
+
+# 设置日志系统
+logger_manager = setup_logging(config)
+logger = logger_manager.get_recorder_logger()
 
 
 class ScreenRecorder:
@@ -31,7 +36,7 @@ class ScreenRecorder:
         # 上一张截图的哈希值（用于去重）
         self.last_hashes = {}
         
-        logging.info(f"屏幕录制器初始化完成，监控屏幕: {self.screens}")
+        logger.info(f"屏幕录制器初始化完成，监控屏幕: {self.screens}")
     
     def _get_screen_list(self) -> List[int]:
         """获取要截图的屏幕列表"""
@@ -73,7 +78,7 @@ class ScreenRecorder:
             
             return distance <= self.hash_threshold
         except Exception as e:
-            logging.error(f"比较图像哈希失败: {e}")
+            logger.error(f"比较图像哈希失败: {e}")
             return False
     
     def _capture_screen(self, screen_id: int) -> Optional[str]:
@@ -81,7 +86,7 @@ class ScreenRecorder:
         try:
             with mss.mss() as sct:
                 if screen_id >= len(sct.monitors):
-                    logging.warning(f"屏幕ID {screen_id} 不存在")
+                    logger.warning(f"屏幕ID {screen_id} 不存在")
                     return None
                 
                 monitor = sct.monitors[screen_id]
@@ -102,7 +107,7 @@ class ScreenRecorder:
                 if self._is_duplicate(screen_id, image_hash):
                     # 删除重复图像
                     os.remove(file_path)
-                    logging.debug(f"删除重复截图: {filename}")
+                    logger.debug(f"删除重复截图: {filename}")
                     return None
                 
                 # 更新哈希记录
@@ -134,18 +139,18 @@ class ScreenRecorder:
                         app_name=app_name or "未知应用",
                         window_title=window_title or "未知窗口"
                     )
-                    logging.debug(f"截图记录已保存到数据库: {screenshot_id}")
+                    logger.debug(f"截图记录已保存到数据库: {screenshot_id}")
                 except Exception as e:
-                    logging.error(f"保存截图记录到数据库失败: {e}")
+                    logger.error(f"保存截图记录到数据库失败: {e}")
                 
                 file_size = os.path.getsize(file_path)
                 
-                logging.info(f"截图保存: {filename} ({file_size} bytes) - {app_name}")
+                logger.info(f"截图保存: {filename} ({file_size} bytes) - {app_name}")
                 
                 return file_path
                 
         except Exception as e:
-            logging.error(f"截图失败 (屏幕 {screen_id}): {e}")
+            logger.error(f"截图失败 (屏幕 {screen_id}): {e}")
             return None
     
     def capture_all_screens(self) -> List[str]:
@@ -161,7 +166,7 @@ class ScreenRecorder:
     
     def start_recording(self):
         """开始录制"""
-        logging.info("开始屏幕录制...")
+        logger.info("开始屏幕录制...")
         
         try:
             while True:
@@ -171,7 +176,7 @@ class ScreenRecorder:
                 captured_files = self.capture_all_screens()
                 
                 if captured_files:
-                    logging.debug(f"本次截取了 {len(captured_files)} 张截图")
+                    logger.debug(f"本次截取了 {len(captured_files)} 张截图")
                 
                 # 计算下次截图时间
                 elapsed = time.time() - start_time
@@ -180,12 +185,12 @@ class ScreenRecorder:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
                 else:
-                    logging.warning(f"截图处理时间 ({elapsed:.2f}s) 超过间隔时间 ({self.interval}s)")
+                    logger.warning(f"截图处理时间 ({elapsed:.2f}s) 超过间隔时间 ({self.interval}s)")
                     
         except KeyboardInterrupt:
-            logging.info("收到停止信号，结束录制")
+            logger.info("收到停止信号，结束录制")
         except Exception as e:
-            logging.error(f"录制过程中发生错误: {e}")
+            logger.error(f"录制过程中发生错误: {e}")
             raise
 
 def main():

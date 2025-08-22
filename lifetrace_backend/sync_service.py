@@ -15,13 +15,17 @@ import traceback
 from .file_monitor import file_monitor_service
 from .consistency_checker import consistency_checker
 from .config import config
+from .logging_config import setup_logging
+
+# 设置日志系统
+logger_manager = setup_logging(config)
+logger = logger_manager.get_sync_logger()
 
 
 class SyncServiceManager:
     """同步服务管理器"""
     
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
         self.running = False
         self.services = {
             'file_monitor': file_monitor_service,
@@ -35,38 +39,28 @@ class SyncServiceManager:
             'service_restarts': 0
         }
         
-        # 配置日志格式
-        if not self.logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-            handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
-            self.logger.setLevel(logging.INFO)
-        
     def start_all(self):
         """启动所有同步服务"""
         with self.lock:
             if self.running:
-                self.logger.warning("同步服务已在运行")
+                logger.warning("同步服务已在运行")
                 return
             
-            self.logger.info("正在启动同步服务...")
+            logger.info("正在启动同步服务...")
             
             try:
                 # 启动文件监控服务
                 if hasattr(config, 'enable_file_monitor') and config.enable_file_monitor:
                     try:
                         self.services['file_monitor'].start()
-                        self.logger.info("文件监控服务已启动")
+                        logger.info("文件监控服务已启动")
                         self.stats['total_operations'] += 1
                     except Exception as e:
-                        self.logger.error(f"文件监控服务启动失败: {e}")
-                        self.logger.debug(traceback.format_exc())
+                        logger.error(f"文件监控服务启动失败: {e}")
+                        logger.debug(traceback.format_exc())
                         self.stats['errors'] += 1
                 else:
-                    self.logger.info("文件监控服务已禁用")
+                    logger.info("文件监控服务已禁用")
                 
                 # 启动一致性检查服务
                 if hasattr(config, 'enable_consistency_check') and config.enable_consistency_check:
@@ -74,22 +68,22 @@ class SyncServiceManager:
                         check_interval = getattr(config, 'consistency_check_interval', 300)
                         self.services['consistency_checker'].check_interval = check_interval
                         self.services['consistency_checker'].start()
-                        self.logger.info(f"一致性检查服务已启动，检查间隔: {check_interval}秒")
+                        logger.info(f"一致性检查服务已启动，检查间隔: {check_interval}秒")
                         self.stats['total_operations'] += 1
                     except Exception as e:
-                        self.logger.error(f"一致性检查服务启动失败: {e}")
-                        self.logger.debug(traceback.format_exc())
+                        logger.error(f"一致性检查服务启动失败: {e}")
+                        logger.debug(traceback.format_exc())
                         self.stats['errors'] += 1
                 else:
-                    self.logger.info("一致性检查服务已禁用")
+                    logger.info("一致性检查服务已禁用")
                 
                 self.running = True
                 self.start_time = datetime.now()
-                self.logger.info("所有同步服务启动完成")
+                logger.info("所有同步服务启动完成")
                 
             except Exception as e:
-                self.logger.error(f"启动同步服务失败: {e}")
-                self.logger.debug(traceback.format_exc())
+                logger.error(f"启动同步服务失败: {e}")
+                logger.debug(traceback.format_exc())
                 self.stats['errors'] += 1
                 self.stop_all()
                 raise
@@ -100,7 +94,7 @@ class SyncServiceManager:
             if not self.running:
                 return
             
-            self.logger.info("正在停止同步服务...")
+            logger.info("正在停止同步服务...")
             
             try:
                 # 停止所有服务
@@ -108,24 +102,24 @@ class SyncServiceManager:
                     try:
                         if hasattr(service, 'stop') and service.is_running():
                             service.stop()
-                            self.logger.info(f"{service_name} 已停止")
+                            logger.info(f"{service_name} 已停止")
                             self.stats['total_operations'] += 1
                     except Exception as e:
-                        self.logger.error(f"停止 {service_name} 失败: {e}")
-                        self.logger.debug(traceback.format_exc())
+                        logger.error(f"停止 {service_name} 失败: {e}")
+                        logger.debug(traceback.format_exc())
                         self.stats['errors'] += 1
                 
                 self.running = False
-                self.logger.info("所有同步服务已停止")
+                logger.info("所有同步服务已停止")
                 
             except Exception as e:
-                self.logger.error(f"停止同步服务失败: {e}")
-                self.logger.debug(traceback.format_exc())
+                logger.error(f"停止同步服务失败: {e}")
+                logger.debug(traceback.format_exc())
                 self.stats['errors'] += 1
     
     def restart_all(self):
         """重启所有同步服务"""
-        self.logger.info("重启同步服务")
+        logger.info("重启同步服务")
         self.stop_all()
         time.sleep(1)  # 等待服务完全停止
         self.start_all()
@@ -177,8 +171,8 @@ class SyncServiceManager:
             }
             
         except Exception as e:
-            self.logger.error(f"强制一致性检查失败: {e}")
-            self.logger.debug(traceback.format_exc())
+            logger.error(f"强制一致性检查失败: {e}")
+            logger.debug(traceback.format_exc())
             self.stats['errors'] += 1
             return {
                 'success': False,
@@ -188,7 +182,7 @@ class SyncServiceManager:
     def restart_service(self, service_name: str) -> bool:
         """重启指定服务"""
         if service_name not in self.services:
-            self.logger.error(f"未知服务: {service_name}")
+            logger.error(f"未知服务: {service_name}")
             return False
         
         try:
@@ -202,14 +196,14 @@ class SyncServiceManager:
             # 启动服务
             if hasattr(service, 'start'):
                 service.start()
-                self.logger.info(f"服务 {service_name} 重启成功")
+                logger.info(f"服务 {service_name} 重启成功")
                 self.stats['service_restarts'] += 1
                 self.stats['total_operations'] += 1
                 return True
             
         except Exception as e:
-            self.logger.error(f"重启服务 {service_name} 失败: {e}")
-            self.logger.debug(traceback.format_exc())
+            logger.error(f"重启服务 {service_name} 失败: {e}")
+            logger.debug(traceback.format_exc())
             self.stats['errors'] += 1
         
         return False
@@ -236,17 +230,17 @@ class SyncServiceManager:
             if service_name == 'consistency_checker':
                 if 'check_interval' in kwargs:
                     service.check_interval = kwargs['check_interval']
-                    self.logger.info(f"一致性检查间隔已更新为: {kwargs['check_interval']}秒")
+                    logger.info(f"一致性检查间隔已更新为: {kwargs['check_interval']}秒")
                 
                 if 'vector_sync_interval' in kwargs and hasattr(service, 'vector_sync_interval'):
                     service.vector_sync_interval = kwargs['vector_sync_interval']
-                    self.logger.info(f"向量同步间隔已更新为: {kwargs['vector_sync_interval']}秒")
+                    logger.info(f"向量同步间隔已更新为: {kwargs['vector_sync_interval']}秒")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"配置服务 {service_name} 失败: {e}")
-            self.logger.debug(traceback.format_exc())
+            logger.error(f"配置服务 {service_name} 失败: {e}")
+            logger.debug(traceback.format_exc())
             self.stats['errors'] += 1
             return False
 
@@ -256,7 +250,6 @@ class SyncServiceAPI:
     
     def __init__(self, manager: SyncServiceManager):
         self.manager = manager
-        self.logger = logging.getLogger(__name__)
     
     def get_status(self) -> Dict[str, Any]:
         """获取服务状态API"""
