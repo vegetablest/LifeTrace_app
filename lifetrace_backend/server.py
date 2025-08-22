@@ -1,0 +1,604 @@
+import os
+import logging
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Query, Depends, File, UploadFile
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.requests import Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+from .config import config
+from .storage import db_manager
+from .simple_ocr import SimpleOCRProcessor
+from .vector_service import create_vector_service
+from .multimodal_vector_service import create_multimodal_vector_service
+
+
+# Pydantic模型
+class SearchRequest(BaseModel):
+    query: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    app_name: Optional[str] = None
+    limit: int = 50
+
+class ScreenshotResponse(BaseModel):
+    id: int
+    file_path: str
+    app_name: Optional[str]
+    window_title: Optional[str]
+    created_at: datetime
+    text_content: Optional[str]
+    width: int
+    height: int
+
+class StatisticsResponse(BaseModel):
+    total_screenshots: int
+    processed_screenshots: int
+    pending_tasks: int
+    today_screenshots: int
+    processing_rate: float
+
+class ConfigResponse(BaseModel):
+    base_dir: str
+    screenshots_dir: str
+    database_path: str
+    server: Dict[str, Any]
+    record: Dict[str, Any]
+    ocr: Dict[str, Any]
+    storage: Dict[str, Any]
+
+class SemanticSearchRequest(BaseModel):
+    query: str
+    top_k: int = 10
+    use_rerank: bool = True
+    retrieve_k: Optional[int] = None
+    filters: Optional[Dict[str, Any]] = None
+
+class SemanticSearchResult(BaseModel):
+    text: str
+    score: float
+    metadata: Dict[str, Any]
+    ocr_result: Optional[Dict[str, Any]] = None
+    screenshot: Optional[Dict[str, Any]] = None
+
+class MultimodalSearchRequest(BaseModel):
+    query: str
+    top_k: int = 10
+    text_weight: Optional[float] = None
+    image_weight: Optional[float] = None
+    filters: Optional[Dict[str, Any]] = None
+
+class MultimodalSearchResult(BaseModel):
+    text: str
+    combined_score: float
+    text_score: float
+    image_score: float
+    text_weight: float
+    image_weight: float
+    metadata: Dict[str, Any]
+    ocr_result: Optional[Dict[str, Any]] = None
+    screenshot: Optional[Dict[str, Any]] = None
+
+class VectorStatsResponse(BaseModel):
+    enabled: bool
+    collection_name: Optional[str] = None
+    document_count: Optional[int] = None
+    error: Optional[str] = None
+
+class MultimodalStatsResponse(BaseModel):
+    enabled: bool
+    multimodal_available: bool
+    text_weight: float
+    image_weight: float
+    text_database: Dict[str, Any]
+    image_database: Dict[str, Any]
+    error: Optional[str] = None
+
+
+# 创建FastAPI应用
+app = FastAPI(
+    title="LifeTrace API",
+    description="智能生活记录系统 API",
+    version="0.1.0"
+)
+
+# 添加CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8844", "http://127.0.0.1:8844"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 静态文件和模板
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+if os.path.exists(templates_dir):
+    templates = Jinja2Templates(directory=templates_dir)
+else:
+    templates = None
+
+# 初始化OCR处理器
+ocr_processor = SimpleOCRProcessor()
+
+# 初始化向量数据库服务
+vector_service = create_vector_service(config, db_manager)
+
+# 初始化多模态向量数据库服务
+multimodal_vector_service = create_multimodal_vector_service(config, db_manager)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    """主页"""
+    if templates:
+        return templates.TemplateResponse("index.html", {"request": request})
+    else:
+        return HTMLResponse("""
+        <html>
+            <head><title>LifeTrace</title></head>
+            <body>
+                <h1>LifeTrace 智能生活记录系统</h1>
+                <p><a href="/api/docs">API 文档</a></p>
+                <p><a href="/api/screenshots">查看截图</a></p>
+                <p><a href="/api/statistics">系统统计</a></p>
+            </body>
+        </html>
+        """)
+
+
+@app.get("/health")
+async def health_check():
+    """健康检查"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now(),
+        "database": "connected" if db_manager.engine else "disconnected",
+        "ocr": "available" if ocr_processor.is_available() else "unavailable"
+    }
+
+
+@app.get("/api/statistics", response_model=StatisticsResponse)
+async def get_statistics():
+    """获取系统统计信息"""
+    stats = db_manager.get_statistics()
+    return StatisticsResponse(**stats)
+
+
+@app.get("/api/config", response_model=ConfigResponse)
+async def get_config():
+    """获取配置信息"""
+    return ConfigResponse(
+        base_dir=config.base_dir,
+        screenshots_dir=config.screenshots_dir,
+        database_path=config.database_path,
+        server={
+            "host": config.get("server.host"),
+            "port": config.get("server.port"),
+            "debug": config.get("server.debug", False)
+        },
+        record={
+            "interval": config.get("record.interval"),
+            "screens": config.get("record.screens"),
+            "format": config.get("record.format")
+        },
+        ocr={
+            "enabled": config.get("ocr.enabled"),
+            "use_gpu": config.get("ocr.use_gpu"),
+            "language": config.get("ocr.language"),
+            "confidence_threshold": config.get("ocr.confidence_threshold")
+        },
+        storage={
+            "max_days": config.get("storage.max_days"),
+            "deduplicate": config.get("storage.deduplicate"),
+            "hash_threshold": config.get("storage.hash_threshold")
+        }
+    )
+
+
+@app.post("/api/search", response_model=List[ScreenshotResponse])
+async def search_screenshots(search_request: SearchRequest):
+    """搜索截图"""
+    try:
+        results = db_manager.search_screenshots(
+            query=search_request.query,
+            start_date=search_request.start_date,
+            end_date=search_request.end_date,
+            app_name=search_request.app_name,
+            limit=search_request.limit
+        )
+        
+        return [ScreenshotResponse(**result) for result in results]
+        
+    except Exception as e:
+        logging.error(f"搜索截图失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/screenshots", response_model=List[ScreenshotResponse])
+async def get_screenshots(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    app_name: Optional[str] = Query(None)
+):
+    """获取截图列表"""
+    try:
+        # 解析日期
+        start_dt = None
+        end_dt = None
+        
+        if start_date:
+            start_dt = datetime.fromisoformat(start_date)
+        if end_date:
+            end_dt = datetime.fromisoformat(end_date)
+        
+        # 搜索截图
+        results = db_manager.search_screenshots(
+            start_date=start_dt,
+            end_date=end_dt,
+            app_name=app_name,
+            limit=limit
+        )
+        
+        # 应用偏移
+        if offset > 0:
+            results = results[offset:]
+        
+        return [ScreenshotResponse(**result) for result in results]
+        
+    except Exception as e:
+        logging.error(f"获取截图列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/screenshots/{screenshot_id}")
+async def get_screenshot(screenshot_id: int):
+    """获取单个截图详情"""
+    screenshot = db_manager.get_screenshot_by_id(screenshot_id)
+    
+    if not screenshot:
+        raise HTTPException(status_code=404, detail="截图不存在")
+    
+    # 获取OCR结果
+    ocr_data = None
+    try:
+        with db_manager.get_session() as session:
+            from .models import OCRResult
+            ocr_result = session.query(OCRResult).filter_by(
+                screenshot_id=screenshot_id
+            ).first()
+            
+            # 在session内提取数据
+            if ocr_result:
+                ocr_data = {
+                    "text_content": ocr_result.text_content,
+                    "confidence": ocr_result.confidence,
+                    "language": ocr_result.language,
+                    "processing_time": ocr_result.processing_time
+                }
+    except Exception as e:
+        logging.warning(f"获取OCR结果失败: {e}")
+    
+    # screenshot已经是字典格式，直接使用
+    result = screenshot.copy()
+    result["ocr_result"] = ocr_data
+    
+    return result
+
+
+@app.get("/api/screenshots/{screenshot_id}/image")
+async def get_screenshot_image(screenshot_id: int):
+    """获取截图图片文件"""
+    screenshot = db_manager.get_screenshot_by_id(screenshot_id)
+    
+    if not screenshot:
+        raise HTTPException(status_code=404, detail="截图不存在")
+    
+    file_path = screenshot['file_path']
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="图片文件不存在")
+    
+    return FileResponse(
+        file_path,
+        media_type="image/png",
+        filename=f"screenshot_{screenshot_id}.png"
+    )
+
+
+@app.post("/api/ocr/process")
+async def process_ocr(screenshot_id: int):
+    """手动触发OCR处理"""
+    if not ocr_processor.is_available():
+        raise HTTPException(status_code=503, detail="OCR服务不可用")
+    
+    screenshot = db_manager.get_screenshot_by_id(screenshot_id)
+    if not screenshot:
+        raise HTTPException(status_code=404, detail="截图不存在")
+    
+    if screenshot['is_processed']:
+        raise HTTPException(status_code=400, detail="截图已经处理过")
+    
+    try:
+        # 执行OCR处理
+        ocr_result = ocr_processor.process_image(screenshot['file_path'])
+        
+        if ocr_result['success']:
+            # 保存OCR结果
+            db_manager.add_ocr_result(
+                screenshot_id=screenshot['id'],
+                text_content=ocr_result['text_content'],
+                confidence=ocr_result['confidence'],
+                language=ocr_result.get('language', 'ch'),
+                processing_time=ocr_result['processing_time']
+            )
+            
+            return {
+                "success": True,
+                "text_content": ocr_result['text_content'],
+                "confidence": ocr_result['confidence'],
+                "processing_time": ocr_result['processing_time']
+            }
+        else:
+            raise HTTPException(status_code=500, detail=ocr_result['error'])
+            
+    except Exception as e:
+        logging.error(f"OCR处理失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ocr/statistics")
+async def get_ocr_statistics():
+    """获取OCR处理统计"""
+    return ocr_processor.get_statistics()
+
+
+@app.post("/api/cleanup")
+async def cleanup_old_data(days: int = Query(30, ge=1)):
+    """清理旧数据"""
+    try:
+        db_manager.cleanup_old_data(days)
+        return {"success": True, "message": f"清理了 {days} 天前的数据"}
+    except Exception as e:
+        logging.error(f"清理数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/queue/status")
+async def get_queue_status():
+    """获取处理队列状态"""
+    try:
+        with db_manager.get_session() as session:
+            from .models import ProcessingQueue
+            
+            pending_count = session.query(ProcessingQueue).filter_by(status='pending').count()
+            processing_count = session.query(ProcessingQueue).filter_by(status='processing').count()
+            completed_count = session.query(ProcessingQueue).filter_by(status='completed').count()
+            failed_count = session.query(ProcessingQueue).filter_by(status='failed').count()
+            
+            return {
+                "pending": pending_count,
+                "processing": processing_count,
+                "completed": completed_count,
+                "failed": failed_count,
+                "total": pending_count + processing_count + completed_count + failed_count
+            }
+            
+    except Exception as e:
+        logging.error(f"获取队列状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/semantic-search", response_model=List[SemanticSearchResult])
+async def semantic_search(request: SemanticSearchRequest):
+    """语义搜索 OCR 结果"""
+    try:
+        if not vector_service.is_enabled():
+            raise HTTPException(status_code=503, detail="向量数据库服务不可用")
+        
+        results = vector_service.semantic_search(
+            query=request.query,
+            top_k=request.top_k,
+            use_rerank=request.use_rerank,
+            retrieve_k=request.retrieve_k,
+            filters=request.filters
+        )
+        
+        # 转换为响应格式
+        search_results = []
+        for result in results:
+            search_result = SemanticSearchResult(
+                text=result.get('text', ''),
+                score=result.get('score', 0.0),
+                metadata=result.get('metadata', {}),
+                ocr_result=result.get('ocr_result'),
+                screenshot=result.get('screenshot')
+            )
+            search_results.append(search_result)
+        
+        return search_results
+        
+    except Exception as e:
+        logging.error(f"语义搜索失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/multimodal-search", response_model=List[MultimodalSearchResult])
+async def multimodal_search(request: MultimodalSearchRequest):
+    """多模态搜索 (图像+文本)"""
+    try:
+        if not multimodal_vector_service.is_enabled():
+            raise HTTPException(status_code=503, detail="多模态向量数据库服务不可用")
+        
+        results = multimodal_vector_service.multimodal_search(
+            query=request.query,
+            top_k=request.top_k,
+            text_weight=request.text_weight,
+            image_weight=request.image_weight,
+            filters=request.filters
+        )
+        
+        # 转换为响应格式
+        search_results = []
+        for result in results:
+            search_result = MultimodalSearchResult(
+                text=result.get('text', ''),
+                combined_score=result.get('combined_score', 0.0),
+                text_score=result.get('text_score', 0.0),
+                image_score=result.get('image_score', 0.0),
+                text_weight=result.get('text_weight', 0.6),
+                image_weight=result.get('image_weight', 0.4),
+                metadata=result.get('metadata', {}),
+                ocr_result=result.get('ocr_result'),
+                screenshot=result.get('screenshot')
+            )
+            search_results.append(search_result)
+        
+        return search_results
+        
+    except Exception as e:
+        logging.error(f"多模态搜索失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/vector-stats", response_model=VectorStatsResponse)
+async def get_vector_stats():
+    """获取向量数据库统计信息"""
+    try:
+        stats = vector_service.get_stats()
+        return VectorStatsResponse(**stats)
+        
+    except Exception as e:
+        logging.error(f"获取向量数据库统计信息失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/multimodal-stats", response_model=MultimodalStatsResponse)
+async def get_multimodal_stats():
+    """获取多模态向量数据库统计信息"""
+    try:
+        stats = multimodal_vector_service.get_stats()
+        return MultimodalStatsResponse(**stats)
+        
+    except Exception as e:
+        logging.error(f"获取多模态统计信息失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/multimodal-sync")
+async def sync_multimodal_database(
+    limit: Optional[int] = Query(None, description="同步的最大记录数"),
+    force_reset: bool = Query(False, description="是否强制重置多模态向量数据库")
+):
+    """同步 SQLite 数据库到多模态向量数据库"""
+    try:
+        if not multimodal_vector_service.is_enabled():
+            raise HTTPException(status_code=503, detail="多模态向量数据库服务不可用")
+        
+        synced_count = multimodal_vector_service.sync_from_database(limit=limit, force_reset=force_reset)
+        
+        return {
+            "message": "多模态同步完成",
+            "synced_count": synced_count
+        }
+        
+    except Exception as e:
+        logging.error(f"多模态同步失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/vector-sync")
+async def sync_vector_database(
+    limit: Optional[int] = Query(None, description="同步的最大记录数"),
+    force_reset: bool = Query(False, description="是否强制重置向量数据库")
+):
+    """同步 SQLite 数据库到向量数据库"""
+    try:
+        if not vector_service.is_enabled():
+            raise HTTPException(status_code=503, detail="向量数据库服务不可用")
+        
+        synced_count = vector_service.sync_from_database(limit=limit, force_reset=force_reset)
+        
+        return {
+            "message": "同步完成",
+            "synced_count": synced_count
+        }
+        
+    except Exception as e:
+        logging.error(f"向量数据库同步失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/vector-reset")
+async def reset_vector_database():
+    """重置向量数据库"""
+    try:
+        if not vector_service.is_enabled():
+            raise HTTPException(status_code=503, detail="向量数据库服务不可用")
+        
+        success = vector_service.reset()
+        
+        if success:
+            return {"message": "向量数据库重置成功"}
+        else:
+            raise HTTPException(status_code=500, detail="向量数据库重置失败")
+        
+    except Exception as e:
+        logging.error(f"向量数据库重置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def create_app() -> FastAPI:
+    """创建应用实例"""
+    return app
+
+
+def main():
+    """主函数 - 命令行入口"""
+    import argparse
+    import uvicorn
+    
+    parser = argparse.ArgumentParser(description='LifeTrace Web Server')
+    parser.add_argument('--host', default='127.0.0.1', help='服务器地址')
+    parser.add_argument('--port', type=int, default=8840, help='服务器端口')
+    parser.add_argument('--config', help='配置文件路径')
+    parser.add_argument('--debug', action='store_true', help='启用调试模式')
+    
+    args = parser.parse_args()
+    
+    # 设置日志
+    log_level = "DEBUG" if args.debug else "INFO"
+    from .utils import setup_logging
+    setup_logging(os.path.join(config.base_dir, 'logs'), log_level)
+    
+    # 使用配置中的服务器设置，但命令行参数优先
+    host = args.host or config.get('server.host', '127.0.0.1')
+    port = args.port or config.get('server.port', 8840)
+    debug = args.debug or config.get('server.debug', False)
+    
+    logging.info(f"启动LifeTrace Web服务器: http://{host}:{port}")
+    
+    # 启动服务器
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        reload=debug,
+        access_log=debug
+    )
+
+
+if __name__ == '__main__':
+    main()

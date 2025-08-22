@@ -1,0 +1,419 @@
+import os
+import logging
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
+from contextlib import contextmanager
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
+
+from .config import config
+from .models import Base, Screenshot, OCRResult, SearchIndex, ProcessingQueue
+from .utils import ensure_dir, get_file_hash
+
+
+class DatabaseManager:
+    """数据库管理器"""
+    
+    def __init__(self, database_url: Optional[str] = None):
+        self.database_url = database_url or f"sqlite:///{config.database_path}"
+        self.engine = None
+        self.SessionLocal = None
+        self._init_database()
+    
+    def _init_database(self):
+        """初始化数据库"""
+        try:
+            # 确保数据库目录存在
+            if self.database_url.startswith('sqlite:///'):
+                db_path = self.database_url.replace('sqlite:///', '')
+                ensure_dir(os.path.dirname(db_path))
+            
+            # 创建引擎
+            self.engine = create_engine(
+                self.database_url,
+                echo=False,
+                pool_pre_ping=True
+            )
+            
+            # 创建会话工厂
+            self.SessionLocal = sessionmaker(bind=self.engine)
+            
+            # 创建表
+            Base.metadata.create_all(bind=self.engine)
+            
+            logging.info(f"数据库初始化完成: {self.database_url}")
+            
+        except Exception as e:
+            logging.error(f"数据库初始化失败: {e}")
+            raise
+    
+    @contextmanager
+    def get_session(self):
+        """获取数据库会话上下文管理器"""
+        session = self.SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logging.error(f"数据库操作失败: {e}")
+            raise
+        finally:
+            session.close()
+    
+    def add_screenshot(self, file_path: str, file_hash: str, width: int, height: int, 
+                      screen_id: int = 0, app_name: str = None, window_title: str = None) -> Optional[int]:
+        """添加截图记录"""
+        try:
+            with self.get_session() as session:
+                # 检查是否已存在相同哈希的截图
+                existing = session.query(Screenshot).filter_by(file_hash=file_hash).first()
+                if existing and config.get('storage.deduplicate', True):
+                    logging.debug(f"跳过重复截图: {file_path}")
+                    return existing.id
+                
+                file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                
+                screenshot = Screenshot(
+                    file_path=file_path,
+                    file_hash=file_hash,
+                    file_size=file_size,
+                    width=width,
+                    height=height,
+                    screen_id=screen_id,
+                    app_name=app_name,
+                    window_title=window_title
+                )
+                
+                session.add(screenshot)
+                session.flush()  # 获取ID
+                
+                logging.debug(f"添加截图记录: {screenshot.id}")
+                return screenshot.id
+                
+        except SQLAlchemyError as e:
+            logging.error(f"添加截图记录失败: {e}")
+            return None
+    
+    def add_ocr_result(self, screenshot_id: int, text_content: str, confidence: float = 0.0,
+                      language: str = 'ch', processing_time: float = 0.0) -> Optional[int]:
+        """添加OCR结果"""
+        try:
+            with self.get_session() as session:
+                ocr_result = OCRResult(
+                    screenshot_id=screenshot_id,
+                    text_content=text_content,
+                    confidence=confidence,
+                    language=language,
+                    processing_time=processing_time
+                )
+                
+                session.add(ocr_result)
+                session.flush()
+                
+                # 更新截图处理状态
+                screenshot = session.query(Screenshot).filter_by(id=screenshot_id).first()
+                if screenshot:
+                    screenshot.is_processed = True
+                    screenshot.processed_at = datetime.now()
+                
+                logging.debug(f"添加OCR结果: {ocr_result.id}")
+                return ocr_result.id
+                
+        except SQLAlchemyError as e:
+            logging.error(f"添加OCR结果失败: {e}")
+            return None
+    
+    def add_processing_task(self, screenshot_id: int, task_type: str = 'ocr') -> Optional[int]:
+        """添加处理任务到队列"""
+        try:
+            with self.get_session() as session:
+                # 检查是否已存在相同任务
+                existing = session.query(ProcessingQueue).filter_by(
+                    screenshot_id=screenshot_id,
+                    task_type=task_type,
+                    status='pending'
+                ).first()
+                
+                if existing:
+                    return existing.id
+                
+                task = ProcessingQueue(
+                    screenshot_id=screenshot_id,
+                    task_type=task_type
+                )
+                
+                session.add(task)
+                session.flush()
+                
+                logging.debug(f"添加处理任务: {task.id}")
+                return task.id
+                
+        except SQLAlchemyError as e:
+            logging.error(f"添加处理任务失败: {e}")
+            return None
+    
+    def get_pending_tasks(self, task_type: str = 'ocr', limit: int = 10) -> List[ProcessingQueue]:
+        """获取待处理任务"""
+        try:
+            with self.get_session() as session:
+                tasks = session.query(ProcessingQueue).filter_by(
+                    task_type=task_type,
+                    status='pending'
+                ).order_by(ProcessingQueue.created_at).limit(limit).all()
+                
+                # 分离对象，避免会话关闭后访问问题
+                return [self._detach_task(task) for task in tasks]
+                
+        except SQLAlchemyError as e:
+            logging.error(f"获取待处理任务失败: {e}")
+            return []
+    
+    def _detach_task(self, task: ProcessingQueue) -> ProcessingQueue:
+        """分离任务对象"""
+        detached = ProcessingQueue()
+        detached.id = task.id
+        detached.screenshot_id = task.screenshot_id
+        detached.task_type = task.task_type
+        detached.status = task.status
+        detached.retry_count = task.retry_count
+        detached.error_message = task.error_message
+        detached.created_at = task.created_at
+        detached.updated_at = task.updated_at
+        return detached
+    
+    def update_task_status(self, task_id: int, status: str, error_message: str = None):
+        """更新任务状态"""
+        try:
+            with self.get_session() as session:
+                task = session.query(ProcessingQueue).filter_by(id=task_id).first()
+                if task:
+                    task.status = status
+                    task.updated_at = datetime.now()
+                    
+                    if status == 'failed':
+                        task.retry_count += 1
+                        task.error_message = error_message
+                    
+                    logging.debug(f"更新任务状态: {task_id} -> {status}")
+                    
+        except SQLAlchemyError as e:
+            logging.error(f"更新任务状态失败: {e}")
+    
+    def get_screenshot_by_id(self, screenshot_id: int) -> Optional[dict]:
+        """根据ID获取截图"""
+        try:
+            with self.get_session() as session:
+                screenshot = session.query(Screenshot).filter_by(id=screenshot_id).first()
+                if screenshot:
+                    # 转换为字典避免会话分离问题
+                    return {
+                        'id': screenshot.id,
+                        'file_path': screenshot.file_path,
+                        'file_hash': screenshot.file_hash,
+                        'file_size': screenshot.file_size,
+                        'width': screenshot.width,
+                        'height': screenshot.height,
+                        'screen_id': screenshot.screen_id,
+                        'app_name': screenshot.app_name,
+                        'window_title': screenshot.window_title,
+                        'created_at': screenshot.created_at,
+                        'processed_at': screenshot.processed_at,
+                        'is_processed': screenshot.is_processed
+                    }
+                return None
+        except SQLAlchemyError as e:
+            logging.error(f"获取截图失败: {e}")
+            return None
+    
+    def get_screenshot_by_path(self, file_path: str) -> Optional[dict]:
+        """根据文件路径获取截图"""
+        try:
+            with self.get_session() as session:
+                screenshot = session.query(Screenshot).filter_by(file_path=file_path).first()
+                if screenshot:
+                    # 转换为字典避免会话分离问题
+                    return {
+                        'id': screenshot.id,
+                        'file_path': screenshot.file_path,
+                        'file_hash': screenshot.file_hash,
+                        'file_size': screenshot.file_size,
+                        'width': screenshot.width,
+                        'height': screenshot.height,
+                        'screen_id': screenshot.screen_id,
+                        'app_name': screenshot.app_name,
+                        'window_title': screenshot.window_title,
+                        'created_at': screenshot.created_at,
+                        'processed_at': screenshot.processed_at,
+                        'is_processed': screenshot.is_processed
+                    }
+                return None
+        except SQLAlchemyError as e:
+            logging.error(f"根据路径获取截图失败: {e}")
+            return None
+    
+    def update_screenshot_processed(self, screenshot_id: int):
+        """更新截图处理状态"""
+        try:
+            with self.get_session() as session:
+                screenshot = session.query(Screenshot).filter_by(id=screenshot_id).first()
+                if screenshot:
+                    screenshot.is_processed = True
+                    screenshot.processed_at = datetime.now()
+                    logging.debug(f"更新截图处理状态: {screenshot_id}")
+                else:
+                    logging.warning(f"未找到截图记录: {screenshot_id}")
+        except SQLAlchemyError as e:
+            logging.error(f"更新截图处理状态失败: {e}")
+    
+    def get_ocr_results_by_screenshot(self, screenshot_id: int) -> List[Dict[str, Any]]:
+        """根据截图ID获取OCR结果"""
+        try:
+            with self.get_session() as session:
+                ocr_results = session.query(OCRResult).filter_by(screenshot_id=screenshot_id).all()
+                
+                # 转换为字典列表
+                results = []
+                for ocr in ocr_results:
+                    results.append({
+                        'id': ocr.id,
+                        'screenshot_id': ocr.screenshot_id,
+                        'text_content': ocr.text_content,
+                        'confidence': ocr.confidence,
+                        'language': ocr.language,
+                        'processing_time': ocr.processing_time,
+                        'created_at': ocr.created_at
+                    })
+                
+                return results
+                
+        except SQLAlchemyError as e:
+            logging.error(f"获取OCR结果失败: {e}")
+            return []
+    
+    def search_screenshots(self, query: str = None, start_date: datetime = None, 
+                          end_date: datetime = None, app_name: str = None, 
+                          limit: int = 50) -> List[Dict[str, Any]]:
+        """搜索截图"""
+        try:
+            with self.get_session() as session:
+                # 基础查询
+                query_obj = session.query(
+                    Screenshot,
+                    OCRResult.text_content
+                ).outerjoin(OCRResult, Screenshot.id == OCRResult.screenshot_id)
+                
+                # 添加条件
+                if start_date:
+                    query_obj = query_obj.filter(Screenshot.created_at >= start_date)
+                
+                if end_date:
+                    query_obj = query_obj.filter(Screenshot.created_at <= end_date)
+                
+                if app_name:
+                    query_obj = query_obj.filter(Screenshot.app_name.like(f"%{app_name}%"))
+                
+                if query:
+                    query_obj = query_obj.filter(OCRResult.text_content.like(f"%{query}%"))
+                
+                results = query_obj.order_by(Screenshot.created_at.desc()).limit(limit).all()
+                
+                # 格式化结果
+                formatted_results = []
+                for screenshot, text_content in results:
+                    formatted_results.append({
+                        'id': screenshot.id,
+                        'file_path': screenshot.file_path,
+                        'app_name': screenshot.app_name,
+                        'window_title': screenshot.window_title,
+                        'created_at': screenshot.created_at,
+                        'text_content': text_content,
+                        'width': screenshot.width,
+                        'height': screenshot.height
+                    })
+                
+                return formatted_results
+                
+        except SQLAlchemyError as e:
+            logging.error(f"搜索截图失败: {e}")
+            return []
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """获取统计信息"""
+        try:
+            with self.get_session() as session:
+                total_screenshots = session.query(Screenshot).count()
+                processed_screenshots = session.query(Screenshot).filter_by(is_processed=True).count()
+                pending_tasks = session.query(ProcessingQueue).filter_by(status='pending').count()
+                
+                # 今日统计
+                today = datetime.now().date()
+                today_start = datetime.combine(today, datetime.min.time())
+                today_screenshots = session.query(Screenshot).filter(
+                    Screenshot.created_at >= today_start
+                ).count()
+                
+                return {
+                    'total_screenshots': total_screenshots,
+                    'processed_screenshots': processed_screenshots,
+                    'pending_tasks': pending_tasks,
+                    'today_screenshots': today_screenshots,
+                    'processing_rate': processed_screenshots / max(total_screenshots, 1) * 100
+                }
+                
+        except SQLAlchemyError as e:
+            logging.error(f"获取统计信息失败: {e}")
+            return {}
+    
+    def cleanup_old_data(self, max_days: int):
+        """清理旧数据"""
+        if max_days <= 0:
+            return
+            
+        try:
+            cutoff_date = datetime.now() - timedelta(days=max_days)
+            
+            with self.get_session() as session:
+                # 获取要删除的截图
+                old_screenshots = session.query(Screenshot).filter(
+                    Screenshot.created_at < cutoff_date
+                ).all()
+                
+                deleted_count = 0
+                for screenshot in old_screenshots:
+                    # 删除相关的OCR结果
+                    session.query(OCRResult).filter_by(
+                        screenshot_id=screenshot.id
+                    ).delete()
+                    
+                    # 删除相关的搜索索引
+                    session.query(SearchIndex).filter_by(
+                        screenshot_id=screenshot.id
+                    ).delete()
+                    
+                    # 删除相关的处理队列
+                    session.query(ProcessingQueue).filter_by(
+                        screenshot_id=screenshot.id
+                    ).delete()
+                    
+                    # 删除文件
+                    if os.path.exists(screenshot.file_path):
+                        try:
+                            os.remove(screenshot.file_path)
+                        except Exception as e:
+                            logging.error(f"删除文件失败 {screenshot.file_path}: {e}")
+                    
+                    # 删除截图记录
+                    session.delete(screenshot)
+                    deleted_count += 1
+                
+                logging.info(f"清理了 {deleted_count} 条旧数据")
+                
+        except SQLAlchemyError as e:
+            logging.error(f"清理旧数据失败: {e}")
+
+
+# 全局数据库管理器实例
+db_manager = DatabaseManager()

@@ -196,20 +196,7 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
         }`} 
         style={{ backgroundColor: colors.panel }}
       >
-        {selectedResultData?.apiData?.id ? (
-          /* 显示搜索结果对应的截图 */
-          <div className="flex items-center justify-center relative px-6 h-80">
-            <div className="w-full max-w-4xl h-72 relative flex items-center justify-center">
-              <div className="flex-1 h-64 rounded-xl overflow-hidden shadow-2xl relative group ring-1 ring-white/20">
-                <ImageWithFallback 
-                  src={`http://localhost:8840/api/screenshots/${selectedResultData.apiData.id}/image`}
-                  alt={`截图 - ${selectedResultData.title}`}
-                  className="w-full h-full object-cover transition-all duration-500"
-                />
-              </div>
-            </div>
-          </div>
-        ) : selectedResultData?.category === '时光机' ? (
+        {selectedResultData?.category === '时光机' ? (
           /* Time Machine Image Carousel - Enhanced with side thumbnails */
           <div className="flex items-center justify-center relative px-6 h-64">
             {/* Full carousel container */}
