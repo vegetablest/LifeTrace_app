@@ -187,6 +187,24 @@ async def index(request: Request):
         """)
 
 
+@app.get("/beautiful", response_class=HTMLResponse)
+async def beautiful_page(request: Request):
+    """美化版主页"""
+    if templates:
+        return templates.TemplateResponse("beautiful.html", {"request": request})
+    else:
+        return HTMLResponse("""
+        <html>
+            <head><title>LifeTrace - 美化版</title></head>
+            <body>
+                <h1>LifeTrace 智能生活记录系统 - 美化版</h1>
+                <p>模板文件未找到</p>
+                <p><a href="/">返回主页</a></p>
+            </body>
+        </html>
+        """)
+
+
 @app.get("/health")
 async def health_check():
     """健康检查"""
