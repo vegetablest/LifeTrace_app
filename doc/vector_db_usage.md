@@ -1,224 +1,257 @@
-# LifeTrace 向量数据库使用指�?
-## 概述
+# LifeTrace Vector Database Usage Guide
 
-LifeTrace 现在支持向量数据库功能，可以�?OCR 识别的文本内容进行语义搜索。向量数据库与现有的 SQLite 数据库并行工作，不会影响原有功能�?
-## 功能特�?
-- **语义搜索**: 基于文本语义而非关键词匹配的智能搜索
-- **自动同步**: OCR 结果自动添加到向量数据库
-- **重排�?*: 使用 CrossEncoder 提高搜索结果质量
-- **并行存储**: �?SQLite 数据库并行工作，互不干扰
-- **可配�?*: 支持多种配置选项和模型选择
+## Overview
 
-## 依赖安装
+LifeTrace now supports vector database functionality, enabling semantic search of OCR-recognized text content. The vector database works in parallel with the existing SQLite database without affecting original functionality.
 
-首先安装向量数据库相关依赖：
+## Features
+
+- **Semantic Search**: Intelligent search based on text semantics rather than keyword matching
+- **Auto Sync**: OCR results automatically added to vector database
+- **Reranking**: Uses CrossEncoder to improve search result quality
+- **Parallel Storage**: Works in parallel with SQLite database without interference
+- **Configurable**: Supports multiple configuration options and model selection
+
+## Dependency Installation
+
+First install vector database related dependencies:
 
 ```bash
-pip install -r requirements_vector.txt
+pip install -r requirements.txt
 ```
 
-主要依赖包括�?- `sentence-transformers`: 文本嵌入模型
-- `chromadb`: 向量数据�?- `cross-encoder`: 重排序模�?- `google-generativeai`: 生成�?AI（可选）
+Main dependencies include:
+- `sentence-transformers`: Text embedding models
+- `chromadb`: Vector database
+- `cross-encoder`: Reranking models
+- `google-generativeai`: Generative AI (optional)
 
-## 配置说明
+## Configuration
 
-向量数据库的配置位于 `config.yaml` 文件�?`vector_db` 部分�?
-```yaml
-vector_db:
-  enabled: true  # 启用向量数据�?  collection_name: 'lifetrace_ocr'  # 集合名称
-  embedding_model: 'shibing624/text2vec-base-chinese'  # 嵌入模型
-  rerank_model: 'BAAI/bge-reranker-base'  # 重排序模�?  persist_directory: 'vector_db'  # 持久化目�?  chunk_size: 512  # 文本块大�?  chunk_overlap: 50  # 文本块重�?  batch_size: 32  # 批处理大�?  auto_sync: true  # 自动同步
-  sync_interval: 300  # 同步间隔（秒�?```
+Vector database configuration is located in the `lifetrace_backend/config.py` file under the `VECTOR_DB_CONFIG` section:
 
-### 配置选项说明
+```python
+VECTOR_DB_CONFIG = {
+    'enabled': True,  # Enable vector database
+    'collection_name': 'lifetrace_ocr',  # Collection name
+    'embedding_model': 'shibing624/text2vec-base-chinese',  # Embedding model
+    'rerank_model': 'BAAI/bge-reranker-base',  # Reranking model
+    'persist_directory': 'vector_db',  # Persistence directory
+    'chunk_size': 512,  # Text chunk size
+    'chunk_overlap': 50,  # Text chunk overlap
+    'batch_size': 32,  # Batch processing size
+    'auto_sync': True,  # Auto sync
+    'sync_interval': 300  # Sync interval (seconds)
+}
+```
 
-- `enabled`: 是否启用向量数据库功�?- `collection_name`: ChromaDB 集合名称
-- `embedding_model`: 文本嵌入模型，推荐中文模�?- `rerank_model`: 重排序模型，用于提高搜索精度
-- `persist_directory`: 向量数据库持久化存储目录
-- `chunk_size`: 长文本分块的大小
-- `chunk_overlap`: 文本块之间的重叠字符�?- `batch_size`: 批处理大小，影响处理速度
-- `auto_sync`: 是否自动将新�?OCR 结果添加到向量数据库
-- `sync_interval`: 自动同步的时间间�?
-## API 使用
+### Configuration Options
 
-### 1. 语义搜索
+- `enabled`: Whether to enable vector database functionality
+- `collection_name`: ChromaDB collection name
+- `embedding_model`: Text embedding model, Chinese models recommended
+- `rerank_model`: Reranking model for improving search accuracy
+- `persist_directory`: Vector database persistent storage directory
+- `chunk_size`: Size for long text chunking
+- `chunk_overlap`: Overlapping characters between text chunks
+- `batch_size`: Batch processing size, affects processing speed
+- `auto_sync`: Whether to automatically add new OCR results to vector database
+- `sync_interval`: Time interval for automatic synchronization
+
+## API Usage
+
+### 1. Semantic Search
 
 ```bash
-curl -X POST "http://localhost:8843/api/semantic-search" \
+curl -X POST "http://localhost:8840/api/semantic-search" \
      -H "Content-Type: application/json" \
      -d '{
-       "query": "编程语言",
+       "query": "programming language",
        "top_k": 10,
        "use_rerank": true
      }'
 ```
 
-### 2. 多模态搜索（推荐�?
+### 2. Multimodal Search (Recommended)
+
 ```bash
-curl -X POST "http://localhost:8843/api/multimodal-search" \
+curl -X POST "http://localhost:8840/api/multimodal-search" \
      -H "Content-Type: application/json" \
      -d '{
-       "query": "编程语言",
+       "query": "programming language",
        "top_k": 10,
        "text_weight": 0.6,
        "image_weight": 0.4
      }'
 ```
 
-### 3. 获取统计信息
+### 3. Get Statistics
 
 ```bash
-curl "http://localhost:8843/api/vector-stats"
+curl "http://localhost:8840/api/vector-stats"
 ```
 
-### 4. 同步数据�?
+### 4. Sync Database
+
 ```bash
-curl -X POST "http://localhost:8843/api/vector-sync?limit=100"
+curl -X POST "http://localhost:8840/api/vector-sync?limit=100"
 ```
 
-### 5. 重置向量数据�?
+### 5. Reset Vector Database
+
 ```bash
-curl -X POST "http://localhost:8843/api/vector-reset"
+curl -X POST "http://localhost:8840/api/vector-reset"
 ```
 
-## Python 代码示例
+## Python Code Examples
 
-### 基本使用
+### Basic Usage
 
 ```python
-from lifetrace.config import config
-from lifetrace.storage import db_manager
-from lifetrace.vector_service import create_vector_service
+from lifetrace_backend.config import config
+from lifetrace_backend.components.storage import db_manager
+from lifetrace_backend.components.vector_service import create_vector_service
 
-# 初始化向量服�?vector_service = create_vector_service(config, db_manager)
+# Initialize vector service
+vector_service = create_vector_service(config, db_manager)
 
-# 检查服务状�?if vector_service.is_enabled():
-    print("向量数据库服务已启用")
+# Check service status
+if vector_service.is_enabled():
+    print("Vector database service enabled")
 else:
-    print("向量数据库服务未启用")
+    print("Vector database service disabled")
 
-# 语义搜索
+# Semantic search
 results = vector_service.semantic_search(
-    query="Python 编程",
+    query="Python programming",
     top_k=5,
     use_rerank=True
 )
 
 for result in results:
-    print(f"相似�? {result['score']:.3f}")
-    print(f"文本: {result['text'][:100]}...")
+    print(f"Similarity: {result['score']:.3f}")
+    print(f"Text: {result['text'][:100]}...")
     print("---")
 ```
 
-### 同步现有数据
+### Sync Existing Data
 
 ```python
-# �?SQLite 数据库同步所�?OCR 结果
+# Sync all OCR results from SQLite database
 synced_count = vector_service.sync_from_database()
-print(f"同步�?{synced_count} 条记�?)
+print(f"Synced {synced_count} records")
 
-# 限制同步数量
+# Limit sync count
 synced_count = vector_service.sync_from_database(limit=1000)
-print(f"同步�?{synced_count} 条记�?)
+print(f"Synced {synced_count} records")
 ```
 
-### 获取统计信息
+### Get Statistics
 
 ```python
 stats = vector_service.get_stats()
-print(f"向量数据库统�? {stats}")
+print(f"Vector database stats: {stats}")
 ```
 
-## 测试功能
+## Testing Functionality
 
-运行测试脚本验证向量数据库功能：
+Run test script to verify vector database functionality:
 
 ```bash
-python test_vector_db.py
+python lifetrace_backend/components/test_vector_db.py
 ```
 
-测试脚本会验证：
-1. 向量服务初始�?2. OCR 结果添加到向量数据库
-3. 语义搜索功能
-4. 数据同步功能
-5. 统计信息获取
+The test script verifies:
+1. Vector service initialization
+2. OCR results added to vector database
+3. Semantic search functionality
+4. Data synchronization functionality
+5. Statistics information retrieval
 
-## 性能优化建议
+## Performance Optimization Recommendations
 
-### 1. 模型选择
+### 1. Model Selection
 
-- **中文场景**: 使用 `shibing624/text2vec-base-chinese`
-- **英文场景**: 使用 `sentence-transformers/all-MiniLM-L6-v2`
-- **多语言场景**: 使用 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+- **Chinese scenarios**: Use `shibing624/text2vec-base-chinese`
+- **English scenarios**: Use `sentence-transformers/all-MiniLM-L6-v2`
+- **Multilingual scenarios**: Use `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
 
-### 2. 硬件配置
+### 2. Hardware Configuration
 
-- **CPU**: 多核 CPU 可以提高批处理速度
-- **内存**: 建议至少 8GB RAM
-- **存储**: SSD 可以提高向量数据库读写速度
+- **CPU**: Multi-core CPU can improve batch processing speed
+- **Memory**: Recommend at least 8GB RAM
+- **Storage**: SSD can improve vector database read/write speed
 
-### 3. 配置优化
-
-```yaml
-vector_db:
-  batch_size: 64  # 增加批处理大小（如果内存充足�?  chunk_size: 256  # 减少块大小以提高搜索精度
-  chunk_overlap: 25  # 适当减少重叠以节省存�?```
-
-## 故障排除
-
-### 1. 依赖问题
-
-如果遇到依赖安装问题�?
-```bash
-# 升级 pip
-pip install --upgrade pip
-
-# 安装依赖
-pip install -r requirements_vector.txt
-
-# 如果遇到网络问题，使用国内镜�?pip install -r requirements_vector.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
-```
-
-### 2. 模型下载问题
-
-首次使用时会自动下载模型，如果下载失败：
+### 3. Configuration Optimization
 
 ```python
-# 手动下载模型
+VECTOR_DB_CONFIG = {
+    'batch_size': 64,  # Increase batch size (if memory sufficient)
+    'chunk_size': 256,  # Reduce chunk size to improve search accuracy
+    'chunk_overlap': 25,  # Appropriately reduce overlap to save storage
+}
+```
+
+## Troubleshooting
+
+### 1. Dependency Issues
+
+If encountering dependency installation issues:
+```bash
+# Upgrade pip
+pip install --upgrade pip
+
+# Install dependencies
+pip install -r requirements.txt
+
+# If encountering network issues, use domestic mirror
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
+```
+
+### 2. Model Download Issues
+
+Models are automatically downloaded on first use. If download fails:
+
+```python
+# Manually download model
 from sentence_transformers import SentenceTransformer
 model = SentenceTransformer('shibing624/text2vec-base-chinese')
 ```
 
-### 3. 内存不足
+### 3. Out of Memory
 
-如果遇到内存不足问题�?
-1. 减少 `batch_size`
-2. 使用更小的模�?3. 分批处理数据
+If encountering out of memory issues:
+1. Reduce `batch_size`
+2. Use smaller models
+3. Process data in batches
 
-### 4. 搜索结果不准�?
-1. 启用重排序功�?(`use_rerank: true`)
-2. 调整 `retrieve_k` 参数
-3. 使用更适合的嵌入模�?
-## 注意事项
+### 4. Inaccurate Search Results
 
-1. **数据一致�?*: 向量数据库与 SQLite 数据库独立存储，删除 SQLite 中的数据不会自动删除向量数据库中的对应数�?
-2. **存储空间**: 向量数据库会占用额外的存储空间，建议定期清理不需要的数据
+1. Enable reranking functionality (`use_rerank: true`)
+2. Adjust `retrieve_k` parameter
+3. Use more suitable embedding models
 
-3. **首次同步**: 如果有大量历史数据，首次同步可能需要较长时�?
-4. **模型更新**: 更换嵌入模型后需要重新构建向量数据库
+## Important Notes
 
-## 高级用法
+1. **Data Consistency**: Vector database and SQLite database store independently. Deleting data from SQLite won't automatically delete corresponding data from vector database
+2. **Storage Space**: Vector database will occupy additional storage space. Regular cleanup of unnecessary data is recommended
+3. **Initial Sync**: If there's a large amount of historical data, initial sync may take considerable time
+4. **Model Updates**: After changing embedding models, vector database needs to be rebuilt
 
-### 自定义过滤器
+## Advanced Usage
+
+### Custom Filters
 
 ```python
-# 按应用程序过�?results = vector_service.semantic_search(
-    query="编程",
+# Filter by application
+results = vector_service.semantic_search(
+    query="programming",
     filters={"application": "VSCode"}
 )
 
-# 按时间范围过�?results = vector_service.semantic_search(
-    query="会议",
+# Filter by time range
+results = vector_service.semantic_search(
+    query="meeting",
     filters={
         "created_at": {
             "$gte": "2024-01-01T00:00:00",
@@ -228,10 +261,10 @@ model = SentenceTransformer('shibing624/text2vec-base-chinese')
 )
 ```
 
-### 批量操作
+### Batch Operations
 
 ```python
-# 批量添加 OCR 结果
+# Batch add OCR results
 with db_manager.get_session() as session:
     ocr_results = session.query(OCRResult).limit(100).all()
     
@@ -243,6 +276,28 @@ with db_manager.get_session() as session:
         vector_service.add_ocr_result(ocr_result, screenshot)
 ```
 
-## 总结
+## Current Implementation Features
 
-向量数据库功能为 LifeTrace 提供了强大的语义搜索能力，可以帮助用户更智能地检索和分析历史记录。通过合理的配置和使用，可以显著提升用户体验和数据利用效率�
+### Database-Driven Architecture
+- Automatic OCR data synchronization to vector database
+- Real-time embedding generation and storage
+- Efficient similarity search with ChromaDB
+
+### Vector Service Integration
+- Seamless integration with existing OCR pipeline
+- Automatic text embedding generation
+- Support for batch processing and incremental updates
+
+### Error Handling
+- Graceful fallback when vector database unavailable
+- Comprehensive logging for debugging
+- Robust error recovery mechanisms
+
+### Configuration Options
+- Flexible model selection for different languages
+- Configurable batch sizes for performance tuning
+- Optional reranking for improved search quality
+
+## Summary
+
+Vector database functionality provides LifeTrace with powerful semantic search capabilities, helping users more intelligently retrieve and analyze historical records. Through proper configuration and usage, it can significantly improve user experience and data utilization efficiency.

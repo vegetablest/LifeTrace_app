@@ -1,42 +1,45 @@
-# OCR 性能优化说明
+# OCR Performance Optimization Guide
 
-## 问题分析
+## Problem Analysis
 
-原始�?`pad_ocr.py` 脚本存在以下问题�?1. **性能问题**：使�?PaddleOCR，推理时间约 58 秒，效率极低
-2. **资源消�?*：PaddlePaddle 模型较大，内存占用高
-3. **初始化慢**：模型下载和初始化时间长
+The original `pad_ocr.py` script had the following issues:
 
-## 优化方案
+1. **Performance Issues**: Used PaddleOCR with inference time of approximately 58 seconds, extremely low efficiency
+2. **Resource Consumption**: PaddlePaddle models are large with high memory usage
+3. **Slow Initialization**: Long model download and initialization time
 
-### 1. 替换 OCR 引擎
-- **原来**：PaddleOCR (paddlepaddle)
-- **现在**：RapidOCR (onnxruntime)
+## Optimization Solution
 
-### 2. 性能对比
+### 1. OCR Engine Replacement
+- **Before**: PaddleOCR (paddlepaddle)
+- **Now**: RapidOCR (onnxruntime)
 
-| 指标 | PaddleOCR | RapidOCR | 提升幅度 |
-|------|-----------|----------|----------|
-| 推理时间 | ~58�?| ~5.8�?| **10倍提�?* |
-| 模型大小 | 较大 | 较小 | �?5MB减少 |
-| 初始化速度 | �?| �?| 显著提升 |
-| 识别准确�?| �?| �?| 相当 |
+### 2. Performance Comparison
 
-### 3. 主要改进
+| Metric | PaddleOCR | RapidOCR | Improvement |
+|--------|-----------|----------|-------------|
+| Inference Time | ~58s | ~5.8s | **10x faster** |
+| Model Size | Large | Small | ~5MB reduction |
+| Initialization Speed | Slow | Fast | Significant improvement |
+| Recognition Accuracy | High | High | Equivalent |
 
-#### 3.1 引擎替换
+### 3. Major Improvements
+
+#### 3.1 Engine Replacement
 ```python
-# 原来
+# Before
 from paddleocr import PaddleOCR
 ocr = PaddleOCR(use_angle_cls=True, lang='ch')
 
-# 现在
+# Now
 from rapidocr_onnxruntime import RapidOCR
 config_params = {"Global.width_height_ratio": 40}
 ocr = RapidOCR(params=config_params)
 ```
 
-#### 3.2 图像预处理优�?```python
-# 添加图像缩放以提高处理速度
+#### 3.2 Image Preprocessing Optimization
+```python
+# Add image scaling to improve processing speed
 MAX_THUMBNAIL_SIZE = (1920, 1920)
 with Image.open(image_path) as img:
     img = img.convert("RGB")
@@ -44,10 +47,10 @@ with Image.open(image_path) as img:
     img_array = np.array(img)
 ```
 
-#### 3.3 结果格式统一
+#### 3.3 Unified Result Format
 ```python
 def convert_ocr_results(self, results):
-    """转换OCR结果为统一格式"""
+    """Convert OCR results to unified format"""
     converted = []
     for result in results:
         item = {
@@ -59,63 +62,174 @@ def convert_ocr_results(self, results):
     return converted
 ```
 
-#### 3.4 智能过滤
+#### 3.4 Intelligent Filtering
 ```python
-# 过滤低置信度结果
+# Filter low confidence results
 filtered_results = [r for r in converted_results if r['score'] > 0.5]
 ```
 
-### 4. 使用方法
+### 4. Usage Instructions
 
-#### 4.1 安装依赖
+#### 4.1 Install Dependencies
 ```bash
-pip install -r requirements_rapidocr.txt
+pip install -r requirements.txt
 ```
 
-#### 4.2 集成到LifeTrace系统
+#### 4.2 Integration with LifeTrace System
 ```python
-# 在LifeTrace主系统中使用
-from lifetrace.ocr import SimpleOCRProcessor
+# Use in LifeTrace main system
+from lifetrace_backend.simple_ocr import SimpleOCRProcessor
 
-# 初始化OCR处理�?ocr_processor = SimpleOCRProcessor()
+# Initialize OCR processor
+ocr_processor = SimpleOCRProcessor()
 
-# 启动OCR监控
+# Start OCR monitoring
 ocr_processor.start()
 ```
 
-#### 4.3 独立运行脚本
+#### 4.3 Standalone Script Execution
 ```bash
-# 持续监控模式（默认）
-python rapid_ocr.py
+# Continuous monitoring mode (default)
+python -m lifetrace_backend.simple_ocr
 
-# 指定监控目录
-python rapid_ocr.py --dir /path/to/screenshots
+# Specify monitoring directory
+python -m lifetrace_backend.simple_ocr --dir /path/to/screenshots
 
-# 处理单个文件
-python rapid_ocr.py --file /path/to/image.png
+# Process single file
+python -m lifetrace_backend.simple_ocr --file /path/to/image.png
 
-# 自定义检查间�?python rapid_ocr.py --interval 1.0
+# Custom check interval
+python -m lifetrace_backend.simple_ocr --interval 1.0
 ```
 
-### 5. 实际测试结果
+### 5. Actual Test Results
 
 ```
-2025-08-19 16:54:36,776 - INFO - 推理时间: 5.82�?2025-08-19 16:54:36,778 - INFO - 识别结果: 81/81 (置信�?0.5)
-2025-08-19 16:54:36,779 - INFO - 识别文本预览: msedge(0.82), 8�?9日周二下�?:54(0.86), 索Microsaft必应(0.78), 127001(0.79), 文件(F)(0.82)
+2025-08-19 16:54:36,776 - INFO - Inference time: 5.82s
+2025-08-19 16:54:36,778 - INFO - Recognition results: 81/81 (confidence > 0.5)
+2025-08-19 16:54:36,779 - INFO - Recognized text preview: msedge(0.82), August 19 Tuesday PM 4:54(0.86), Microsoft Bing(0.78), 127001(0.79), File(F)(0.82)
 ```
 
-### 6. 优势总结
+### 6. Advantages Summary
 
-1. **性能大幅提升**：处理速度提升 10 �?2. **资源占用更少**：模型更小，内存占用�?3. **更好的用户体�?*：快速响应，实时处理
-4. **保持高准确率**：识别质量不降反�?5. **更好的可维护�?*：代码结构清晰，易于扩展
-6. **向量数据库集�?*：自动将OCR结果存储到向量数据库，支持语义搜�?7. **智能去重**：避免重复处理相同文件，提高效率
+1. **Significant Performance Improvement**: Processing speed increased by 10x
+2. **Lower Resource Usage**: Smaller models, reduced memory consumption
+3. **Better User Experience**: Fast response, real-time processing
+4. **Maintained High Accuracy**: Recognition quality improved rather than degraded
+5. **Better Maintainability**: Clear code structure, easy to extend
+6. **Vector Database Integration**: Automatically stores OCR results to vector database, supports semantic search
+7. **Intelligent Deduplication**: Avoids reprocessing the same files, improves efficiency
+8. **Database-Driven Processing**: Processes unprocessed records from database instead of scanning filesystem
+9. **Active Window Detection**: Captures active application information for better context
 
-### 7. 兼容性说�?
-- **输出格式**：与原有格式兼容，保存为 JSON 格式
-- **文件命名**：保�?`ocr_原文件名.txt` 的命名规�?- **目录结构**：使用相同的监控目录结构
+### 7. Current Implementation Features
 
-## 建议
+#### 7.1 Database-Driven Architecture
+```python
+# Query unprocessed screenshots from database
+unprocessed_screenshots = self.db_manager.get_unprocessed_screenshots(limit=batch_size)
 
-1. **替换现有脚本**：建议使�?`rapid_ocr.py` 替代 `pad_ocr.py`
-2. **批量处理**：可以扩展脚本支持批量处理历史文�?3. **集成到主系统**：考虑�?RapidOCR 集成�?LifeTrace 主系统中
-4. **监控优化**：可以添加文件系统事件监控，进一步提升响应速度
+# Process each screenshot
+for screenshot in unprocessed_screenshots:
+    self.process_screenshot_record(screenshot)
+```
+
+#### 7.2 Vector Service Integration
+```python
+# Add OCR results to vector database for semantic search
+if self.vector_service and self.vector_service.is_enabled():
+    self.vector_service.add_ocr_result(
+        screenshot_id=screenshot_id,
+        text_content=combined_text,
+        metadata={
+            'file_path': screenshot.file_path,
+            'timestamp': screenshot.timestamp,
+            'app_name': screenshot.app_name or 'Unknown'
+        }
+    )
+```
+
+#### 7.3 Robust Error Handling
+```python
+try:
+    # OCR processing with comprehensive error handling
+    ocr_result = self.ocr_engine.process_image(image_path)
+except Exception as e:
+    self.logger.error(f"OCR processing failed for {image_path}: {e}")
+    # Mark as failed in database
+    self.db_manager.mark_ocr_failed(screenshot_id, str(e))
+```
+
+### 8. Configuration Options
+
+#### 8.1 OCR Engine Configuration
+```yaml
+ocr:
+  enabled: true
+  engine: "rapidocr"  # rapidocr or paddleocr
+  confidence_threshold: 0.5
+  batch_size: 10
+  check_interval: 5.0
+  max_image_size: [1920, 1920]
+```
+
+#### 8.2 Language Support
+```python
+# Multi-language OCR support
+config_params = {
+    "Global.width_height_ratio": 40,
+    "language": ["ch", "en"]  # Chinese and English
+}
+```
+
+### 9. Compatibility Notes
+
+- **Output Format**: Compatible with existing format, saves as JSON format
+- **File Naming**: Maintains `ocr_original_filename.txt` naming convention
+- **Directory Structure**: Uses the same monitoring directory structure
+- **Database Schema**: Fully integrated with LifeTrace database schema
+- **API Integration**: Seamlessly works with LifeTrace web API endpoints
+
+## Recommendations
+
+1. **Replace Existing Script**: Recommend using `simple_ocr.py` instead of `pad_ocr.py`
+2. **Batch Processing**: Can extend script to support batch processing of historical files
+3. **Main System Integration**: Consider integrating RapidOCR into LifeTrace main system (already implemented)
+4. **Monitoring Optimization**: Can add filesystem event monitoring for further response speed improvement
+5. **Performance Tuning**: Adjust batch size and check interval based on system resources
+6. **Vector Search**: Leverage vector database integration for advanced semantic search capabilities
+
+## Troubleshooting
+
+### Common Issues
+
+1. **OCR Engine Initialization Failed**
+   - Check RapidOCR installation: `pip install rapidocr-onnxruntime`
+   - Verify ONNX runtime compatibility
+
+2. **Poor Recognition Quality**
+   - Adjust confidence threshold in configuration
+   - Check image quality and resolution
+   - Verify language settings match content
+
+3. **Database Connection Issues**
+   - Check database file permissions
+   - Verify database schema is up to date
+   - Check database connection configuration
+
+4. **Vector Service Integration Issues**
+   - Verify vector service is enabled in configuration
+   - Check ChromaDB installation and setup
+   - Monitor vector service logs for errors
+
+### Debug Mode
+```bash
+# Run with debug logging
+python -m lifetrace_backend.simple_ocr --debug
+
+# Check OCR service status
+curl http://localhost:8840/api/ocr/status
+
+# Monitor processing queue
+curl http://localhost:8840/api/queue/status
+```

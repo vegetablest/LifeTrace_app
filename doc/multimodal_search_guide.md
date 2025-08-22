@@ -1,78 +1,102 @@
-# LifeTrace 多模态搜索方�?
-## 🎯 方案概述
+# LifeTrace Multimodal Search Guide
 
-LifeTrace 多模态搜索功能同时考虑**文本相似�?*�?*图像相似�?*，提供更精准的搜索体验�?
-### 核心技�?- **CLIP模型**: 将图像和文本映射到同一向量空间
-- **多模态向量数据库**: 分别存储文本和图像嵌入向�?- **权重融合**: 可配置的文本/图像权重组合
+## 🎯 Overview
 
-## 📁 项目结构
+LifeTrace multimodal search functionality considers both **text similarity** and **image similarity** to provide a more precise search experience.
+
+### Core Technologies
+- **CLIP Model**: Maps images and text to the same vector space
+- **Multimodal Vector Database**: Separately stores text and image embedding vectors
+- **Weight Fusion**: Configurable text/image weight combinations
+
+## 📁 Project Structure
 
 ```
-lifetrace/
-├── multimodal_embedding.py      # CLIP多模态嵌入生�?├── multimodal_vector_service.py # 多模态向量数据库服务
-├── server.py                    # 添加多模态API端点
-└── templates/index.html         # 前端多模态搜索界�?```
-
-## 🔧 技术架�?
-### 1. 嵌入生成�?```
-文本内容 �?CLIP文本编码�?�?512维文本向�?截图图像 �?CLIP图像编码�?�?512维图像向�?```
-
-### 2. 存储�?```
-文本向量数据�? lifetrace_text/
-图像向量数据�? lifetrace_image/
+lifetrace_backend/
+├── components/
+│   ├── multimodal_embedding.py      # CLIP multimodal embedding generation
+│   └── multimodal_vector_service.py # Multimodal vector database service
+├── server.py                         # Added multimodal API endpoints
+└── templates/index.html              # Frontend multimodal search interface
 ```
 
-### 3. 搜索�?```
-查询文本 �?文本向量 �?与存储向量计算相似度
-                 �?            综合分数 = α×文本相似�?+ β×图像相似�?```
+## 🔧 Technical Architecture
 
-## 🚀 安装和配�?
-### 1. 安装依赖
+### 1. Embedding Generation
+```
+Text Content → CLIP Text Encoder → 512-dim Text Vector
+Screenshot Image → CLIP Image Encoder → 512-dim Image Vector
+```
+
+### 2. Storage
+```
+Text Vector Database: lifetrace_text/
+Image Vector Database: lifetrace_image/
+```
+
+### 3. Search Process
+```
+Query Text → Text Vector → Calculate similarity with stored vectors
+                ↓
+            Combined Score = α×Text Similarity + β×Image Similarity
+```
+
+## 🚀 Installation and Configuration
+
+### 1. Install Dependencies
 ```bash
-# 安装多模态依�?pip install -r requirements_multimodal.txt
+# Install multimodal dependencies
+pip install -r requirements.txt
 ```
 
-### 2. 配置文件
-�?`config/default_config.yaml` 中：
-```yaml
-multimodal:
-  enabled: true
-  model_name: 'openai/clip-vit-base-patch32'
-  text_weight: 0.6    # 文本权重
-  image_weight: 0.4   # 图像权重
-  batch_size: 16
-  auto_sync: true
+### 2. Configuration File
+In `lifetrace_backend/config.py`:
+```python
+MULTIMODAL_CONFIG = {
+    'enabled': True,
+    'model_name': 'openai/clip-vit-base-patch32',
+    'text_weight': 0.6,    # Text weight
+    'image_weight': 0.4,   # Image weight
+    'batch_size': 16,
+    'auto_sync': True
+}
 ```
 
-### 3. 启动服务
+### 3. Start Service
 ```bash
-# 启动LifeTrace服务（包含多模态搜索）
-python -m lifetrace_backend.server --port 8843
+# Start LifeTrace service (including multimodal search)
+python -m lifetrace_backend.server --port 8840
 
-# 或使用启动脚�?python start_all_services.py
+# Or use startup script
+python lifetrace_backend/server.py
 ```
 
-## 🎨 前端界面
+## 🎨 Frontend Interface
 
-### 搜索类型
-- **传统搜索**: 基于关键词匹�?- **语义搜索**: 基于文本语义理解
-- **多模态搜�?*: 同时考虑文本和图像相似度
+### Search Types
+- **Traditional Search**: Based on keyword matching
+- **Semantic Search**: Based on text semantic understanding
+- **Multimodal Search**: Considers both text and image similarity
 
-### 多模态搜索选项
-- **返回数量**: 1-50个结�?- **文本权重**: 0.0-1.0 (默认0.6)
-- **图像权重**: 0.0-1.0 (默认0.4)
+### Multimodal Search Options
+- **Return Count**: 1-50 results
+- **Text Weight**: 0.0-1.0 (default 0.6)
+- **Image Weight**: 0.0-1.0 (default 0.4)
 
-### 结果显示
-- **🎭标识**: 多模态搜索结�?- **综合分数**: 加权后的最终相似度
-- **详细分数**: 文本相似�?| 图像相似�?
-## 📡 API接口
+### Result Display
+- **🎭 Identifier**: Multimodal search results
+- **Combined Score**: Final weighted similarity
+- **Detailed Scores**: Text Similarity | Image Similarity
 
-### 多模态搜�?```http
+## 📡 API Endpoints
+
+### Multimodal Search
+```http
 POST /api/multimodal-search
 Content-Type: application/json
 
 {
-  "query": "编程代码",
+  "query": "programming code",
   "top_k": 10,
   "text_weight": 0.6,
   "image_weight": 0.4,
@@ -80,99 +104,146 @@ Content-Type: application/json
 }
 ```
 
-### 多模态统�?```http
+### Multimodal Statistics
+```http
 GET /api/multimodal-stats
 ```
 
-### 多模态同�?```http
+### Multimodal Sync
+```http
 POST /api/multimodal-sync?force_reset=false
 ```
 
-## 🔍 搜索策略
+## 🔍 Search Strategies
 
-### 权重配置建议
-- **文本为主**: text_weight=0.8, image_weight=0.2
-- **平衡模式**: text_weight=0.6, image_weight=0.4
-- **图像为主**: text_weight=0.3, image_weight=0.7
+### Weight Configuration Recommendations
+- **Text-focused**: text_weight=0.8, image_weight=0.2
+- **Balanced mode**: text_weight=0.6, image_weight=0.4
+- **Image-focused**: text_weight=0.3, image_weight=0.7
 
-### 适用场景
-1. **代码截图**: 高文本权重，识别代码内容和视觉布局
-2. **界面设计**: 高图像权重，关注视觉相似�?3. **文档阅读**: 平衡权重，文字内容和排版都重�?4. **图表数据**: 高图像权重，关注图表形状和结�?
-## 🛠�?开发和调试
+### Use Cases
+1. **Code Screenshots**: High text weight, recognizing code content and visual layout
+2. **Interface Design**: High image weight, focusing on visual similarity
+3. **Document Reading**: Balanced weight, both text content and layout matter
+4. **Chart Data**: High image weight, focusing on chart shapes and structure
 
-### 测试脚本
+## 🛠️ Development and Debugging
+
+### Test Scripts
 ```bash
-# 测试多模态功�?python -c "
-from lifetrace.multimodal_embedding import get_multimodal_embedding
+# Test multimodal functionality
+python -c "
+from lifetrace_backend.components.multimodal_embedding import get_multimodal_embedding
 embedding = get_multimodal_embedding()
-print('多模态功能可�?', embedding.is_available())
+print('Multimodal functionality available:', embedding.is_available())
 "
 ```
 
-### 调试步骤
-1. **检查依�?*: 确保PyTorch和CLIP已安�?2. **检查配�?*: 验证multimodal.enabled=true
-3. **检查模�?*: CLIP模型下载可能需要时�?4. **检查数�?*: 确保有截图和OCR数据可供搜索
+### Debugging Steps
+1. **Check Dependencies**: Ensure PyTorch and CLIP are installed
+2. **Check Configuration**: Verify multimodal.enabled=true
+3. **Check Model**: CLIP model download may take time
+4. **Check Data**: Ensure screenshots and OCR data are available for search
 
-## 📊 性能优化
+## 📊 Performance Optimization
 
-### 批处理优�?- 文本批量编码: 16-32个文本一�?- 图像批量编码: 8-16个图像一�?
-### 内存优化
-- 使用CPU推理节省显存
-- 定期清理向量数据库缓�?
-### 搜索优化
-- 预计算常用查询向�?- 使用近似最近邻算法(ANN)
+### Batch Processing Optimization
+- Text batch encoding: 16-32 texts at once
+- Image batch encoding: 8-16 images at once
 
-## 🔧 故障排查
+### Memory Optimization
+- Use CPU inference to save GPU memory
+- Regularly clean vector database cache
 
-### 常见问题
+### Search Optimization
+- Pre-compute common query vectors
+- Use Approximate Nearest Neighbor (ANN) algorithms
 
-1. **多模态功能不可用**
+## 🔧 Troubleshooting
+
+### Common Issues
+
+1. **Multimodal functionality unavailable**
    ```bash
-   # 检查依�?   pip list | grep -E "(torch|transformers|clip)"
+   # Check dependencies
+   pip list | grep -E "(torch|transformers|clip)"
    ```
 
-2. **模型下载失败**
+2. **Model download failure**
    ```bash
-   # 设置代理或使用镜�?   export HF_ENDPOINT=https://hf-mirror.com
+   # Set proxy or use mirror
+   export HF_ENDPOINT=https://hf-mirror.com
    ```
 
-3. **搜索结果为空**
+3. **Empty search results**
    ```bash
-   # 检查数据同�?   curl -X POST http://localhost:8843/api/multimodal-sync
+   # Check data sync
+   curl -X POST http://localhost:8840/api/multimodal-sync
    ```
 
-4. **内存不足**
-   ```yaml
-   # 降低批处理大�?   multimodal:
-     batch_size: 8
+4. **Out of memory**
+   ```python
+   # Reduce batch size in config.py
+   MULTIMODAL_CONFIG = {
+       'batch_size': 8
+   }
    ```
 
-### 日志分析
+### Log Analysis
 ```bash
-# 查看多模态日�?tail -f ~/.lifetrace/logs/*.log | grep -i multimodal
+# View multimodal logs
+tail -f ~/.lifetrace/logs/*.log | grep -i multimodal
 ```
 
-## 🚀 未来扩展
+## 🚀 Future Extensions
 
-### 模型升级
-- 支持多语言CLIP模型
-- 集成Chinese-CLIP
-- 支持更大的CLIP模型(ViT-L/14)
+### Model Upgrades
+- Support multilingual CLIP models
+- Integrate Chinese-CLIP
+- Support larger CLIP models (ViT-L/14)
 
-### 功能增强
-- 图像-图像搜索
-- 跨模态搜�?用图像搜文本)
-- 时间序列相似�?
-### 性能优化
-- GPU加速推�?- 向量量化压缩
-- 分布式向量数据库
+### Feature Enhancements
+- Image-to-image search
+- Cross-modal search (search text with images)
+- Time series similarity
 
-## 📈 效果评估
+### Performance Optimization
+- GPU-accelerated inference
+- Vector quantization compression
+- Distributed vector database
 
-### 搜索质量指标
-- **准确�?*: 相关结果占比
-- **召回�?*: 找到的相关结果比�?- **多样�?*: 结果的多样性程�?
-### 性能指标
-- **搜索延迟**: <2秒响应时�?- **同步速度**: >100条记�?分钟
-- **内存使用**: <2GB峰值内�?
-通过多模态搜索，LifeTrace 能够提供更智能、更精准的个人数字生活搜索体�? 🎉
+## 📈 Effectiveness Evaluation
+
+### Search Quality Metrics
+- **Precision**: Proportion of relevant results
+- **Recall**: Proportion of relevant results found
+- **Diversity**: Diversity level of results
+
+### Performance Metrics
+- **Search Latency**: <2 second response time
+- **Sync Speed**: >100 records per minute
+- **Memory Usage**: <2GB peak memory
+
+## 🎯 Current Implementation Features
+
+### Database-Driven Architecture
+- Automatic OCR data synchronization to vector database
+- Real-time embedding generation and storage
+- Efficient similarity search with ChromaDB
+
+### Vector Service Integration
+- Seamless integration with existing OCR pipeline
+- Automatic text and image embedding generation
+- Support for batch processing and incremental updates
+
+### Error Handling
+- Graceful fallback when CLIP model unavailable
+- Comprehensive logging for debugging
+- Robust error recovery mechanisms
+
+### Configuration Options
+- Flexible weight adjustment for different use cases
+- Configurable batch sizes for performance tuning
+- Optional GPU acceleration support
+
+Through multimodal search, LifeTrace provides a more intelligent and precise personal digital life search experience! 🎉
