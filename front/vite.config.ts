@@ -19,6 +19,18 @@ export default defineConfig({
   server: {
     port: 8844,
     host: true,
-    strictPort: true
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8840',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/health': {
+        target: 'http://localhost:8840',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   }
 })

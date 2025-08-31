@@ -49,6 +49,23 @@ class ScreenshotResponse(BaseModel):
     width: int
     height: int
 
+class EventResponse(BaseModel):
+    id: int
+    app_name: Optional[str]
+    window_title: Optional[str]
+    start_time: datetime
+    end_time: Optional[datetime]
+    screenshot_count: int
+    first_screenshot_id: Optional[int]
+
+class EventDetailResponse(BaseModel):
+    id: int
+    app_name: Optional[str]
+    window_title: Optional[str]
+    start_time: datetime
+    end_time: Optional[datetime]
+    screenshots: List[ScreenshotResponse]
+
 class StatisticsResponse(BaseModel):
     total_screenshots: int
     processed_screenshots: int
@@ -187,24 +204,6 @@ async def index(request: Request):
         """)
 
 
-@app.get("/beautiful", response_class=HTMLResponse)
-async def beautiful_page(request: Request):
-    """美化版主页"""
-    if templates:
-        return templates.TemplateResponse("beautiful.html", {"request": request})
-    else:
-        return HTMLResponse("""
-        <html>
-            <head><title>LifeTrace - 美化版</title></head>
-            <body>
-                <h1>LifeTrace 智能生活记录系统 - 美化版</h1>
-                <p>模板文件未找到</p>
-                <p><a href="/">返回主页</a></p>
-            </body>
-        </html>
-        """)
-
-
 @app.get("/health")
 async def health_check():
     """健康检查"""
@@ -308,6 +307,76 @@ async def get_screenshots(
         
     except Exception as e:
         logging.error(f"获取截图列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/events", response_model=List[EventResponse])
+async def list_events(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    app_name: Optional[str] = Query(None)
+):
+    """获取事件列表（事件=前台应用使用阶段），用于事件级别展示与检索"""
+    try:
+        start_dt = datetime.fromisoformat(start_date) if start_date else None
+        end_dt = datetime.fromisoformat(end_date) if end_date else None
+        events = db_manager.list_events(limit=limit, offset=offset, start_date=start_dt, end_date=end_dt, app_name=app_name)
+        return [EventResponse(**e) for e in events]
+    except Exception as e:
+        logging.error(f"获取事件列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/events/{event_id}", response_model=EventDetailResponse)
+async def get_event_detail(event_id: int):
+    """获取事件详情（包含该事件下的截图列表）"""
+    try:
+        # 读取事件摘要
+        event_summary = db_manager.get_event_summary(event_id)
+        if not event_summary:
+            raise HTTPException(status_code=404, detail="事件不存在")
+
+        # 读取截图
+        screenshots = db_manager.get_event_screenshots(event_id)
+        screenshots_resp = [ScreenshotResponse(
+            id=s['id'],
+            file_path=s['file_path'],
+            app_name=s['app_name'],
+            window_title=s['window_title'],
+            created_at=s['created_at'],
+            text_content=None,
+            width=s['width'],
+            height=s['height']
+        ) for s in screenshots]
+
+        return EventDetailResponse(
+            id=event_summary['id'],
+            app_name=event_summary['app_name'],
+            window_title=event_summary['window_title'],
+            start_time=event_summary['start_time'],
+            end_time=event_summary['end_time'],
+            screenshots=screenshots_resp
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"获取事件详情失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/event-search", response_model=List[EventResponse])
+async def search_events(search_request: SearchRequest):
+    """事件级简单文本搜索：按OCR分组后返回事件摘要"""
+    try:
+        results = db_manager.search_events_simple(
+            query=search_request.query,
+            limit=search_request.limit
+        )
+        return [EventResponse(**r) for r in results]
+    except Exception as e:
+        logging.error(f"搜索事件失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -479,6 +548,42 @@ async def semantic_search(request: SemanticSearchRequest):
         
     except Exception as e:
         logging.error(f"语义搜索失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/event-semantic-search", response_model=List[EventResponse])
+async def event_semantic_search(request: SemanticSearchRequest):
+    """事件级语义搜索（基于事件聚合文本）"""
+    try:
+        if not vector_service.is_enabled():
+            raise HTTPException(status_code=503, detail="向量数据库服务不可用")
+        raw_results = vector_service.semantic_search_events(
+            query=request.query,
+            top_k=request.top_k
+        )
+
+        # semantic_search_events 现在直接返回格式化的事件数据
+        events_resp: List[EventResponse] = []
+        for event_data in raw_results:
+            # 检查是否已经是完整的事件数据格式
+            if 'id' in event_data and 'app_name' in event_data:
+                # 直接使用返回的事件数据
+                events_resp.append(EventResponse(**event_data))
+            else:
+                # 向后兼容：如果是旧格式，使用原来的逻辑
+                metadata = event_data.get('metadata', {})
+                event_id = metadata.get('event_id')
+                if not event_id:
+                    continue
+                matched = db_manager.get_event_summary(int(event_id))
+                if matched:
+                    events_resp.append(EventResponse(**matched))
+
+        return events_resp
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"事件语义搜索失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

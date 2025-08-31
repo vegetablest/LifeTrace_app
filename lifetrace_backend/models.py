@@ -9,6 +9,20 @@ def get_local_time():
 
 Base = declarative_base()
 
+class Event(Base):
+    """事件模型（按前台应用连续使用区间聚合截图）"""
+    __tablename__ = 'events'
+
+    id = Column(Integer, primary_key=True)
+    app_name = Column(String(200))
+    window_title = Column(String(500))  # 首个或最近的窗口标题
+    start_time = Column(DateTime, default=get_local_time)
+    end_time = Column(DateTime)  # 事件结束时间（应用切换时填充）
+    created_at = Column(DateTime, default=get_local_time)
+
+    def __repr__(self):
+        return f"<Event(id={self.id}, app={self.app_name})>"
+
 class Screenshot(Base):
     """截图记录模型"""
     __tablename__ = 'screenshots'
@@ -22,6 +36,8 @@ class Screenshot(Base):
     screen_id = Column(Integer, nullable=False, default=0)
     app_name = Column(String(200))  # 前台应用名称
     window_title = Column(String(500))  # 窗口标题
+    # 事件ID（可为空，老数据迁移后逐步填充）
+    event_id = Column(Integer)
     created_at = Column(DateTime, default=get_local_time)
     processed_at = Column(DateTime)  # OCR处理时间
     is_processed = Column(Boolean, default=False)

@@ -1,5 +1,5 @@
 // API基础配置
-const API_BASE_URL = 'http://localhost:8840';
+const API_BASE_URL = ''; // 使用相对路径，通过Vite代理访问后端
 
 // API响应数据类型
 export interface ScreenshotData {
@@ -22,6 +22,26 @@ export interface OCRResult {
 
 export interface ScreenshotDetail extends ScreenshotData {
   ocr_result?: OCRResult;
+}
+
+// 事件类型
+export interface EventData {
+  id: number;
+  app_name?: string;
+  window_title?: string;
+  start_time: string;
+  end_time?: string;
+  screenshot_count: number;
+  first_screenshot_id?: number;
+}
+
+export interface EventDetailData {
+  id: number;
+  app_name?: string;
+  window_title?: string;
+  start_time: string;
+  end_time?: string;
+  screenshots: ScreenshotData[];
 }
 
 // 语义搜索请求
@@ -137,6 +157,45 @@ class ApiClient {
     return this.request<SemanticSearchResult[]>('/api/semantic-search', {
       method: 'POST',
       body: JSON.stringify(request),
+    });
+  }
+
+  // 事件列表
+  async listEvents(params?: {
+    limit?: number;
+    offset?: number;
+    start_date?: string;
+    end_date?: string;
+    app_name?: string;
+  }): Promise<EventData[]> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) searchParams.append(key, String(value));
+      });
+    }
+    const endpoint = `/api/events${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    return this.request<EventData[]>(endpoint);
+  }
+
+  // 事件详情
+  async getEventDetail(eventId: number): Promise<EventDetailData> {
+    return this.request<EventDetailData>(`/api/events/${eventId}`);
+  }
+
+  // 事件简单搜索（按OCR聚合）
+  async searchEvents(query: string, limit: number = 20): Promise<EventData[]> {
+    return this.request<EventData[]>('/api/event-search', {
+      method: 'POST',
+      body: JSON.stringify({ query, limit }),
+    });
+  }
+
+  // 事件语义搜索
+  async semanticSearchEvents(query: string, top_k: number = 10): Promise<EventData[]> {
+    return this.request<EventData[]>('/api/event-semantic-search', {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k }),
     });
   }
 

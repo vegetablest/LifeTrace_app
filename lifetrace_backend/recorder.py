@@ -128,8 +128,11 @@ class ScreenRecorder:
                 with open(file_path, 'rb') as f:
                     file_hash = hashlib.md5(f.read()).hexdigest()
                 
-                # 保存截图信息到数据库
+                # 保存截图信息到数据库（绑定事件）
                 try:
+                    # 获取或创建事件（基于当前前台应用）
+                    event_id = db_manager.get_or_create_event(app_name or "未知应用", window_title or "未知窗口", timestamp)
+
                     screenshot_id = db_manager.add_screenshot(
                         file_path=file_path,
                         file_hash=file_hash,
@@ -137,7 +140,8 @@ class ScreenRecorder:
                         height=height,
                         screen_id=screen_id,
                         app_name=app_name or "未知应用",
-                        window_title=window_title or "未知窗口"
+                        window_title=window_title or "未知窗口",
+                        event_id=event_id
                     )
                     logger.debug(f"截图记录已保存到数据库: {screenshot_id}")
                 except Exception as e:

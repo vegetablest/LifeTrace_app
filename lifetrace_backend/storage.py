@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from .config import config
-from .models import Base, Screenshot, OCRResult, SearchIndex, ProcessingQueue
+from .models import Base, Screenshot, OCRResult, SearchIndex, ProcessingQueue, Event
 from .utils import ensure_dir, get_file_hash
 
 
@@ -44,6 +44,17 @@ class DatabaseManager:
             Base.metadata.create_all(bind=self.engine)
             
             logging.info(f"数据库初始化完成: {self.database_url}")
+
+            # 轻量级迁移：为已存在的 screenshots 表添加 event_id 列
+            try:
+                if self.database_url.startswith('sqlite:///'):
+                    with self.engine.connect() as conn:
+                        cols = [row[1] for row in conn.execute(text("PRAGMA table_info('screenshots')")).fetchall()]
+                        if 'event_id' not in cols:
+                            conn.execute(text("ALTER TABLE screenshots ADD COLUMN event_id INTEGER"))
+                            logging.info("已为 screenshots 表添加 event_id 列")
+            except Exception as me:
+                logging.warning(f"检查/添加 screenshots.event_id 列失败: {me}")
             
         except Exception as e:
             logging.error(f"数据库初始化失败: {e}")
@@ -64,7 +75,7 @@ class DatabaseManager:
             session.close()
     
     def add_screenshot(self, file_path: str, file_hash: str, width: int, height: int, 
-                      screen_id: int = 0, app_name: str = None, window_title: str = None) -> Optional[int]:
+                     screen_id: int = 0, app_name: str = None, window_title: str = None, event_id: Optional[int] = None) -> Optional[int]:
         """添加截图记录"""
         try:
             with self.get_session() as session:
@@ -90,7 +101,8 @@ class DatabaseManager:
                     height=height,
                     screen_id=screen_id,
                     app_name=app_name,
-                    window_title=window_title
+                    window_title=window_title,
+                    event_id=event_id
                 )
                 
                 session.add(screenshot)
@@ -102,6 +114,204 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             logging.error(f"添加截图记录失败: {e}")
             return None
+    
+    # 事件管理
+    def _get_last_open_event(self, session: Session) -> Optional[Event]:
+        """获取最后一个未结束的事件"""
+        return session.query(Event).filter(Event.end_time.is_(None)).order_by(Event.start_time.desc()).first()
+
+    def get_or_create_event(self, app_name: Optional[str], window_title: Optional[str], timestamp: Optional[datetime] = None) -> Optional[int]:
+        """按当前前台应用维护事件。
+        若存在未结束事件且应用名一致，则复用并可更新窗口标题；若应用变更，则关闭上一个事件并创建新事件。
+        返回事件ID。
+        """
+        try:
+            with self.get_session() as session:
+                now_ts = timestamp or datetime.now()
+                last_event = self._get_last_open_event(session)
+
+                # 应用未变更，复用事件
+                if last_event and (last_event.app_name or "") == (app_name or ""):
+                    if window_title and window_title != last_event.window_title:
+                        last_event.window_title = window_title
+                    session.flush()
+                    return last_event.id
+
+                # 应用变更或没有正在进行的事件：关闭旧事件
+                if last_event and last_event.end_time is None:
+                    last_event.end_time = now_ts
+                    session.flush()
+
+                # 创建新事件
+                new_event = Event(
+                    app_name=app_name,
+                    window_title=window_title,
+                    start_time=now_ts
+                )
+                session.add(new_event)
+                session.flush()
+                return new_event.id
+        except SQLAlchemyError as e:
+            logging.error(f"获取或创建事件失败: {e}")
+            return None
+
+    def close_active_event(self, end_time: Optional[datetime] = None) -> bool:
+        """主动结束当前事件（可在程序退出时调用）"""
+        try:
+            with self.get_session() as session:
+                last_event = self._get_last_open_event(session)
+                if last_event and last_event.end_time is None:
+                    last_event.end_time = end_time or datetime.now()
+                    return True
+                return False
+        except SQLAlchemyError as e:
+            logging.error(f"结束事件失败: {e}")
+            return False
+
+    def list_events(self, limit: int = 50, offset: int = 0,
+                    start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
+                    app_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """列出事件摘要（包含首张截图ID与截图数量）"""
+        try:
+            with self.get_session() as session:
+                q = session.query(Event)
+                if start_date:
+                    q = q.filter(Event.start_time >= start_date)
+                if end_date:
+                    q = q.filter(Event.start_time <= end_date)
+                if app_name:
+                    q = q.filter(Event.app_name.like(f"%{app_name}%"))
+
+                q = q.order_by(Event.start_time.desc()).offset(offset).limit(limit)
+                events = q.all()
+
+                results: List[Dict[str, Any]] = []
+                for ev in events:
+                    # 统计截图与首图
+                    first_shot = session.query(Screenshot).filter(Screenshot.event_id == ev.id).order_by(Screenshot.created_at.asc()).first()
+                    shot_count = session.query(Screenshot).filter(Screenshot.event_id == ev.id).count()
+                    results.append({
+                        'id': ev.id,
+                        'app_name': ev.app_name,
+                        'window_title': ev.window_title,
+                        'start_time': ev.start_time,
+                        'end_time': ev.end_time,
+                        'screenshot_count': shot_count,
+                        'first_screenshot_id': first_shot.id if first_shot else None
+                    })
+                return results
+        except SQLAlchemyError as e:
+            logging.error(f"列出事件失败: {e}")
+            return []
+
+    def get_event_screenshots(self, event_id: int) -> List[Dict[str, Any]]:
+        """获取事件内截图列表"""
+        try:
+            with self.get_session() as session:
+                shots = session.query(Screenshot).filter(Screenshot.event_id == event_id).order_by(Screenshot.created_at.asc()).all()
+                return [{
+                    'id': s.id,
+                    'file_path': s.file_path,
+                    'app_name': s.app_name,
+                    'window_title': s.window_title,
+                    'created_at': s.created_at,
+                    'width': s.width,
+                    'height': s.height
+                } for s in shots]
+        except SQLAlchemyError as e:
+            logging.error(f"获取事件截图失败: {e}")
+            return []
+
+    def search_events_simple(self, query: Optional[str], limit: int = 50) -> List[Dict[str, Any]]:
+        """基于SQLite的简单事件搜索（按OCR文本聚合）"""
+        try:
+            with self.get_session() as session:
+                base_sql = """
+                    SELECT e.id AS event_id,
+                           e.app_name AS app_name,
+                           e.window_title AS window_title,
+                           e.start_time AS start_time,
+                           e.end_time AS end_time,
+                           MIN(s.id) AS first_screenshot_id,
+                           COUNT(s.id) AS screenshot_count
+                    FROM events e
+                    JOIN screenshots s ON s.event_id = e.id
+                    LEFT JOIN ocr_results o ON o.screenshot_id = s.id
+                """
+                where_clause = []
+                params: Dict[str, Any] = {}
+                if query:
+                    where_clause.append("(o.text_content LIKE :q)")
+                    params['q'] = f"%{query}%"
+
+                sql = base_sql
+                if where_clause:
+                    sql += " WHERE " + " AND ".join(where_clause)
+                sql += " GROUP BY e.id ORDER BY e.start_time DESC LIMIT :limit"
+                params['limit'] = limit
+
+                rows = session.execute(text(sql), params).fetchall()
+                results = []
+                for r in rows:
+                    results.append({
+                        'id': r.event_id,
+                        'app_name': r.app_name,
+                        'window_title': r.window_title,
+                        'start_time': r.start_time,
+                        'end_time': r.end_time,
+                        'first_screenshot_id': r.first_screenshot_id,
+                        'screenshot_count': r.screenshot_count
+                    })
+                return results
+        except SQLAlchemyError as e:
+            logging.error(f"搜索事件失败: {e}")
+            return []
+
+    def get_event_summary(self, event_id: int) -> Optional[Dict[str, Any]]:
+        """获取单个事件的摘要信息"""
+        try:
+            with self.get_session() as session:
+                ev = session.query(Event).filter(Event.id == event_id).first()
+                if not ev:
+                    return None
+                first_shot = session.query(Screenshot).filter(Screenshot.event_id == ev.id).order_by(Screenshot.created_at.asc()).first()
+                shot_count = session.query(Screenshot).filter(Screenshot.event_id == ev.id).count()
+                return {
+                    'id': ev.id,
+                    'app_name': ev.app_name,
+                    'window_title': ev.window_title,
+                    'start_time': ev.start_time,
+                    'end_time': ev.end_time,
+                    'screenshot_count': shot_count,
+                    'first_screenshot_id': first_shot.id if first_shot else None
+                }
+        except SQLAlchemyError as e:
+            logging.error(f"获取事件摘要失败: {e}")
+            return None
+
+    def get_event_id_by_screenshot(self, screenshot_id: int) -> Optional[int]:
+        """根据截图ID获取所属事件ID"""
+        try:
+            with self.get_session() as session:
+                s = session.query(Screenshot).filter(Screenshot.id == screenshot_id).first()
+                return int(s.event_id) if s and s.event_id is not None else None
+        except SQLAlchemyError as e:
+            logging.error(f"查询截图所属事件失败: {e}")
+            return None
+
+    def get_event_text(self, event_id: int) -> str:
+        """聚合事件下所有截图的OCR文本内容，按时间排序拼接"""
+        try:
+            with self.get_session() as session:
+                from .models import OCRResult
+                ocr_list = session.query(OCRResult).join(Screenshot, OCRResult.screenshot_id == Screenshot.id).\
+                    filter(Screenshot.event_id == event_id).\
+                    order_by(OCRResult.created_at.asc()).all()
+                texts = [o.text_content for o in ocr_list if o and o.text_content]
+                return "\n".join(texts)
+        except SQLAlchemyError as e:
+            logging.error(f"聚合事件文本失败: {e}")
+            return ""
     
     def add_ocr_result(self, screenshot_id: int, text_content: str, confidence: float = 0.0,
                       language: str = 'ch', processing_time: float = 0.0) -> Optional[int]:

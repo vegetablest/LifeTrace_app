@@ -77,7 +77,7 @@ class VectorService:
                 "text_length": len(ocr_result.text_content)
             }
             
-            # 添加截图相关信息
+            # 添加截图与事件相关信息
             if screenshot:
                 metadata.update({
                     "screenshot_path": screenshot.file_path,
@@ -85,7 +85,8 @@ class VectorService:
                     "application": screenshot.app_name,
                     "window_title": screenshot.window_title,
                     "width": screenshot.width,
-                    "height": screenshot.height
+                    "height": screenshot.height,
+                    "event_id": getattr(screenshot, 'event_id', None)
                 })
             
             # 添加到向量数据库
@@ -235,68 +236,150 @@ class VectorService:
                 
                 # 统一score字段：优先使用rerank_score，其次使用distance转换为相似度
                 if 'rerank_score' in result:
-                    enhanced_result['score'] = float(result['rerank_score'])
-                elif 'distance' in result and result['distance'] is not None:
-                    # 将距离转换为相似度分数 (距离越小，相似度越高)
-                    distance = float(result['distance'])
-                    # 使用简单的转换公式：score = max(0, 1 - distance)
-                    enhanced_result['score'] = max(0.0, 1.0 - distance)
+                    enhanced_result['score'] = result['rerank_score']
+                elif 'distance' in result:
+                    # 将距离转换为相似度分数（0-1之间）
+                    enhanced_result['score'] = max(0, 1 - result['distance'])
                 else:
                     enhanced_result['score'] = 0.0
                 
-                # 提取 OCR 结果 ID
-                if 'metadata' in result and 'ocr_result_id' in result['metadata']:
-                    ocr_result_id = result['metadata']['ocr_result_id']
+                # 尝试获取相关的数据库记录
+                try:
+                    metadata = result.get('metadata', {})
+                    ocr_result_id = metadata.get('ocr_result_id')
+                    screenshot_id = metadata.get('screenshot_id')
                     
-                    # 从数据库获取完整的 OCR 结果信息
-                    try:
+                    if ocr_result_id:
+                        # 获取OCR结果详细信息
                         with self.db_manager.get_session() as session:
-                            ocr_result = session.query(OCRResult).filter(
-                                OCRResult.id == ocr_result_id
-                            ).first()
+                            from .models import OCRResult, Screenshot
                             
+                            ocr_result = session.query(OCRResult).filter(OCRResult.id == ocr_result_id).first()
                             if ocr_result:
                                 enhanced_result['ocr_result'] = {
                                     'id': ocr_result.id,
-                                    'screenshot_id': ocr_result.screenshot_id,
                                     'text_content': ocr_result.text_content,
                                     'confidence': ocr_result.confidence,
                                     'language': ocr_result.language,
                                     'processing_time': ocr_result.processing_time,
                                     'created_at': ocr_result.created_at.isoformat() if ocr_result.created_at else None
                                 }
-                                
-                                # 确保metadata中有created_at字段
-                                if 'metadata' not in enhanced_result:
-                                    enhanced_result['metadata'] = {}
-                                if 'created_at' not in enhanced_result['metadata'] and ocr_result.created_at:
-                                    enhanced_result['metadata']['created_at'] = ocr_result.created_at.isoformat()
-                                
-                                # 获取关联的截图信息
-                                screenshot = session.query(Screenshot).filter(
-                                    Screenshot.id == ocr_result.screenshot_id
-                                ).first()
-                                
+                            
+                            # 获取截图信息
+                            if screenshot_id:
+                                screenshot = session.query(Screenshot).filter(Screenshot.id == screenshot_id).first()
                                 if screenshot:
                                     enhanced_result['screenshot'] = {
                                         'id': screenshot.id,
                                         'file_path': screenshot.file_path,
-                                        'timestamp': screenshot.created_at.isoformat() if screenshot.created_at else None,
-                                        'application': screenshot.app_name,
+                                        'app_name': screenshot.app_name,
                                         'window_title': screenshot.window_title,
                                         'width': screenshot.width,
-                                        'height': screenshot.height
+                                        'height': screenshot.height,
+                                        'created_at': screenshot.created_at.isoformat() if screenshot.created_at else None
                                     }
-                    except Exception as e:
-                        self.logger.warning(f"Failed to enhance result for OCR {ocr_result_id}: {e}")
+                except Exception as db_error:
+                    self.logger.warning(f"无法获取相关数据库记录: {db_error}")
+                    # 继续处理，不影响搜索结果
                 
                 enhanced_results.append(enhanced_result)
             
-            self.logger.info(f"Semantic search for '{query}' returned {len(enhanced_results)} results")
             return enhanced_results
             
         except Exception as e:
-            self.logger.error(f"Error in semantic search: {e}")
+            self.logger.error(f"语义搜索失败: {e}")
+            return []
+
+    # 事件级索引与搜索
+    def upsert_event_document(self, event_id: int) -> bool:
+        """将事件聚合文本写入向量库，文档ID: event_{event_id}"""
+        if not self.is_enabled():
+            return False
+        try:
+            # 聚合事件文本
+            event_text = self.db_manager.get_event_text(event_id) if hasattr(self.db_manager, 'get_event_text') else ''
+            if not event_text or not event_text.strip():
+                self.logger.debug(f"事件{event_id}无文本，跳过索引")
+                return False
+
+            # 元数据（基本信息）
+            # 为了简化，这里不再重复查事件信息，向上层调用者可扩展
+            doc_id = f"event_{event_id}"
+            return self.vector_db.update_document(doc_id, event_text, {"event_id": event_id})
+        except Exception as e:
+            self.logger.error(f"事件{event_id}写入向量库失败: {e}")
+            return False
+
+    def semantic_search_events(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        """对事件文档进行语义搜索（基于 event_{id} 文档）"""
+        if not self.is_enabled():
+            return []
+        try:
+            # 由于向量数据库的where条件有问题，我们先搜索所有文档，然后手动过滤
+            # 搜索更多结果以确保能找到足够的事件文档
+            search_limit = max(top_k * 3, 50)
+            all_results = self.vector_db.search(query=query, top_k=search_limit)
+            
+            if not all_results:
+                return []
+                
+            # 按event_id聚合结果，保留最高分数
+            event_scores = {}
+            for result in all_results:
+                metadata = result.get('metadata', {})
+                event_id = metadata.get('event_id')
+                
+                if event_id:
+                    # 计算语义分数
+                    semantic_score = result.get('score', 0.0)
+                    if semantic_score == 0.0 and 'distance' in result:
+                        # 如果没有score，从distance计算相似度分数
+                        semantic_score = max(0, 1 - result['distance'])
+                    
+                    # 保留每个事件的最高分数
+                    if event_id not in event_scores or semantic_score > event_scores[event_id]['score']:
+                        event_scores[event_id] = {
+                            'score': semantic_score,
+                            'distance': result.get('distance', 1.0)
+                        }
+            
+            # 获取事件详细信息
+            event_results = []
+            for event_id, score_info in event_scores.items():
+                try:
+                    with self.db_manager.get_session() as session:
+                        from .models import Event, Screenshot
+                        event = session.query(Event).filter(Event.id == event_id).first()
+                        
+                        if event:
+                            # 获取该事件的截图数量
+                            screenshot_count = session.query(Screenshot).filter(Screenshot.event_id == event_id).count()
+                            first_screenshot = session.query(Screenshot).filter(Screenshot.event_id == event_id).order_by(Screenshot.created_at.asc()).first()
+                            
+                            event_data = {
+                                "id": event.id,
+                                "app_name": event.app_name,
+                                "window_title": event.window_title,
+                                "start_time": event.start_time.isoformat() if event.start_time else None,
+                                "end_time": event.end_time.isoformat() if event.end_time else None,
+                                "screenshot_count": screenshot_count,
+                                "first_screenshot_id": first_screenshot.id if first_screenshot else None,
+                                "semantic_score": score_info['score'],
+                                "distance": score_info['distance']
+                            }
+                            event_results.append(event_data)
+                            
+                except Exception as db_error:
+                    self.logger.warning(f"获取事件{event_id}详细信息失败: {db_error}")
+                    continue
+            
+            # 按语义相似度排序
+            event_results.sort(key=lambda x: x.get('semantic_score', 0.0), reverse=True)
+            
+            return event_results[:top_k]
+            
+        except Exception as e:
+            self.logger.error(f"事件语义搜索失败: {e}")
             return []
     
     def sync_from_database(self, limit: Optional[int] = None, force_reset: bool = False) -> int:

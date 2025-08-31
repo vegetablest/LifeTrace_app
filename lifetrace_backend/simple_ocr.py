@@ -167,6 +167,12 @@ def save_to_database(image_path: str, ocr_result: dict, vector_service=None):
                             logging.debug(f"OCR结果已添加到向量数据库: {ocr_result_id}")
                         else:
                             logging.warning(f"向量数据库添加失败: {ocr_result_id}")
+                    # 同步事件文档（事件级）
+                    if screenshot_obj and getattr(screenshot_obj, 'event_id', None):
+                        try:
+                            vector_service.upsert_event_document(screenshot_obj.event_id)
+                        except Exception as _:
+                            pass
             except Exception as ve:
                 logging.error(f"向量数据库操作失败: {ve}")
         

@@ -1,4 +1,4 @@
-import { ScreenshotData, SemanticSearchResult } from '../services/api';
+import { ScreenshotData, SemanticSearchResult, EventData } from '../services/api';
 
 // 前端组件数据类型
 export interface ResultItem {
@@ -133,6 +133,28 @@ export function transformScreenshotToResultItem(screenshot: ScreenshotData): Res
 // 批量转换截图数据
 export function transformScreenshots(screenshots: ScreenshotData[]): ResultItem[] {
   return screenshots.map(transformScreenshotToResultItem);
+}
+
+// 事件 -> 结果项（以事件为粒度）
+export function transformEventToResultItem(event: EventData): ResultItem {
+  const icon = getIconForApp(event.app_name);
+  const start = formatDateTime(event.start_time);
+  const end = event.end_time ? formatDateTime(event.end_time) : start;
+  const title = event.window_title || event.app_name || '事件';
+  const desc = `包含 ${event.screenshot_count} 张截图`;
+  return {
+    id: `event-${event.id}`,
+    title: title.length > 50 ? title.substring(0, 50) + '...' : title,
+    subtitle: event.app_name,
+    category: '时光机',
+    icon,
+    timeRange: { start, end },
+    description: desc,
+  };
+}
+
+export function transformEventsToResultItems(events: EventData[]): ResultItem[] {
+  return events.map(transformEventToResultItem);
 }
 
 // 将语义搜索结果转换为前端结果项

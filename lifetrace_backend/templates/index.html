@@ -425,9 +425,10 @@
         <div class="search-section">
             <!-- 搜索类型切换 -->
             <div class="search-type-toggle">
-                <button type="button" class="search-type-btn active" data-type="traditional">传统搜索</button>
+                <button type="button" class="search-type-btn" data-type="traditional">传统搜索</button>
                 <button type="button" class="search-type-btn" data-type="semantic">语义搜索</button>
                 <button type="button" class="search-type-btn" data-type="multimodal">多模态搜索</button>
+                <button type="button" class="search-type-btn active" data-type="event">事件搜索</button>
             </div>
             
             <form class="search-form" id="searchForm">
@@ -478,6 +479,15 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- 事件搜索提示 -->
+                        <div class="semantic-options" id="eventOptions">
+                            <div class="option-row">
+                                <div class="option-group" style="flex: 1;">
+                                    <small style="color: #666;">事件搜索以“事件”为粒度（同一前台应用连续使用的一组截图）。</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">
@@ -517,13 +527,16 @@
     <script>
         // 全局变量
         let currentResults = [];
-        let currentSearchType = 'traditional';
+        let currentSearchType = 'event';
         
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
             loadStatistics();
             loadVectorStatus();
             loadScreenshots();
+            
+            // 设置默认搜索类型为事件搜索
+            switchSearchType('event');
             
             // 绑定搜索表单
             document.getElementById('searchForm').addEventListener('submit', function(e) {
@@ -554,16 +567,20 @@
             // 显示/隐藏搜索选项
             const semanticOptions = document.getElementById('semanticOptions');
             const multimodalOptions = document.getElementById('multimodalOptions');
+            const eventOptions = document.getElementById('eventOptions');
             
             // 隐藏所有选项
             semanticOptions.classList.remove('show');
             multimodalOptions.classList.remove('show');
+            eventOptions.classList.remove('show');
             
             // 显示对应选项
             if (type === 'semantic') {
                 semanticOptions.classList.add('show');
             } else if (type === 'multimodal') {
                 multimodalOptions.classList.add('show');
+            } else if (type === 'event') {
+                eventOptions.classList.add('show');
             }
         }
         
@@ -735,8 +752,15 @@
             const container = document.getElementById('resultsContainer');
             container.innerHTML = '<div class="loading">正在搜索...</div>';
             
-            document.getElementById('resultsTitle').textContent = 
-                `${currentSearchType === 'semantic' ? '语义' : '传统'}搜索结果: "${query || '筛选条件'}"`;
+            if (currentSearchType === 'semantic') {
+                document.getElementById('resultsTitle').textContent = `语义搜索结果: "${query || '筛选条件'}"`;
+            } else if (currentSearchType === 'multimodal') {
+                document.getElementById('resultsTitle').textContent = `多模态搜索结果: "${query || '筛选条件'}"`;
+            } else if (currentSearchType === 'event') {
+                document.getElementById('resultsTitle').textContent = `事件搜索结果: "${query || '筛选条件'}"`;
+            } else {
+                document.getElementById('resultsTitle').textContent = `传统搜索结果: "${query || '筛选条件'}"`;
+            }
             
             try {
                 let results;
@@ -757,13 +781,20 @@
                     }
                     
                     results = await performMultimodalSearch(query, startDate, endDate, appName);
+                } else if (currentSearchType === 'event') {
+                    // 事件搜索（按事件聚合返回）
+                    results = await performEventSearch(query);
                 } else {
                     // 传统搜索
                     results = await performTraditionalSearch(query, startDate, endDate, appName);
                 }
                 
                 currentResults = results;
-                displayScreenshots(results);
+                if (currentSearchType === 'event') {
+                    displayEventResults(results);
+                } else {
+                    displayScreenshots(results);
+                }
                 
             } catch (error) {
                 console.error('搜索失败:', error);
@@ -922,6 +953,162 @@
                     is_multimodal_result: true
                 };
             });
+        }
+        
+        // 事件搜索（使用语义搜索，回退到简单搜索）
+        async function performEventSearch(query) {
+            try {
+                if (!query || !query.trim()) {
+                    // 如果没有查询词，使用简单搜索（获取所有事件）
+                    const payload = { query: '', limit: 50 };
+                    const response = await fetch('/api/event-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${text}`);
+                    }
+                    return await response.json();
+                }
+
+                // 优先使用事件语义搜索
+                try {
+                    const payload = { query: query.trim(), top_k: 50 };
+                    const response = await fetch('/api/event-semantic-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (response.ok) {
+                        const results = await response.json();
+                        console.log('事件语义搜索成功:', results.length, '个结果');
+                        return results;
+                    } else {
+                        console.warn('事件语义搜索失败，回退到简单搜索');
+                        throw new Error('语义搜索不可用');
+                    }
+                } catch (semanticError) {
+                    console.warn('事件语义搜索异常，回退到简单搜索:', semanticError.message);
+                    
+                    // 回退到简单搜索
+                    const payload = { query: query.trim(), limit: 50 };
+                    const response = await fetch('/api/event-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(`简单搜索也失败: HTTP ${response.status}: ${text}`);
+                    }
+                    
+                    const results = await response.json();
+                    console.log('简单搜索成功:', results.length, '个结果');
+                    return results;
+                }
+            } catch (error) {
+                console.error('事件搜索完全失败:', error);
+                throw error;
+            }
+        }
+        
+        // 渲染事件结果
+        // 事件轮播的全局状态
+        const _eventShots = {};   // eventId -> [screenshotIds]
+        const _eventIndex = {};   // eventId -> currentIndex
+
+        function displayEventResults(events) {
+            const container = document.getElementById('resultsContainer');
+            if (!events || events.length === 0) {
+                container.innerHTML = '<div class="loading">没有找到匹配的事件</div>';
+                return;
+            }
+            const html = events.map(ev => {
+                const time = `${new Date(ev.start_time).toLocaleString('zh-CN')} ~ ${ev.end_time ? new Date(ev.end_time).toLocaleString('zh-CN') : '进行中'}`;
+                const app = ev.app_name || '未知应用';
+                const title = ev.window_title || app;
+                const firstImage = ev.first_screenshot_id ? `/api/screenshots/${ev.first_screenshot_id}/image` : '';
+                const eid = ev.id;
+                return `
+                    <div class="screenshot-item" id="event-card-${eid}">
+                        <div style="position: relative;">
+                            ${firstImage ? `<img id="event-${eid}-img" src="${firstImage}" class="screenshot-image" loading="lazy">` : `<div class='screenshot-image' style='display:flex;align-items:center;justify-content:center;background:#f8f9fa;color:#888;'>无预览</div>`}
+                            <button id="event-${eid}-prev" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.35);color:#fff;border:none;border-radius:4px;padding:6px 8px;cursor:pointer;">◀</button>
+                            <button id="event-${eid}-next" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.35);color:#fff;border:none;border-radius:4px;padding:6px 8px;cursor:pointer;">▶</button>
+                        </div>
+                        <div class="screenshot-info">
+                            <div class="screenshot-time">${time}</div>
+                            <div class="screenshot-app">${app} <span style="color:#667eea; font-size: 0.8em;">(事件)</span></div>
+                            <div class="screenshot-text">${title} · 共 ${ev.screenshot_count} 张</div>
+                            <div id="event-${eid}-desc" class="screenshot-text" style="margin-top:6px;max-height:120px;overflow:auto;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            container.innerHTML = `<div class="screenshot-grid">${html}</div>`;
+
+            // 初始化每个事件卡片的轮播
+            events.forEach(ev => setupEventCard(ev.id));
+        }
+
+        async function setupEventCard(eventId) {
+            try {
+                const resp = await fetch(`/api/events/${eventId}`);
+                if (!resp.ok) return;
+                const detail = await resp.json();
+                _eventShots[eventId] = (detail.screenshots || []).map(s => s.id);
+                _eventIndex[eventId] = 0;
+
+                const prevBtn = document.getElementById(`event-${eventId}-prev`);
+                const nextBtn = document.getElementById(`event-${eventId}-next`);
+                if (prevBtn) prevBtn.onclick = () => {
+                    const ids = _eventShots[eventId] || [];
+                    if (!ids.length) return;
+                    _eventIndex[eventId] = (_eventIndex[eventId] - 1 + ids.length) % ids.length;
+                    updateEventCardUI(eventId);
+                };
+                if (nextBtn) nextBtn.onclick = () => {
+                    const ids = _eventShots[eventId] || [];
+                    if (!ids.length) return;
+                    _eventIndex[eventId] = (_eventIndex[eventId] + 1) % ids.length;
+                    updateEventCardUI(eventId);
+                };
+
+                updateEventCardUI(eventId);
+            } catch (e) {
+                console.warn('初始化事件卡片失败', eventId, e);
+            }
+        }
+
+        async function updateEventCardUI(eventId) {
+            const ids = _eventShots[eventId] || [];
+            const idx = _eventIndex[eventId] || 0;
+            const imgEl = document.getElementById(`event-${eventId}-img`);
+            const descEl = document.getElementById(`event-${eventId}-desc`);
+            if (!imgEl || !descEl) return;
+            if (!ids.length) {
+                descEl.textContent = '无截图数据';
+                return;
+            }
+            const sid = ids[idx];
+            imgEl.setAttribute('src', `/api/screenshots/${sid}/image`);
+            // 拉取OCR描述
+            try {
+                const r = await fetch(`/api/screenshots/${sid}`);
+                if (r.ok) {
+                    const d = await r.json();
+                    const text = (d.ocr_result && d.ocr_result.text_content ? d.ocr_result.text_content : '').trim();
+                    descEl.innerHTML = (text || d.window_title || d.app_name || '无文本内容').replace(/\n/g, '<br>');
+                } else {
+                    descEl.textContent = '无文本内容';
+                }
+            } catch (_) {
+                descEl.textContent = '无文本内容';
+            }
         }
         
         // 显示截图列表

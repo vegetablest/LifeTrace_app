@@ -5,7 +5,7 @@ import { SearchResults } from "./components/SearchResults";
 import { DetailPanel } from "./components/DetailPanel";
 import { Settings } from "./components/Settings";
 import { apiClient } from "./services/api";
-import { transformScreenshotToResultItem, transformSemanticSearchResult, ResultItem } from "./utils/dataTransform";
+import { transformScreenshotToResultItem, transformSemanticSearchResult, ResultItem, transformEventToResultItem } from "./utils/dataTransform";
 
 type FocusArea = 'search' | 'tabs' | 'results' | 'details';
 type DetailFocusArea = 'content' | 'actions';
@@ -262,12 +262,12 @@ export default function App() {
       setIsLoading(true);
       setApiError(null);
       
-      const screenshots = await apiClient.getScreenshots({ 
-        limit: 50,
-      });
-      
-      const transformedData = screenshots.map(screenshot => transformScreenshotToResultItem(screenshot));
-      setTimeMachineData(transformedData);
+      // 改为拉取事件列表（事件粒度）
+      const events = await apiClient.listEvents({ limit: 50 });
+      const transformed = events.map(e => ({
+        ...transformEventToResultItem(e),
+      }));
+      setTimeMachineData(transformed);
       
     } catch (error) {
       console.error('Failed to load time machine data:', error);
@@ -277,7 +277,7 @@ export default function App() {
     }
   };
 
-  // 搜索函数（优先使用简单搜索，回退到语义搜索）
+  // 搜索函数（使用语义搜索，回退到简单搜索）
   const performSearch = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -290,26 +290,29 @@ export default function App() {
       setIsSearching(true);
       setApiError(null);
       
-      console.log('开始搜索:', query);
+      console.log('开始语义搜索:', query);
       
-      // 执行简单文本搜索
-      const simpleResults = await apiClient.simpleTextSearch(query.trim(), 20);
-      console.log('简单搜索结果:', simpleResults);
-      
-      // 过滤有效的搜索结果
-      const validResults = simpleResults.filter(screenshot => 
-        screenshot && screenshot.id && (screenshot.window_title || screenshot.app_name)
-      );
-      
-      const transformedResults = validResults.map(screenshot => transformScreenshotToResultItem(screenshot));
-      console.log('转换后的简单搜索结果:', transformedResults);
-      
-      setSearchResults(transformedResults);
-      setHasSearched(true);
-      setLastSearchQuery(query);
+      try {
+        // 优先使用事件级语义搜索
+        const eventResults = await apiClient.semanticSearchEvents(query.trim(), 20);
+        const transformedResults = eventResults.map(e => transformEventToResultItem(e));
+        setSearchResults(transformedResults);
+        setHasSearched(true);
+        setLastSearchQuery(query);
+        console.log('语义搜索成功，找到', eventResults.length, '个结果');
+      } catch (semanticError) {
+        console.warn('语义搜索失败，回退到简单搜索:', semanticError);
+        // 回退到简单搜索
+        const eventResults = await apiClient.searchEvents(query.trim(), 20);
+        const transformedResults = eventResults.map(e => transformEventToResultItem(e));
+        setSearchResults(transformedResults);
+        setHasSearched(true);
+        setLastSearchQuery(query);
+        console.log('简单搜索成功，找到', eventResults.length, '个结果');
+      }
       
     } catch (error) {
-      console.error('Failed to perform semantic search:', error);
+      console.error('搜索失败:', error);
       setApiError(error instanceof Error ? error.message : '搜索失败');
       setSearchResults([]);
     } finally {

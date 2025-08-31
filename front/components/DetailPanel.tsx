@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiClient } from '../services/api';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
 // 时光机图片轮播 - 贾维斯AI助手风格
@@ -33,17 +34,57 @@ interface DetailPanelProps {
 export function DetailPanel({ selectedResult, selectedResultData, focused, detailFocusArea, selectedActionIndex, theme }: DetailPanelProps) {
   const isDark = theme === 'dark';
   
-  // 时光机图片轮播状态
+  // 时光机图片轮播状态（事件截图）
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [eventScreenshotIds, setEventScreenshotIds] = useState<number[]>([]);
+  const [currentShotDesc, setCurrentShotDesc] = useState("");
   
   // 图片轮播控制函数
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % timeMachineImages.length);
+    setCurrentImageIndex((prev) => eventScreenshotIds.length ? (prev + 1) % eventScreenshotIds.length : 0);
   };
   
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + timeMachineImages.length) % timeMachineImages.length);
+    setCurrentImageIndex((prev) => eventScreenshotIds.length ? (prev - 1 + eventScreenshotIds.length) % eventScreenshotIds.length : 0);
   };
+
+  // 当选择了事件项（id 形如 event-123）时，加载该事件的截图列表
+  useEffect(() => {
+    const loadEventScreenshots = async () => {
+      if (!selectedResultData || !selectedResultData.id.startsWith('event-')) {
+        setEventScreenshotIds([]);
+        setCurrentImageIndex(0);
+        setCurrentShotDesc(selectedResultData?.description || "");
+        return;
+      }
+      const eventId = parseInt(selectedResultData.id.replace('event-', ''));
+      try {
+        const detail = await apiClient.getEventDetail(eventId);
+        const ids = (detail.screenshots || []).map(s => s.id);
+        setEventScreenshotIds(ids);
+        setCurrentImageIndex(0);
+      } catch (e) {
+        setEventScreenshotIds([]);
+      }
+    };
+    loadEventScreenshots();
+  }, [selectedResultData?.id]);
+
+  // 当前图片变化时，加载对应截图的OCR文本作为描述
+  useEffect(() => {
+    const loadCurrentShotDesc = async () => {
+      if (!eventScreenshotIds.length) return;
+      const sid = eventScreenshotIds[currentImageIndex];
+      try {
+        const detail = await apiClient.getScreenshotDetail(sid);
+        const text = (detail.ocr_result?.text_content || "").trim();
+        setCurrentShotDesc(text || detail.window_title || detail.app_name || "无文本内容");
+      } catch (err) {
+        setCurrentShotDesc("无文本内容");
+      }
+    };
+    loadCurrentShotDesc();
+  }, [currentImageIndex, eventScreenshotIds]);
   
   const getColors = () => {
     if (isDark) {
@@ -219,7 +260,7 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
               <div className="w-28 h-20 md:w-32 md:h-24 rounded-lg overflow-hidden opacity-50 hover:opacity-70 transition-all duration-300 cursor-pointer flex-shrink-0 shadow-lg ring-1 ring-white/10"
                    onClick={prevImage}>
                 <ImageWithFallback 
-                  src={timeMachineImages[(currentImageIndex - 1 + timeMachineImages.length) % timeMachineImages.length]} 
+                  src={eventScreenshotIds.length ? `http://localhost:8840/api/screenshots/${eventScreenshotIds[(currentImageIndex - 1 + eventScreenshotIds.length) % eventScreenshotIds.length]}/image` : timeMachineImages[(currentImageIndex - 1 + timeMachineImages.length) % timeMachineImages.length]} 
                   alt="上一张图片"
                   className="w-full h-full object-cover"
                 />
@@ -228,7 +269,7 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
               {/* Main Image Display */}
               <div className="flex-1 h-52 rounded-xl overflow-hidden shadow-2xl relative group ring-1 ring-white/20">
                 <ImageWithFallback 
-                  src={timeMachineImages[currentImageIndex]} 
+                  src={eventScreenshotIds.length ? `http://localhost:8840/api/screenshots/${eventScreenshotIds[currentImageIndex]}/image` : timeMachineImages[currentImageIndex]} 
                   alt={`贾维斯AI助手图片 ${currentImageIndex + 1}`}
                   className="w-full h-full object-cover transition-all duration-500"
                 />
@@ -267,7 +308,7 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
               <div className="w-28 h-20 md:w-32 md:h-24 rounded-lg overflow-hidden opacity-50 hover:opacity-70 transition-all duration-300 cursor-pointer flex-shrink-0 shadow-lg ring-1 ring-white/10"
                    onClick={nextImage}>
                 <ImageWithFallback 
-                  src={timeMachineImages[(currentImageIndex + 1) % timeMachineImages.length]} 
+                  src={eventScreenshotIds.length ? `http://localhost:8840/api/screenshots/${eventScreenshotIds[(currentImageIndex + 1) % (eventScreenshotIds.length || 1)]}/image` : timeMachineImages[(currentImageIndex + 1) % timeMachineImages.length]} 
                   alt="下一张图片"
                   className="w-full h-full object-cover"
                 />
@@ -276,7 +317,7 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
             
             {/* Image Indicators - Positioned lower */}
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-3">
-              {timeMachineImages.map((_, index) => (
+              {(eventScreenshotIds.length ? eventScreenshotIds : timeMachineImages).map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentImageIndex(index)}
@@ -328,12 +369,12 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
               <span>{selectedResultData.timeRange?.end}</span>
             </div>
             
-            {/* Description - Direct display */}
+            {/* Description - show current screenshot OCR if是事件 */}
             <div 
               className={`${colors.textSecondary} text-sm leading-relaxed max-h-20 overflow-y-auto custom-scrollbar p-3 rounded-lg`}
               style={{ backgroundColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.05)' }}
             >
-              {selectedResultData.description}
+              {eventScreenshotIds.length ? currentShotDesc : selectedResultData.description}
             </div>
           </div>
         </div>
