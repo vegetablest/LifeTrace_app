@@ -7,19 +7,8 @@ from datetime import datetime
 from typing import Optional, List, Tuple
 
 # 配置日志
-def setup_logging(log_dir: str, log_level: str = "INFO"):
-    """设置日志配置"""
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, f"lifetrace_{datetime.now().strftime('%Y%m%d')}.log")
-    
-    logging.basicConfig(
-        level=getattr(logging, log_level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),
-            logging.StreamHandler()
-        ]
-    )
+# 日志配置已移至统一的logging_config.py中
+# 此函数已废弃，请使用 from .logging_config import setup_logging
 
 def get_file_hash(file_path: str) -> str:
     """计算文件MD5哈希值"""

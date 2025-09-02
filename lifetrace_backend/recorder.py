@@ -4,6 +4,8 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 from pathlib import Path
+import signal
+from functools import wraps
 
 import mss
 from PIL import Image
@@ -13,10 +15,55 @@ from .config import config
 from .utils import ensure_dir, get_active_window_info, get_screenshot_filename
 from .storage import db_manager
 from .logging_config import setup_logging
+from .heartbeat import HeartbeatLogger
 
 # 设置日志系统
 logger_manager = setup_logging(config)
 logger = logger_manager.get_recorder_logger()
+
+
+class TimeoutError(Exception):
+    """超时异常"""
+    pass
+
+
+def timeout_handler(signum, frame):
+    """超时信号处理器"""
+    raise TimeoutError("操作超时")
+
+
+def with_timeout(timeout_seconds=5, operation_name="操作"):
+    """超时装饰器"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # 在Windows上，signal.alarm不可用，使用threading.Timer作为替代
+            import threading
+            result = [None]
+            exception = [None]
+            
+            def target():
+                try:
+                    result[0] = func(*args, **kwargs)
+                except Exception as e:
+                    exception[0] = e
+            
+            thread = threading.Thread(target=target)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout_seconds)
+            
+            if thread.is_alive():
+                logger.warning(f"{operation_name}超时 ({timeout_seconds}秒)，操作可能仍在后台执行")
+                # 注意：无法强制终止线程，只能记录超时
+                return None
+            
+            if exception[0]:
+                raise exception[0]
+            
+            return result[0]
+        return wrapper
+    return decorator
 
 
 class ScreenRecorder:
@@ -30,13 +77,106 @@ class ScreenRecorder:
         self.hash_threshold = self.config.get('storage.hash_threshold', 5)
         self.deduplicate = self.config.get('storage.deduplicate', True)
         
+        # 超时配置
+        self.file_io_timeout = self.config.get('record.file_io_timeout', 15)
+        self.db_timeout = self.config.get('record.db_timeout', 20)
+        self.window_info_timeout = self.config.get('record.window_info_timeout', 5)
+        
         # 初始化截图目录
         ensure_dir(self.screenshots_dir)
         
         # 上一张截图的哈希值（用于去重）
         self.last_hashes = {}
         
+        # 初始化心跳记录器
+        self.heartbeat_logger = HeartbeatLogger('recorder')
+        
+        logger.info(f"超时配置 - 文件I/O: {self.file_io_timeout}s, 数据库: {self.db_timeout}s, 窗口信息: {self.window_info_timeout}s")
+        
         logger.info(f"屏幕录制器初始化完成，监控屏幕: {self.screens}")
+    
+    def _save_screenshot(self, screenshot, file_path: str) -> bool:
+        """保存截图到文件"""
+        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="保存截图文件")
+        def _do_save():
+            mss.tools.to_png(screenshot.rgb, screenshot.size, output=file_path)
+            return True
+        
+        try:
+            result = _do_save()
+            return result if result is not None else False
+        except Exception as e:
+            logger.error(f"保存截图失败 {file_path}: {e}")
+            return False
+    
+    def _get_image_size(self, file_path: str) -> tuple:
+        """获取图像尺寸"""
+        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="读取图像尺寸")
+        def _do_get_size():
+            with Image.open(file_path) as img:
+                return img.size
+        
+        try:
+            result = _do_get_size()
+            return result if result is not None else (0, 0)
+        except Exception as e:
+            logger.error(f"读取图像尺寸失败 {file_path}: {e}")
+            return (0, 0)
+    
+    def _calculate_file_hash(self, file_path: str) -> str:
+        """计算文件MD5哈希"""
+        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="计算文件哈希")
+        def _do_calculate_hash():
+            import hashlib
+            with open(file_path, 'rb') as f:
+                return hashlib.md5(f.read()).hexdigest()
+        
+        try:
+            result = _do_calculate_hash()
+            return result if result is not None else ""
+        except Exception as e:
+            logger.error(f"计算文件哈希失败 {file_path}: {e}")
+            return ""
+    
+    def _save_to_database(self, file_path: str, file_hash: str, width: int, height: int, 
+                         screen_id: int, app_name: str, window_title: str, timestamp) -> Optional[int]:
+        """保存截图信息到数据库"""
+        @with_timeout(timeout_seconds=self.db_timeout, operation_name="数据库操作")
+        def _do_save_to_db():
+            # 获取或创建事件（基于当前前台应用）
+            event_id = db_manager.get_or_create_event(app_name or "未知应用", window_title or "未知窗口", timestamp)
+            
+            screenshot_id = db_manager.add_screenshot(
+                file_path=file_path,
+                file_hash=file_hash,
+                width=width,
+                height=height,
+                screen_id=screen_id,
+                app_name=app_name or "未知应用",
+                window_title=window_title or "未知窗口",
+                event_id=event_id
+            )
+            return screenshot_id
+        
+        try:
+            result = _do_save_to_db()
+            return result
+        except Exception as e:
+            logger.error(f"保存截图记录到数据库失败: {e}")
+            return None
+    
+    def _get_window_info(self) -> tuple:
+        """获取当前活动窗口信息"""
+        @with_timeout(timeout_seconds=self.window_info_timeout, operation_name="获取窗口信息")
+        def _do_get_window_info():
+            return get_active_window_info()
+        
+        try:
+            result = _do_get_window_info()
+            return result if result is not None else ("未知应用", "未知窗口")
+        except Exception as e:
+            logger.error(f"获取窗口信息失败: {e}")
+            return ("未知应用", "未知窗口")
     
     def _get_screen_list(self) -> List[int]:
         """获取要截图的屏幕列表"""
@@ -54,9 +194,14 @@ class ScreenRecorder:
     
     def _calculate_image_hash(self, image_path: str) -> str:
         """计算图像感知哈希值"""
-        try:
+        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="计算图像哈希")
+        def _do_calculate_hash():
             with Image.open(image_path) as img:
                 return str(imagehash.phash(img))
+        
+        try:
+            result = _do_calculate_hash()
+            return result if result is not None else ""
         except Exception as e:
             logging.error(f"计算图像哈希失败 {image_path}: {e}")
             return ""
@@ -97,11 +242,17 @@ class ScreenRecorder:
                 filename = get_screenshot_filename(screen_id, timestamp)
                 file_path = os.path.join(self.screenshots_dir, filename)
                 
-                # 保存截图
-                mss.tools.to_png(screenshot.rgb, screenshot.size, output=file_path)
+                # 保存截图（带超时）
+                if not self._save_screenshot(screenshot, file_path):
+                    logger.error(f"保存截图失败: {filename}")
+                    return None
                 
-                # 计算图像哈希
+                # 计算图像哈希（带超时）
                 image_hash = self._calculate_image_hash(file_path)
+                if not image_hash:
+                    logger.error(f"计算图像哈希失败，跳过: {filename}")
+                    os.remove(file_path)
+                    return None
                 
                 # 检查是否重复
                 if self._is_duplicate(screen_id, image_hash):
@@ -113,39 +264,28 @@ class ScreenRecorder:
                 # 更新哈希记录
                 self.last_hashes[screen_id] = image_hash
                 
-                # 获取窗口信息
-                app_name, window_title = get_active_window_info()
+                # 获取窗口信息（带超时）
+                app_name, window_title = self._get_window_info()
                 
-                # 获取图像尺寸
-                try:
-                    with Image.open(file_path) as img:
-                        width, height = img.size
-                except Exception:
-                    width, height = 0, 0
+                # 获取图像尺寸（带超时）
+                width, height = self._get_image_size(file_path)
                 
-                # 计算文件哈希
-                import hashlib
-                with open(file_path, 'rb') as f:
-                    file_hash = hashlib.md5(f.read()).hexdigest()
+                # 计算文件哈希（带超时）
+                file_hash = self._calculate_file_hash(file_path)
+                if not file_hash:
+                    logger.warning(f"计算文件哈希失败，使用空值: {filename}")
+                    file_hash = ""
                 
-                # 保存截图信息到数据库（绑定事件）
-                try:
-                    # 获取或创建事件（基于当前前台应用）
-                    event_id = db_manager.get_or_create_event(app_name or "未知应用", window_title or "未知窗口", timestamp)
-
-                    screenshot_id = db_manager.add_screenshot(
-                        file_path=file_path,
-                        file_hash=file_hash,
-                        width=width,
-                        height=height,
-                        screen_id=screen_id,
-                        app_name=app_name or "未知应用",
-                        window_title=window_title or "未知窗口",
-                        event_id=event_id
-                    )
+                # 保存截图信息到数据库（带超时）
+                screenshot_id = self._save_to_database(
+                    file_path, file_hash, width, height, 
+                    screen_id, app_name, window_title, timestamp
+                )
+                
+                if screenshot_id:
                     logger.debug(f"截图记录已保存到数据库: {screenshot_id}")
-                except Exception as e:
-                    logger.error(f"保存截图记录到数据库失败: {e}")
+                else:
+                    logger.warning(f"数据库保存失败，但文件已保存: {filename}")
                 
                 file_size = os.path.getsize(file_path)
                 
@@ -172,9 +312,22 @@ class ScreenRecorder:
         """开始录制"""
         logger.info("开始屏幕录制...")
         
+        # 记录心跳的时间戳
+        last_heartbeat_time = 0
+        heartbeat_interval = 1.0  # 每秒记录一次心跳
+        
         try:
             while True:
                 start_time = time.time()
+                
+                # 检查是否需要记录心跳
+                if start_time - last_heartbeat_time >= heartbeat_interval:
+                    self.heartbeat_logger.record_heartbeat({
+                        'status': 'running',
+                        'screens': len(self.screens),
+                        'interval': self.interval
+                    })
+                    last_heartbeat_time = start_time
                 
                 # 截图
                 captured_files = self.capture_all_screens()
@@ -193,8 +346,10 @@ class ScreenRecorder:
                     
         except KeyboardInterrupt:
             logger.info("收到停止信号，结束录制")
+            self.heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
         except Exception as e:
             logger.error(f"录制过程中发生错误: {e}")
+            self.heartbeat_logger.record_heartbeat({'status': 'error', 'error': str(e)})
             raise
 
 def main():

@@ -18,6 +18,7 @@ from lifetrace_backend.simple_ocr import SimpleOCRProcessor
 from lifetrace_backend.vector_service import create_vector_service
 from lifetrace_backend.multimodal_vector_service import create_multimodal_vector_service
 from lifetrace_backend.logging_config import setup_logging
+from lifetrace_backend.heartbeat import HeartbeatLogger
 
 # 导入系统资源分析模块
 import psutil
@@ -183,6 +184,74 @@ vector_service = create_vector_service(config, db_manager)
 
 # 初始化多模态向量数据库服务
 multimodal_vector_service = create_multimodal_vector_service(config, db_manager)
+
+# 初始化心跳记录器
+heartbeat_logger = HeartbeatLogger('server')
+
+# 心跳任务控制
+import asyncio
+import threading
+import time
+heartbeat_thread = None
+heartbeat_stop_event = threading.Event()
+
+
+def heartbeat_task_func():
+    """心跳任务函数"""
+    last_heartbeat_time = 0
+    heartbeat_interval = 1.0  # 每秒记录一次心跳
+    
+    try:
+        while not heartbeat_stop_event.is_set():
+            start_time = time.time()
+            
+            # 检查是否需要记录心跳
+            if start_time - last_heartbeat_time >= heartbeat_interval:
+                # 获取系统资源信息
+                cpu_percent = psutil.cpu_percent(interval=0.1)
+                memory = psutil.virtual_memory()
+                
+                heartbeat_logger.record_heartbeat({
+                    'status': 'running',
+                    'cpu_percent': cpu_percent,
+                    'memory_percent': memory.percent,
+                    'memory_used_mb': memory.used // (1024 * 1024)
+                })
+                last_heartbeat_time = start_time
+            
+            # 短暂休眠，避免过度占用CPU
+            time.sleep(0.1)
+            
+    except KeyboardInterrupt:
+        logger.info("收到停止信号，结束服务器心跳")
+        heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
+    except Exception as e:
+        logger.error(f"服务器心跳过程中发生错误: {e}")
+        heartbeat_logger.record_heartbeat({'status': 'error', 'error': str(e)})
+        raise
+    finally:
+        logger.info("服务器心跳已停止")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动事件"""
+    global heartbeat_thread
+    logger.info("Web服务器启动，开始心跳记录")
+    heartbeat_stop_event.clear()
+    heartbeat_thread = threading.Thread(target=heartbeat_task_func, daemon=True)
+    heartbeat_thread.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭事件"""
+    global heartbeat_thread
+    logger.info("Web服务器关闭，停止心跳记录")
+    heartbeat_stop_event.set()
+    if heartbeat_thread and heartbeat_thread.is_alive():
+        heartbeat_thread.join(timeout=2.0)
+    heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'shutdown'})
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -995,8 +1064,16 @@ async def logs_page(request: Request):
 async def get_log_files():
     """获取日志文件列表"""
     try:
-        logs_dir = Path(config.base_dir) / "logs"
-        if not logs_dir.exists():
+        # 优先使用用户主目录下的.lifetrace/logs目录
+        user_logs_dir = Path.home() / ".lifetrace" / "logs"
+        project_logs_dir = Path(config.base_dir) / "logs"
+        
+        # 选择存在的日志目录
+        if user_logs_dir.exists():
+            logs_dir = user_logs_dir
+        elif project_logs_dir.exists():
+            logs_dir = project_logs_dir
+        else:
             return []
         
         log_files = []
@@ -1024,7 +1101,16 @@ async def get_log_files():
 async def get_log_content(file: str = Query(..., description="日志文件相对路径")):
     """获取日志文件内容"""
     try:
-        logs_dir = Path(config.base_dir) / "logs"
+        # 优先使用用户主目录下的.lifetrace/logs目录
+        user_logs_dir = Path.home() / ".lifetrace" / "logs"
+        project_logs_dir = Path(config.base_dir) / "logs"
+        
+        # 选择存在的日志目录
+        if user_logs_dir.exists():
+            logs_dir = user_logs_dir
+        else:
+            logs_dir = project_logs_dir
+            
         log_file = logs_dir / file
         
         # 安全检查：确保文件在logs目录内

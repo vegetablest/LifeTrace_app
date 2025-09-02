@@ -139,8 +139,8 @@
                 <button class="btn btn-primary" onclick="refreshContent()">刷新</button>
                 <button class="btn btn-secondary" onclick="clearContent()">清空</button>
                 <div class="auto-refresh">
-                    <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
-                    <label for="autoRefresh">自动刷新 (5秒)</label>
+                    <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()" checked>
+                    <label for="autoRefresh">自动刷新 (1秒)</label>
                 </div>
                 <span id="lastUpdate" class="file-info"></span>
             </div>
@@ -261,7 +261,7 @@
                     if (currentFile) {
                         loadLogContent();
                     }
-                }, 5000);
+                }, 1000); // 改为1秒刷新一次
             } else {
                 if (autoRefreshInterval) {
                     clearInterval(autoRefreshInterval);
@@ -288,6 +288,8 @@
         // 页面加载时初始化
         window.onload = function() {
             loadFileList();
+            // 默认启用自动刷新
+            toggleAutoRefresh();
         };
         
         // 页面卸载时清理定时器

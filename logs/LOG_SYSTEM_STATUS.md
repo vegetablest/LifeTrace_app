@@ -13,47 +13,54 @@
 ### 2. 日志目录结构
 ```
 ~/.lifetrace/logs/
-├── core/                    # 核心服务日志
-│   ├── lifetrace_processor.log
-│   ├── lifetrace_recorder.log
-│   ├── lifetrace_server.log
-│   └── test_module.log
-├── sync/                    # 同步服务日志
-│   ├── consistency_checker.log
-│   ├── lifetrace_consistency.log
-│   └── lifetrace_sync.log
-├── debug/                   # 调试日志目录
-├── lifetrace_20250821.log   # 历史日志
-├── lifetrace_20250822.log
-└── simple_ocr.log
+├── core/
+│   ├── lifetrace_processor.log  # OCR处理器日志 (1.1 KB)
+│   └── lifetrace_recorder.log   # 录制器日志 (161.7 KB)
+├── sync/
+│   └── consistency_checker.log  # 一致性检查日志 (17.4 KB)
+└── debug/
+    └── (调试日志文件)
 ```
 
 ### 3. 已解决的问题
 
 #### 3.1 重复日志配置
-- ✅ 移除了各模块中的重复 `setup_logging` 调用
-- ✅ 统一使用 `logging_config.py` 进行日志管理
-- ✅ 修复了 server.py, processor.py, recorder.py 中的双重配置问题
+- **问题**: 多个模块有独立的日志配置
+- **解决**: 统一使用 `logging_config.py` 中的 `LifeTraceLogger`
+- **影响**: 避免日志配置冲突，统一日志格式和轮转策略
 
-#### 3.2 重复日志文件
-- ✅ 删除了重复的日志文件:
-  - `lifetrace.processor.log` (保留 `lifetrace_processor.log`)
-  - `lifetrace.server.log` (保留 `lifetrace_server.log`)
+#### 3.2 日志文件重复和无用文件
+- **问题**: 同一功能的日志可能写入多个文件，存在空文件和废弃文件
+- **解决**: 
+  - 明确每个模块的日志文件归属
+  - 清理无用的日志文件（simple_ocr.log, test_module.log, 历史格式文件等）
+  - 删除空的日志文件
+- **当前有效文件**:
+  - `lifetrace_processor.log`: OCR处理器专用 (1.1 KB)
+  - `lifetrace_recorder.log`: 录制器专用 (161.7 KB) 
+  - `consistency_checker.log`: 一致性检查专用 (17.4 KB)
 
-#### 3.3 日志文件命名规范
-- ✅ 统一使用下划线命名: `lifetrace_[module].log`
-- ✅ 按模块类型分目录存储
+#### 3.3 日志配置统一化
+- **问题**: `simple_ocr.py` 和 `utils.py` 中存在独立的日志配置函数
+- **解决**: 移除重复的 `setup_logging` 函数，统一使用 `logging_config.py`
+- **影响**: 所有模块现在使用统一的日志配置和格式
 
 ### 4. 当前活跃日志文件
 
 | 文件名 | 目录 | 大小 | 用途 |
 |--------|------|------|------|
 | lifetrace_processor.log | core | 1.1KB | OCR处理器日志 |
-| lifetrace_recorder.log | core | 23.3KB | 截图录制器日志 |
-| lifetrace_server.log | core | 0B | Web服务器日志 |
-| consistency_checker.log | sync | 4.5KB | 一致性检查日志 |
-| lifetrace_consistency.log | sync | 484B | 一致性服务日志 |
-| lifetrace_sync.log | sync | 4.9KB | 同步服务日志 |
+| lifetrace_recorder.log | core | 161.7KB | 录制器日志 |
+| consistency_checker.log | sync | 17.4KB | 一致性检查日志 |
+
+**已清理的文件**:
+- `simple_ocr.log` (0B) - 已移至统一日志配置
+- `test_module.log` (295B) - 测试文件，已删除
+- `lifetrace_20250821.log` (3.9KB) - 旧格式，已删除
+- `lifetrace_20250822.log` (0B) - 空文件，已删除
+- `lifetrace_server.log` (0B) - 空文件，已删除
+- `lifetrace_sync.log` (4.9KB) - 已删除
+- `lifetrace_consistency.log` (484B) - 已删除
 
 ### 5. 日志配置特性
 

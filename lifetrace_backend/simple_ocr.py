@@ -22,6 +22,7 @@ except ImportError:
 from .config import config
 from .storage import db_manager
 from .vector_service import create_vector_service
+from .heartbeat import HeartbeatLogger
 
 
 class SimpleOCRProcessor:
@@ -228,23 +229,16 @@ def create_screenshot_record(image_path: str):
         return None
 
 
-def setup_logging():
-    """设置日志"""
-    log_dir = os.path.join(config.base_dir, 'logs')
-    os.makedirs(log_dir, exist_ok=True)
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(os.path.join(log_dir, 'simple_ocr.log'), encoding='utf-8'),
-            logging.StreamHandler()
-        ]
-    )
+# 日志配置已移至统一的logging_config.py中
 
 
-def get_unprocessed_screenshots():
+def get_unprocessed_screenshots(logger=None):
     """从数据库获取未处理OCR的截图记录"""
+    # 如果没有传入logger，使用默认的logging
+    if logger is None:
+        import logging as default_logging
+        logger = default_logging
+        
     try:
         from .models import Screenshot, OCRResult
         with db_manager.get_session() as session:
@@ -259,22 +253,27 @@ def get_unprocessed_screenshots():
                 'created_at': screenshot.created_at
             } for screenshot in unprocessed]
     except Exception as e:
-        logging.error(f"查询未处理截图失败: {e}")
+        logger.error(f"查询未处理截图失败: {e}")
         return []
 
 
-def process_screenshot_ocr(screenshot_info, ocr_engine, vector_service):
+def process_screenshot_ocr(screenshot_info, ocr_engine, vector_service, logger=None):
     """处理单个截图的OCR"""
     screenshot_id = screenshot_info['id']
     file_path = screenshot_info['file_path']
     
+    # 如果没有传入logger，使用默认的logging
+    if logger is None:
+        import logging as default_logging
+        logger = default_logging
+    
     try:
         # 检查文件是否存在
         if not os.path.exists(file_path):
-            logging.warning(f"截图文件不存在，跳过处理: {file_path}")
+            logger.warning(f"截图文件不存在，跳过处理: {file_path}")
             return False
         
-        print(f"开始处理截图 ID {screenshot_id}: {os.path.basename(file_path)}")
+        logger.info(f"开始处理截图 ID {screenshot_id}: {os.path.basename(file_path)}")
         
         # 记录开始时间
         start_time = time.time()
@@ -311,12 +310,11 @@ def process_screenshot_ocr(screenshot_info, ocr_engine, vector_service):
         }
         save_to_database(file_path, ocr_result, vector_service)
         
-        print(f'OCR处理完成 ID {screenshot_id}, 用时: {elapsed_time:.2f}秒')
+        logger.info(f'OCR处理完成 ID {screenshot_id}, 用时: {elapsed_time:.2f}秒')
         return True
         
     except Exception as e:
-        logging.error(f"处理截图 {screenshot_id} 失败: {e}")
-        print(f"处理截图 {screenshot_id} 失败: {e}")
+        logger.error(f"处理截图 {screenshot_id} 失败: {e}")
         return False
 
 
@@ -325,7 +323,12 @@ def main():
     print("LifeTrace 简化OCR处理器启动...")
     
     # 设置日志
-    setup_logging()
+    from .logging_config import setup_logging
+    logger_manager = setup_logging(config)
+    logger = logger_manager.get_ocr_logger()
+    
+    # 初始化心跳记录器
+    heartbeat_logger = HeartbeatLogger('ocr')
     
     # 检查配置
     if not os.path.exists(config.database_path):
@@ -334,20 +337,26 @@ def main():
     
     # 初始化RapidOCR
     print("正在初始化RapidOCR引擎...")
+    logger.info("正在初始化RapidOCR引擎...")
     try:
         ocr = RapidOCR()
         print("RapidOCR引擎初始化成功")
+        logger.info("RapidOCR引擎初始化成功")
     except Exception as e:
         print(f"RapidOCR初始化失败: {e}")
+        logger.error(f"RapidOCR初始化失败: {e}")
         return
     
     # 初始化向量数据库服务
     print("正在初始化向量数据库服务...")
+    logger.info("正在初始化向量数据库服务...")
     vector_service = create_vector_service(config, db_manager)
     if vector_service.is_enabled():
         print("向量数据库服务已启用")
+        logger.info("向量数据库服务已启用")
     else:
         print("向量数据库服务未启用或不可用")
+        logger.info("向量数据库服务未启用或不可用")
     
     # 获取检查间隔配置
     check_interval = config.get('ocr.check_interval', 5)  # 默认5秒检查一次
@@ -355,39 +364,55 @@ def main():
     
     print("开始基于数据库的OCR处理...")
     print("按 Ctrl+C 停止服务")
+    logger.info(f"OCR服务启动完成，检查间隔: {check_interval}秒")
+    
+    # 记录心跳的时间戳
+    last_heartbeat_time = 0
+    heartbeat_interval = 1.0  # 每秒记录一次心跳
+    processed_count = 0
     
     try:
         while True:
-            try:
-                # 从数据库获取未处理的截图
-                unprocessed_screenshots = get_unprocessed_screenshots()
-                
-                if unprocessed_screenshots:
-                    print(f"发现 {len(unprocessed_screenshots)} 个未处理的截图")
-                    
-                    # 按创建时间排序，优先处理最新的
-                    unprocessed_screenshots.sort(key=lambda x: x['created_at'], reverse=True)
-                    
-                    # 处理每个未处理的截图
-                    for screenshot_info in unprocessed_screenshots:
-                        success = process_screenshot_ocr(screenshot_info, ocr, vector_service)
-                        if success:
-                            # 处理成功后稍作停顿，避免过度占用资源
-                            time.sleep(0.1)
-                else:
-                    # 没有未处理的截图，等待一段时间再检查
-                    time.sleep(check_interval)
-                
-            except Exception as e:
-                print(f'处理过程中出错: {str(e)}')
-                logging.error(f'处理过程中出错: {str(e)}')
-                time.sleep(check_interval)
+            start_time = time.time()
             
+            # 检查是否需要记录心跳
+            if start_time - last_heartbeat_time >= heartbeat_interval:
+                heartbeat_logger.record_heartbeat({
+                    'status': 'running',
+                    'processed_count': processed_count,
+                    'check_interval': check_interval
+                })
+                last_heartbeat_time = start_time
+            
+            # 从数据库获取未处理的截图
+            unprocessed_screenshots = get_unprocessed_screenshots(logger)
+            
+            if unprocessed_screenshots:
+                logger.info(f"发现 {len(unprocessed_screenshots)} 个未处理的截图")
+                
+                # 按创建时间排序，优先处理最新的
+                unprocessed_screenshots.sort(key=lambda x: x['created_at'], reverse=True)
+                
+                # 处理每个未处理的截图
+                for screenshot_info in unprocessed_screenshots:
+                    success = process_screenshot_ocr(screenshot_info, ocr, vector_service, logger)
+                    if success:
+                        processed_count += 1
+                        # 处理成功后稍作停顿，避免过度占用资源
+                        time.sleep(0.1)
+            else:
+                # 没有未处理的截图，等待一段时间再检查
+                time.sleep(check_interval)
+                
     except KeyboardInterrupt:
         print("\n收到停止信号，正在退出...")
+        logger.info("收到停止信号，结束OCR处理")
+        heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
     except Exception as e:
         print(f"服务异常: {e}")
-        logging.error(f"服务异常: {e}")
+        logger.error(f"OCR处理过程中发生错误: {e}")
+        heartbeat_logger.record_heartbeat({'status': 'error', 'error': str(e)})
+        raise
     finally:
         print("OCR服务已停止")
 

@@ -16,7 +16,8 @@ from rich import print as rprint
 
 from .config import config
 from .storage import db_manager
-from .utils import setup_logging, ensure_dir
+from .utils import ensure_dir
+from .logging_config import setup_logging
 
 
 app = typer.Typer(help="LifeTrace 智能生活记录系统")
@@ -61,7 +62,8 @@ def init(
         return
     
     # 设置日志
-    setup_logging(os.path.join(config.base_dir, 'logs'))
+    logger_manager = setup_logging(config)
+    logger = logger_manager.get_main_logger()
     
     rprint(f"\n[green]SUCCESS[/green] LifeTrace 初始化完成!")
     rprint(f"数据目录: {config.base_dir}")

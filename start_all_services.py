@@ -4,12 +4,14 @@
 不依赖lifetrace命令行工具
 """
 
-import os
+import subprocess
 import sys
 import time
-import subprocess
 import signal
+import os
 from pathlib import Path
+import json
+from datetime import datetime, timedelta
 
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent
@@ -22,6 +24,16 @@ class ServiceManager:
     def __init__(self):
         self.processes = {}
         self.running = True
+        
+        # 从配置文件读取心跳参数
+        self.heartbeat_dir = config.heartbeat_log_dir
+        self.heartbeat_timeout = config.heartbeat_timeout
+        self.heartbeat_check_interval = config.heartbeat_check_interval
+        self.max_restart_attempts = config.heartbeat_max_restart_attempts
+        self.restart_delay = config.heartbeat_restart_delay
+        
+        self.last_heartbeat_check = {}
+        self.restart_count = {}  # 记录每个服务的重启次数
     
     def start_service(self, name, module):
         """启动单个服务"""
@@ -37,6 +49,7 @@ class ServiceManager:
             )
             
             self.processes[name] = process
+            self.restart_count[name] = 0  # 重置重启计数
             print(f"✅ {name} 服务已启动 (PID: {process.pid})")
             
             return True
@@ -92,6 +105,92 @@ class ServiceManager:
                         
                 except Exception:
                     pass
+    
+    def get_service_heartbeat(self, service_name):
+        """获取服务的最新心跳信息"""
+        # 根据服务名映射到心跳文件名
+        heartbeat_mapping = {
+            "录制器": "recorder",
+            "处理器": "processor", 
+            "OCR服务": "ocr",
+            "Web服务": "server"
+        }
+        
+        heartbeat_file_name = heartbeat_mapping.get(service_name, service_name.lower())
+        heartbeat_file = os.path.join(self.heartbeat_dir, f"{heartbeat_file_name}_heartbeat.log")
+        
+        if not os.path.exists(heartbeat_file):
+            return None
+            
+        try:
+            with open(heartbeat_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if lines:
+                    # 读取最后一行心跳记录
+                    last_line = lines[-1].strip()
+                    if last_line:
+                        return json.loads(last_line)
+        except Exception as e:
+            print(f"❌ 读取 {service_name} 心跳文件失败: {e}")
+            
+        return None
+    
+    def check_service_heartbeat(self, service_name):
+        """检查服务心跳是否正常"""
+        heartbeat = self.get_service_heartbeat(service_name)
+        
+        if not heartbeat:
+            return False
+            
+        try:
+            heartbeat_time = datetime.fromisoformat(heartbeat['timestamp'])
+            current_time = datetime.now()
+            time_diff = (current_time - heartbeat_time).total_seconds()
+            
+            # 如果心跳超时，认为服务异常
+            if time_diff > self.heartbeat_timeout:
+                print(f"⚠️  {service_name} 心跳超时 ({time_diff:.1f}秒)")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            print(f"❌ 解析 {service_name} 心跳时间失败: {e}")
+            return False
+    
+    def restart_service(self, name, module):
+        """重启单个服务"""
+        print(f"🔄 正在重启 {name} 服务...")
+        
+        # 检查重启次数
+        if self.restart_count.get(name, 0) >= self.max_restart_attempts:
+            print(f"❌ {name} 服务重启次数已达上限 ({self.max_restart_attempts})，停止重启")
+            return False
+        
+        # 停止现有进程
+        if name in self.processes:
+            process = self.processes[name]
+            if process and process.poll() is None:
+                try:
+                    process.terminate()
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                except Exception as e:
+                    print(f"❌ 停止 {name} 服务失败: {e}")
+        
+        # 等待一段时间后重启
+        time.sleep(2)
+        
+        # 重新启动服务
+        success = self.start_service(name, module)
+        if success:
+            self.restart_count[name] = self.restart_count.get(name, 0) + 1
+            print(f"✅ {name} 服务重启成功 (第{self.restart_count[name]}次重启)")
+        else:
+            print(f"❌ {name} 服务重启失败")
+            
+        return success
 
 
 def check_dependencies():
@@ -196,9 +295,36 @@ def main():
     
     # 监控服务
     try:
+        heartbeat_check_interval = manager.heartbeat_check_interval  # 从配置读取心跳检查间隔
+        last_heartbeat_check = 0
+        
         while manager.running:
             time.sleep(10)
+            current_time = time.time()
+            
+            # 检查进程状态
             running_count = manager.check_services()
+            
+            # 定期检查心跳并自动重启异常服务
+            if current_time - last_heartbeat_check >= heartbeat_check_interval:
+                print("\n🔍 检查服务心跳状态...")
+                
+                for name, module in services:
+                    if name in manager.processes:
+                        process = manager.processes[name]
+                        
+                        # 如果进程还在运行，检查心跳
+                        if process and process.poll() is None:
+                            if not manager.check_service_heartbeat(name):
+                                print(f"💔 {name} 心跳异常，尝试重启...")
+                                manager.restart_service(name, module)
+                        # 如果进程已停止，尝试重启
+                        elif manager.restart_count.get(name, 0) < manager.max_restart_attempts:
+                            print(f"💀 {name} 进程已停止，尝试重启...")
+                            manager.restart_service(name, module)
+                
+                last_heartbeat_check = current_time
+                print("✅ 心跳检查完成\n")
             
             if running_count == 0:
                 print("❌ 所有服务都已停止")

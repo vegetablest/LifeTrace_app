@@ -2,3 +2,11 @@
 /node_modules
 /reference_projects
 /useless
+*.pyc
+/lifetrace_backend/__pycache__
+lifetrace_backend/__pycache__/config.cpython-313.pyc
+/~/.lifetrace/screenshots
+*.pyc
+/~/.lifetrace
+/logs
+/logs

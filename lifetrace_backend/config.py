@@ -12,6 +12,11 @@ class LifeTraceConfig:
     
     def _get_default_config_path(self) -> str:
         """获取默认配置文件路径"""
+        # 优先使用项目目录下的配置文件
+        project_config = os.path.join(Path(__file__).parent.parent, 'config', 'default_config.yaml')
+        if os.path.exists(project_config):
+            return project_config
+        # 如果项目配置不存在，使用用户目录配置
         return os.path.join(Path.home(), '.lifetrace', 'config.yaml')
     
     def _load_config(self) -> dict:
@@ -73,6 +78,24 @@ class LifeTraceConfig:
                 'file_monitor_delay': 2.0,  # 文件监控延迟（秒）
                 'cleanup_orphaned_files': True,  # 清理孤立文件
                 'log_level': 'INFO'  # 日志级别
+            },
+            'heartbeat': {
+                'enabled': True,  # 启用心跳监控
+                'interval': 1.0,  # 心跳记录间隔（秒）
+                'timeout': 30,  # 心跳超时时间（秒）
+                'check_interval': 30,  # 心跳检查间隔（秒）
+                'log_dir': 'logs/heartbeat',  # 心跳日志目录
+                'log_rotation': {
+                    'max_size_mb': 10,  # 单个日志文件最大大小（MB）
+                    'max_files': 5,  # 最大日志文件数量
+                    'auto_cleanup': True  # 自动清理旧日志
+                },
+                'auto_restart': {
+                    'enabled': True,  # 启用自动重启
+                    'max_attempts': 3,  # 最大重启尝试次数
+                    'restart_delay': 5,  # 重启延迟（秒）
+                    'reset_count_interval': 3600  # 重启计数重置间隔（秒）
+                }
             }
         }
     
@@ -189,6 +212,67 @@ class LifeTraceConfig:
     @property
     def sync_service_log_level(self) -> str:
         return self.get('sync_service.log_level', 'INFO')
+    
+    # 心跳监控配置属性
+    @property
+    def heartbeat_enabled(self) -> bool:
+        """是否启用心跳监控"""
+        return self.get('heartbeat.enabled', True)
+    
+    @property
+    def heartbeat_interval(self) -> float:
+        """心跳记录间隔（秒）"""
+        return self.get('heartbeat.interval', 1.0)
+    
+    @property
+    def heartbeat_timeout(self) -> int:
+        """心跳超时时间（秒）"""
+        return self.get('heartbeat.timeout', 30)
+    
+    @property
+    def heartbeat_check_interval(self) -> int:
+        """心跳检查间隔（秒）"""
+        return self.get('heartbeat.check_interval', 30)
+    
+    @property
+    def heartbeat_log_dir(self) -> str:
+        """心跳日志目录"""
+        return self.get('heartbeat.log_dir', 'logs/heartbeat')
+    
+    @property
+    def heartbeat_log_max_size_mb(self) -> int:
+        """心跳日志文件最大大小（MB）"""
+        return self.get('heartbeat.log_rotation.max_size_mb', 10)
+    
+    @property
+    def heartbeat_log_max_files(self) -> int:
+        """心跳日志最大文件数量"""
+        return self.get('heartbeat.log_rotation.max_files', 5)
+    
+    @property
+    def heartbeat_log_auto_cleanup(self) -> bool:
+        """是否自动清理旧的心跳日志"""
+        return self.get('heartbeat.log_rotation.auto_cleanup', True)
+    
+    @property
+    def heartbeat_auto_restart_enabled(self) -> bool:
+        """是否启用自动重启"""
+        return self.get('heartbeat.auto_restart.enabled', True)
+    
+    @property
+    def heartbeat_max_restart_attempts(self) -> int:
+        """最大重启尝试次数"""
+        return self.get('heartbeat.auto_restart.max_attempts', 3)
+    
+    @property
+    def heartbeat_restart_delay(self) -> int:
+        """重启延迟（秒）"""
+        return self.get('heartbeat.auto_restart.restart_delay', 5)
+    
+    @property
+    def heartbeat_reset_count_interval(self) -> int:
+        """重启计数重置间隔（秒）"""
+        return self.get('heartbeat.auto_restart.reset_count_interval', 3600)
 
 # 全局配置实例
 config = LifeTraceConfig()
