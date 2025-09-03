@@ -1,0 +1,6 @@
+2025-09-03 14:31:57,679 - lifetrace_recorder - INFO - recorder.py:94 - 超时配置 - 文件I/O: 15s, 数据库: 20s, 窗口信息: 5s
+2025-09-03 14:31:57,679 - lifetrace_recorder - INFO - recorder.py:96 - 屏幕录制器初始化完成，监控屏幕: []
+2025-09-03 14:31:57,679 - lifetrace_recorder - INFO - recorder.py:313 - 开始屏幕录制...
+2025-09-03 14:35:00,440 - lifetrace_recorder - INFO - recorder.py:94 - 超时配置 - 文件I/O: 15s, 数据库: 20s, 窗口信息: 5s
+2025-09-03 14:35:00,441 - lifetrace_recorder - INFO - recorder.py:96 - 屏幕录制器初始化完成，监控屏幕: []
+2025-09-03 14:35:00,441 - lifetrace_recorder - INFO - recorder.py:313 - 开始屏幕录制...
