@@ -12,13 +12,14 @@ from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from lifetrace_backend.config import config
-from lifetrace_backend.storage import db_manager
-from lifetrace_backend.simple_ocr import SimpleOCRProcessor
-from lifetrace_backend.vector_service import create_vector_service
-from lifetrace_backend.multimodal_vector_service import create_multimodal_vector_service
-from lifetrace_backend.logging_config import setup_logging
-from lifetrace_backend.heartbeat import HeartbeatLogger
+from .config import config
+from .storage import db_manager
+from .simple_ocr import SimpleOCRProcessor
+from .vector_service import create_vector_service
+from .multimodal_vector_service import create_multimodal_vector_service
+from .logging_config import setup_logging
+from .heartbeat import HeartbeatLogger
+from .rag_service import RAGService
 
 # 导入系统资源分析模块
 import psutil
@@ -147,6 +148,16 @@ class SystemResourcesResponse(BaseModel):
     summary: Dict[str, Any]
     timestamp: datetime
 
+class ChatMessage(BaseModel):
+    message: str
+
+class ChatResponse(BaseModel):
+    response: str
+    timestamp: datetime
+    query_info: Optional[Dict[str, Any]] = None
+    retrieval_info: Optional[Dict[str, Any]] = None
+    performance: Optional[Dict[str, Any]] = None
+
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -154,6 +165,21 @@ app = FastAPI(
     description="智能生活记录系统 API",
     version="0.1.0"
 )
+
+# 确保响应使用UTF-8编码
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+import json
+
+class UTF8JSONResponse(JSONResponse):
+    def render(self, content) -> bytes:
+        return json.dumps(
+            jsonable_encoder(content),
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 # 添加CORS中间件
 app.add_middleware(
@@ -187,6 +213,14 @@ multimodal_vector_service = create_multimodal_vector_service(config, db_manager)
 
 # 初始化心跳记录器
 heartbeat_logger = HeartbeatLogger('server')
+
+# 初始化RAG服务
+rag_service = RAGService(
+    db_manager=db_manager,
+    api_key="sk-8l2Kkkjshq5tqIgKg7BOL6boFCZbXAZy0tYsWrK1m7lAEk29",
+    base_url="https://api.openai-proxy.org/v1",
+    model="claude-sonnet-4-20250514"
+)
 
 # 心跳任务控制
 import asyncio
@@ -268,6 +302,25 @@ async def index(request: Request):
                 <p><a href="/api/docs">API 文档</a></p>
                 <p><a href="/api/screenshots">查看截图</a></p>
                 <p><a href="/api/statistics">系统统计</a></p>
+                <p><a href="/chat">智能聊天</a></p>
+            </body>
+        </html>
+        """)
+
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page(request: Request):
+    """聊天页面"""
+    if templates:
+        return templates.TemplateResponse("chat.html", {"request": request})
+    else:
+        return HTMLResponse("""
+        <html>
+            <head><title>LifeTrace Chat</title></head>
+            <body>
+                <h1>聊天功能暂不可用</h1>
+                <p>模板文件未找到</p>
+                <p><a href="/">返回首页</a></p>
             </body>
         </html>
         """)
@@ -320,6 +373,93 @@ async def get_config():
             "hash_threshold": config.get("storage.hash_threshold")
         }
     )
+
+
+@app.post("/api/chat", response_model=ChatResponse, response_class=UTF8JSONResponse)
+async def chat_with_llm(message: ChatMessage):
+    """与LLM聊天接口 - 集成RAG功能"""
+    try:
+        logger.info(f"收到聊天消息: {message.message}")
+        
+        # 使用RAG服务处理查询
+        rag_result = await rag_service.process_query(message.message)
+        
+        if rag_result.get('success', False):
+            return ChatResponse(
+                response=rag_result['response'],
+                timestamp=datetime.now(),
+                query_info=rag_result.get('query_info'),
+                retrieval_info=rag_result.get('retrieval_info'),
+                performance=rag_result.get('performance')
+            )
+        else:
+            # 如果RAG处理失败，返回错误信息
+            error_msg = rag_result.get('response', '处理您的查询时出现了错误，请稍后重试。')
+            return ChatResponse(
+                response=error_msg,
+                timestamp=datetime.now(),
+                query_info={'original_query': message.message, 'error': rag_result.get('error')}
+            )
+            
+    except Exception as e:
+        logger.error(f"聊天处理失败: {e}")
+        return ChatResponse(
+            response="抱歉，系统暂时无法处理您的请求，请稍后重试。",
+            timestamp=datetime.now(),
+            query_info={'original_query': message.message, 'error': str(e)}
+        )
+
+
+@app.get("/api/chat/history")
+async def get_chat_history():
+    """获取聊天历史记录"""
+    try:
+        # 这里暂时返回空的历史记录，后续需要实现真实的存储和检索
+        return {
+            "history": [],
+            "message": "聊天历史功能正在开发中"
+        }
+    except Exception as e:
+        logger.error(f"获取聊天历史失败: {e}")
+        raise HTTPException(status_code=500, detail="获取聊天历史失败")
+
+
+@app.get("/api/chat/suggestions")
+async def get_query_suggestions(partial_query: str = Query("", description="部分查询文本")):
+    """获取查询建议"""
+    try:
+        suggestions = rag_service.get_query_suggestions(partial_query)
+        return {
+            "suggestions": suggestions,
+            "partial_query": partial_query
+        }
+    except Exception as e:
+        logger.error(f"获取查询建议失败: {e}")
+        raise HTTPException(status_code=500, detail="获取查询建议失败")
+
+
+@app.get("/api/chat/query-types")
+async def get_supported_query_types():
+    """获取支持的查询类型"""
+    try:
+        return rag_service.get_supported_query_types()
+    except Exception as e:
+        logger.error(f"获取查询类型失败: {e}")
+        raise HTTPException(status_code=500, detail="获取查询类型失败")
+
+
+@app.get("/api/rag/health")
+async def rag_health_check():
+    """RAG服务健康检查"""
+    try:
+        return rag_service.health_check()
+    except Exception as e:
+        logger.error(f"RAG健康检查失败: {e}")
+        return {
+            "rag_service": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 
 @app.post("/api/search", response_model=List[ScreenshotResponse])

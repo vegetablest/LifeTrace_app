@@ -90,8 +90,8 @@ sync_service:
 heartbeat:
   enabled: true  # 启用心跳监控
   interval: 3.0  # 心跳记录间隔（秒）
-  timeout: 180  # 心跳超时时间（秒）
-  check_interval: 180  # 心跳检查间隔（秒）
+  timeout: 90  # 心跳超时时间（秒）
+  check_interval: 90  # 心跳检查间隔（秒）
   log_dir: 'logs/heartbeat'  # 心跳日志目录
   
   # 日志轮转配置
@@ -103,7 +103,7 @@ heartbeat:
   # 自动重启配置
   auto_restart:
     enabled: true  # 启用自动重启
-    max_attempts: 3  # 最大重启尝试次数
+    max_attempts: 30000  # 最大重启尝试次数
     restart_delay: 5  # 重启延迟（秒）
     reset_count_interval: 3600  # 重启计数重置间隔（秒）
 
@@ -115,7 +115,7 @@ logging:
   enable_console_logging: true  # 启用控制台日志
   log_rotation_max_bytes: 10485760  # 日志文件最大大小（10MB）
   log_rotation_backup_count: 5  # 备份文件数量
-  log_cleanup_days: 30  # 日志清理天数
+  log_cleanup_days: 3  # 日志清理天数
   
   # 各模块日志级别
   main_log_level: 'INFO'  # 主程序日志级别
