@@ -128,10 +128,7 @@ class LifeTraceConfig:
     
     @property
     def base_dir(self) -> str:
-        base_dir = self.get('base_dir')
-        if base_dir and base_dir.startswith('~'):
-            return os.path.expanduser(base_dir)
-        return base_dir
+        return self.get('base_dir')
     
     @property
     def database_path(self) -> str:

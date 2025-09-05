@@ -1,6 +1,0 @@
-2025-09-03 14:32:32,796 - lifetrace_server - INFO - server.py:240 - Web服务器启动，开始心跳记录
-2025-09-03 14:33:59,128 - lifetrace_server - INFO - server.py:250 - Web服务器关闭，停止心跳记录
-2025-09-03 14:33:59,166 - lifetrace_server - INFO - server.py:233 - 服务器心跳已停止
-2025-09-03 14:35:20,545 - lifetrace_server - INFO - server.py:240 - Web服务器启动，开始心跳记录
-2025-09-03 14:37:04,356 - lifetrace_server - INFO - server.py:250 - Web服务器关闭，停止心跳记录
-2025-09-03 14:37:04,423 - lifetrace_server - INFO - server.py:233 - 服务器心跳已停止

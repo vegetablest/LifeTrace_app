@@ -1,8 +1,8 @@
 # LifeTrace 默认配置文件
 
 # 基础设置
-# 使用用户主目录下的.lifetrace目录，跨平台兼容
-base_dir: ~/.lifetrace
+# base_dir: ~/.lifetrace
+base_dir: C:\Users\PC\.lifetrace
 database_path: lifetrace.db
 screenshots_dir: screenshots
 
@@ -14,8 +14,10 @@ server:
 
 # 截图记录配置
 record:
-  interval: 3  # 截图间隔（秒）
-  screens: "all"  # 截图屏幕：all 或屏幕编号列表（改为all以兼容不同系统）
+  # interval: 10  # 截图间隔（秒）
+  # screens: "all"  # 截图屏幕：all 或屏幕编号列表
+  interval: 3
+  screens: [3]
   format: png  # 截图格式：png, jpg
   quality: 85  # JPG质量（1-100）
   # 超时配置（秒）
