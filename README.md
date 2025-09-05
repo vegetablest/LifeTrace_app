@@ -382,3 +382,7 @@ For detailed documentation, please refer to the `doc/` directory:
 - [Vector Database Usage Guide](doc/vector_db_usage.md)
 - [Frontend Integration Guide](doc/前端集成说明.md)
 - [Documentation Center](doc/README.md)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=tangyuanbo1/LifeTrace_app&type=Timeline)](https://www.star-history.com/#tangyuanbo1/LifeTrace_app&Timeline)
