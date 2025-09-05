@@ -6,7 +6,56 @@
     <title>LifeTrace Chat - 智能对话助手</title>
     <!-- Markdown解析库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <style>
+        :root {
+            /* Updated color tokens to match v0 chat design */
+            --background: oklch(1 0 0);
+            --foreground: oklch(0.145 0 0);
+            --card: oklch(0.985 0 0);
+            --card-foreground: oklch(0.145 0 0);
+            --popover: oklch(1 0 0);
+            --popover-foreground: oklch(0.145 0 0);
+            --primary: oklch(0.145 0 0);
+            --primary-foreground: oklch(0.985 0 0);
+            --secondary: oklch(0.97 0 0);
+            --secondary-foreground: oklch(0.145 0 0);
+            --muted: oklch(0.97 0 0);
+            --muted-foreground: oklch(0.556 0 0);
+            --accent: oklch(0.646 0.222 264.376);
+            --accent-foreground: oklch(0.985 0 0);
+            --destructive: oklch(0.577 0.245 27.325);
+            --destructive-foreground: oklch(0.985 0 0);
+            --border: oklch(0.922 0 0);
+            --input: oklch(0.985 0 0);
+            --ring: oklch(0.646 0.222 264.376);
+            --radius: 0.625rem;
+        }
+        
+        .dark {
+            /* Updated dark mode tokens for better contrast */
+            --background: oklch(0.145 0 0);
+            --foreground: oklch(0.985 0 0);
+            --card: oklch(0.205 0 0);
+            --card-foreground: oklch(0.985 0 0);
+            --popover: oklch(0.205 0 0);
+            --popover-foreground: oklch(0.985 0 0);
+            --primary: oklch(0.985 0 0);
+            --primary-foreground: oklch(0.145 0 0);
+            --secondary: oklch(0.269 0 0);
+            --secondary-foreground: oklch(0.985 0 0);
+            --muted: oklch(0.269 0 0);
+            --muted-foreground: oklch(0.708 0 0);
+            --accent: oklch(0.646 0.222 264.376);
+            --accent-foreground: oklch(0.985 0 0);
+            --destructive: oklch(0.577 0.245 27.325);
+            --destructive-foreground: oklch(0.985 0 0);
+            --border: oklch(0.269 0 0);
+            --input: oklch(0.205 0 0);
+            --ring: oklch(0.646 0.222 264.376);
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -14,71 +63,163 @@
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f7f7f8;
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--background);
+            color: var(--foreground);
             height: 100vh;
             display: flex;
             flex-direction: column;
+            transition: background-color 0.2s, color 0.2s;
         }
         
+        /* Header */
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1rem 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-bottom: 1px solid var(--border);
+            background: var(--background);
+            backdrop-filter: blur(8px);
             flex-shrink: 0;
         }
         
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
+        .header-content {
+            display: flex;
+            height: 3.5rem;
+            align-items: center;
+            justify-content: space-between;
             padding: 0 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
         }
         
-        .header h1 {
-            text-align: center;
-            margin-bottom: 0.5rem;
-            font-size: 1.5rem;
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
         
-        .header p {
-            text-align: center;
-            opacity: 0.9;
-            font-size: 0.9rem;
+        .header-logo {
+            display: flex;
+            height: 2rem;
+            width: 2rem;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius);
+            background: var(--primary);
+            color: var(--primary-foreground);
         }
         
-        .nav-links {
-            text-align: center;
-            margin-top: 0.5rem;
+        .header-title {
+            font-weight: 600;
+            color: var(--foreground);
+            font-size: 1rem;
         }
         
-        .nav-links a {
-            color: white;
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
             text-decoration: none;
-            margin: 0 1rem;
-            opacity: 0.8;
-            transition: opacity 0.3s;
+            gap: 0.5rem;
         }
         
-        .nav-links a:hover {
-            opacity: 1;
+        .btn-ghost {
+            background: transparent;
+            color: var(--foreground);
+            padding: 0.5rem;
         }
         
+        .btn-ghost:hover {
+            background: var(--accent);
+            color: var(--accent-foreground);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            color: var(--foreground);
+            border: 1px solid var(--border);
+            padding: 0.375rem 0.75rem;
+        }
+        
+        .btn-outline:hover {
+            background: var(--accent);
+            color: var(--accent-foreground);
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: var(--primary-foreground);
+            padding: 0.375rem 0.75rem;
+        }
+        
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        
+        .btn-icon {
+            height: 2rem;
+            width: 2rem;
+            padding: 0;
+        }
+        
+        /* Main Chat Area */
         .chat-container {
             flex: 1;
             display: flex;
             flex-direction: column;
-            max-width: 800px;
-            margin: 0 auto;
-            width: 100%;
-            padding: 0 1rem;
+            height: calc(100vh - 3.5rem);
         }
         
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 1rem 0;
+            padding: 1rem;
+            max-width: 64rem;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .welcome-screen {
+            display: flex;
+            height: 100%;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        
+        .welcome-content {
+            text-align: center;
+            max-width: 32rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .welcome-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--foreground);
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+        
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: center;
+        }
+        
+        .messages-list {
             display: flex;
             flex-direction: column;
             gap: 1rem;
@@ -86,60 +227,70 @@
         
         .message {
             display: flex;
-            align-items: flex-start;
             gap: 0.75rem;
-            max-width: 100%;
         }
         
         .message.user {
-            flex-direction: row-reverse;
+            justify-content: flex-end;
+        }
+        
+        .message.assistant {
+            justify-content: flex-start;
         }
         
         .message-avatar {
-            width: 32px;
-            height: 32px;
+            width: 2rem;
+            height: 2rem;
+            margin-top: 0.25rem;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8rem;
-            font-weight: bold;
+            font-size: 0.75rem;
+            font-weight: 500;
             flex-shrink: 0;
         }
         
         .message.user .message-avatar {
-            background: #667eea;
-            color: white;
+            background: var(--secondary);
+            color: var(--secondary-foreground);
         }
         
         .message.assistant .message-avatar {
-            background: #10a37f;
-            color: white;
+            background: var(--accent);
+            color: var(--accent-foreground);
+        }
+        
+        .message-card {
+            max-width: 80%;
+            padding: 0.75rem;
+            border-radius: var(--radius);
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        
+        .message.user .message-card {
+            background: var(--primary);
+            color: var(--primary-foreground);
+        }
+        
+        .message.assistant .message-card {
+            background: var(--card);
+            color: var(--card-foreground);
+            border: 1px solid var(--border);
         }
         
         .message-content {
-            background: white;
-            padding: 0.75rem 1rem;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            max-width: 70%;
-            word-wrap: break-word;
-        }
-        
-        .message.user .message-content {
-            background: #667eea;
-            color: white;
-        }
-        
-        .message.assistant .message-content {
-            background: white;
-            border: 1px solid #e5e5e5;
+            font-size: 0.875rem;
+            line-height: 1.5;
         }
         
         .message-time {
-            font-size: 0.7rem;
-            color: #666;
-            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--muted-foreground);
+            margin-top: 0.5rem;
+            display: block;
+            opacity: 0.7;
         }
         
         /* Markdown样式 */
@@ -230,56 +381,86 @@
             font-weight: bold;
         }
         
+        /* Input Area */
         .chat-input-container {
-            padding: 1rem 0;
-            border-top: 1px solid #e5e5e5;
-            background: white;
+            border-top: 1px solid var(--border);
+            background: var(--background);
+            padding: 1rem;
             flex-shrink: 0;
+        }
+        
+        .input-wrapper {
+            max-width: 64rem;
+            margin: 0 auto;
         }
         
         .chat-input-form {
             display: flex;
             gap: 0.5rem;
-            align-items: flex-end;
+            align-items: end;
+        }
+        
+        .input-container {
+            flex: 1;
+            position: relative;
         }
         
         .chat-input {
-            flex: 1;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            padding: 0.75rem;
-            font-size: 1rem;
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.75rem 3rem 0.75rem 0.75rem;
+            font-size: 0.875rem;
             resize: none;
-            min-height: 44px;
-            max-height: 120px;
+            min-height: 2.75rem;
+            max-height: 7.5rem;
             font-family: inherit;
+            background: var(--input);
+            color: var(--foreground);
+            transition: border-color 0.2s;
         }
         
         .chat-input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: var(--ring);
+            box-shadow: 0 0 0 2px var(--ring);
+        }
+        
+        .chat-input::placeholder {
+            color: var(--muted-foreground);
         }
         
         .send-button {
-            background: #667eea;
-            color: white;
+            position: absolute;
+            right: 0.25rem;
+            top: 0.25rem;
+            height: 2rem;
+            width: 2rem;
+            background: var(--primary);
+            color: var(--primary-foreground);
             border: none;
-            border-radius: 8px;
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
+            border-radius: var(--radius);
             cursor: pointer;
-            transition: background-color 0.3s;
-            height: 44px;
+            transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .send-button:hover:not(:disabled) {
-            background: #5a6fd8;
+            opacity: 0.9;
         }
         
         .send-button:disabled {
-            background: #9ca3af;
+            opacity: 0.5;
             cursor: not-allowed;
+        }
+        
+        .agent-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
         }
         
         .loading {
@@ -337,45 +518,88 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="container">
-            <h1>LifeTrace Chat</h1>
-            <p>与您的生活记录智能对话</p>
-            <div class="nav-links">
-                <a href="/">首页</a>
-                <a href="/chat">聊天</a>
-                <a href="/api/docs">API文档</a>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <div class="header-logo">
+                    <i data-lucide="sparkles"></i>
+                </div>
+                <span class="header-title">LifeTrace Chat</span>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-ghost btn-icon" id="themeToggle">
+                    <i data-lucide="moon" id="themeIcon"></i>
+                </button>
+                <a href="/" class="btn btn-outline">首页</a>
+                <a href="/api/docs" class="btn btn-primary">API文档</a>
             </div>
         </div>
-    </div>
+    </header>
     
-    <div class="chat-container">
+    <!-- Main Chat Area -->
+    <main class="chat-container">
         <div class="chat-messages" id="chatMessages">
-            <div class="empty-state">
-                👋 您好！我是LifeTrace智能助手，可以帮您查询和分析您的生活记录数据。请输入您的问题开始对话。
+            <!-- Welcome Screen -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-content">
+                    <h1 class="welcome-title">我可以帮您做什么？</h1>
+                    <div class="quick-actions">
+                        <button class="btn btn-outline" onclick="insertQuickQuery('查询今天的截图记录')">
+                            <i data-lucide="plus"></i>
+                            查询截图记录
+                        </button>
+                        <button class="btn btn-outline" onclick="insertQuickQuery('分析我的应用使用情况')">
+                            <i data-lucide="sparkles"></i>
+                            应用分析
+                        </button>
+                        <button class="btn btn-outline" onclick="insertQuickQuery('搜索包含特定内容的截图')">
+                            <i data-lucide="search"></i>
+                            内容搜索
+                        </button>
+                    </div>
+                </div>
             </div>
+            
+            <!-- Messages List -->
+            <div class="messages-list" id="messagesList" style="display: none;"></div>
         </div>
         
         <div class="loading" id="loadingIndicator">
-            <div class="message-avatar" style="background: #10a37f; color: white;">AI</div>
+            <div class="message-avatar" style="background: var(--accent); color: var(--accent-foreground);">
+                <i data-lucide="sparkles"></i>
+            </div>
             <span>正在思考<span class="loading-dots"></span></span>
         </div>
         
+        <!-- Input Area -->
         <div class="chat-input-container">
-            <form class="chat-input-form" id="chatForm">
-                <textarea 
-                    class="chat-input" 
-                    id="chatInput" 
-                    placeholder="输入您的问题..." 
-                    rows="1"
-                    required
-                ></textarea>
-                <button type="submit" class="send-button" id="sendButton">
-                    发送
-                </button>
-            </form>
+            <div class="input-wrapper">
+                <form class="chat-input-form" id="chatForm">
+                    <div class="input-container">
+                        <textarea 
+                            class="chat-input" 
+                            id="chatInput" 
+                            placeholder="询问 LifeTrace 助手..." 
+                            rows="1"
+                            required
+                        ></textarea>
+                        <button type="submit" class="send-button" id="sendButton">
+                            <i data-lucide="send"></i>
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Agent Selector -->
+                <div class="agent-selector">
+                    <button class="btn btn-ghost" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                        <i data-lucide="sparkles" style="width: 0.75rem; height: 0.75rem;"></i>
+                        智能助手
+                    </button>
+                </div>
+            </div>
         </div>
-    </div>
+    </main>
     
     <script>
         const chatMessages = document.getElementById('chatMessages');
@@ -383,6 +607,36 @@
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
         const loadingIndicator = document.getElementById('loadingIndicator');
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        const messagesList = document.getElementById('messagesList');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        
+        // 初始化图标
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+        
+        // 主题切换
+        let isDark = false;
+        themeToggle.addEventListener('click', function() {
+            isDark = !isDark;
+            document.documentElement.classList.toggle('dark', isDark);
+            
+            // 更新图标
+            themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+        
+        // 快速查询功能
+        function insertQuickQuery(query) {
+            chatInput.value = query;
+            chatInput.focus();
+        }
         
         // 自动调整输入框高度
         chatInput.addEventListener('input', function() {
@@ -390,9 +644,9 @@
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
         
-        // 支持Ctrl+Enter发送
+        // 支持Enter发送（不需要Ctrl）
         chatInput.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 chatForm.dispatchEvent(new Event('submit'));
             }
@@ -400,12 +654,19 @@
         
         // 添加消息到聊天界面
         function addMessage(content, isUser = false, timestamp = null) {
+            // 隐藏欢迎屏幕，显示消息列表
+            if (welcomeScreen.style.display !== 'none') {
+                welcomeScreen.style.display = 'none';
+                messagesList.style.display = 'flex';
+            }
+            
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
             
             const time = timestamp || new Date().toLocaleTimeString('zh-CN', {
                 hour: '2-digit',
-                minute: '2-digit'
+                minute: '2-digit',
+                second: '2-digit'
             });
             
             // 对于AI回复，检测并渲染Markdown
@@ -418,30 +679,54 @@
                 }
             }
             
+            const avatarContent = isUser ? 'U' : '<i data-lucide="sparkles"></i>';
+            
             messageDiv.innerHTML = `
-                <div class="message-avatar">${isUser ? 'You' : 'AI'}</div>
-                <div class="message-content">
-                    ${processedContent}
-                    <div class="message-time">${time}</div>
+                <div class="message-avatar">${avatarContent}</div>
+                <div class="message-card">
+                    <div class="message-content">${processedContent}</div>
+                    <span class="message-time">${time}</span>
                 </div>
             `;
             
-            // 移除空状态
-            const emptyState = chatMessages.querySelector('.empty-state');
-            if (emptyState) {
-                emptyState.remove();
+            messagesList.appendChild(messageDiv);
+            
+            // 重新创建图标
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
             }
             
-            chatMessages.appendChild(messageDiv);
+            // 滚动到底部
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
         // 显示错误消息
         function showError(message) {
+            // 隐藏欢迎屏幕，显示消息列表
+            if (welcomeScreen.style.display !== 'none') {
+                welcomeScreen.style.display = 'none';
+                messagesList.style.display = 'flex';
+            }
+            
             const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.textContent = message;
-            chatMessages.appendChild(errorDiv);
+            errorDiv.className = 'message assistant';
+            errorDiv.innerHTML = `
+                <div class="message-avatar" style="background: var(--destructive); color: var(--destructive-foreground);">
+                    <i data-lucide="alert-circle"></i>
+                </div>
+                <div class="message-card" style="border-color: var(--destructive); background: var(--destructive); color: var(--destructive-foreground);">
+                    <div class="message-content">${message}</div>
+                    <span class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                </div>
+            `;
+            
+            messagesList.appendChild(errorDiv);
+            
+            // 重新创建图标
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
