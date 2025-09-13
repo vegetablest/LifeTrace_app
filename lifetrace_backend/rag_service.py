@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Generator
 from datetime import datetime
 import asyncio
 from pathlib import Path
@@ -203,7 +203,159 @@ class RAGService:
             包含生成结果和相关信息的字典
         """
         return asyncio.run(self.process_query(user_query, max_results))
-    
+
+    def post_stream_decision(self, user_query: str, output_text: str) -> None:
+        """
+        流式输出完成后的判定/记录钩子：
+        - 用于执行那些“必须拿到完整输出才能判断”的逻辑（例如：是否需要追加免责声明、是否触发某些后续动作等）
+        - 默认实现仅做日志记录，后续可按需扩展
+        """
+        try:
+            if not output_text:
+                return
+            # 示例：如果输出包含特定提示词，则记录到日志或触发后续处理
+            keywords = ["免责声明", "敏感内容", "注意", "总结"]
+            if any(kw in output_text for kw in keywords):
+                logger.info(f"[post_stream] 输出包含关键提示，query='{user_query[:50]}...' 触发标记")
+            else:
+                logger.debug("[post_stream] 无特殊标记")
+        except Exception as e:
+            logger.debug(f"[post_stream] 处理异常已忽略: {e}")
+
+    def stream_query(self, user_query: str, max_results: int = 50, temperature_direct: float = 0.7, temperature_rag: float = 0.3) -> Generator[str, None, None]:
+        """
+        流式处理用户查询：执行完整的RAG流程，并在生成阶段逐token（或逐chunk）yield 文本。
+        当底层LLM不支持真流式时，将按段返回；当不可用时，返回备用文本。
+        在流式输出完成后，调用 post_stream_decision 进行后续判定/记录。
+        """
+        try:
+            # 1) 意图识别
+            intent_result = self.llm_client.classify_intent(user_query)
+            needs_db = intent_result.get('needs_database', True)
+
+            # 2) 不需要数据库：直接对话
+            if not needs_db:
+                if not self.llm_client.is_available():
+                    # LLM不可用，直接返回备用文本
+                    fallback_text = self._fallback_direct_response(user_query, intent_result)
+                    yield fallback_text
+                    # 完整输出后处理
+                    self.post_stream_decision(user_query, fallback_text)
+                    return
+                # 系统提示与 _generate_direct_response 保持一致
+                intent_type = intent_result.get('intent_type', 'general_chat')
+                if intent_type == 'system_help':
+                    system_prompt = """
+你是LifeTrace的智能助手。LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
+1. 自动截图记录用户的屏幕活动
+2. OCR文字识别和内容分析
+3. 应用使用情况统计
+4. 智能搜索和查询功能
+
+请根据用户的问题提供有用的帮助信息。
+"""
+                else:
+                    system_prompt = """
+你是LifeTrace的智能助手，请以友好、自然的方式与用户对话。
+如果用户需要查询数据或统计信息，请引导他们使用具体的查询语句。
+"""
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_query}
+                ]
+                output_chunks: List[str] = []
+                for text in self.llm_client.stream_chat(messages=messages, temperature=temperature_direct):
+                    if text:
+                        output_chunks.append(text)
+                        yield text
+                # 完整输出后处理
+                self.post_stream_decision(user_query, "".join(output_chunks))
+                return
+
+            # 3) 需要数据库：解析 + 检索 + 构建上下文
+            parsed_query = self.query_parser.parse_query(user_query)
+            query_type = 'statistics' if '统计' in user_query else 'search'
+            retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, max_results)
+
+            stats = None
+            if query_type == 'statistics' or '统计' in user_query:
+                # 兼容 QueryConditions 或 dict
+                if isinstance(parsed_query, QueryConditions):
+                    conditions = parsed_query
+                else:
+                    conditions = QueryConditions(
+                        start_date=parsed_query.get('start_date'),
+                        end_date=parsed_query.get('end_date'),
+                        app_names=parsed_query.get('app_names'),
+                        keywords=parsed_query.get('keywords', [])
+                    )
+                try:
+                    stats = self.retrieval_service.get_statistics(conditions)
+                except Exception:
+                    stats = None
+
+            # 上下文构建
+            if query_type == 'statistics':
+                context_text = self.context_builder.build_statistics_context(
+                    user_query, retrieved_data, stats
+                )
+            elif query_type == 'search':
+                context_text = self.context_builder.build_search_context(
+                    user_query, retrieved_data
+                )
+            else:
+                context_text = self.context_builder.build_summary_context(
+                    user_query, retrieved_data
+                )
+
+            # LLM 不可用时，返回规则备选
+            if not self.llm_client.is_available():
+                fallback_text = self._fallback_response(user_query, retrieved_data, stats)
+                yield fallback_text
+                # 完整输出后处理
+                self.post_stream_decision(user_query, fallback_text)
+                return
+
+            # 4) 生成阶段：流式输出
+            system_prompt = """
+你是一个智能助手，专门帮助用户分析和总结历史记录数据。
+
+用户会提供一个查询和相关的历史数据，你需要：
+1. 理解用户的查询意图
+2. 分析提供的历史数据
+3. 生成准确、有用的总结
+
+请用中文回答，保持简洁明了，重点突出关键信息。
+"""
+            user_prompt = f"""
+用户查询：{user_query}
+
+相关历史数据：
+{context_text}
+
+请基于以上数据回答用户的查询。
+"""
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            output_chunks: List[str] = []
+            for text in self.llm_client.stream_chat(messages=messages, temperature=temperature_rag):
+                if text:
+                    output_chunks.append(text)
+                    yield text
+            # 完整输出后处理
+            self.post_stream_decision(user_query, "".join(output_chunks))
+        except Exception as e:
+            logger.error(f"RAG 流式处理失败: {e}")
+            error_text = "\n[提示] 流式处理出现异常，已结束。"
+            yield error_text
+            # 异常情况下也做一次后处理
+            try:
+                self.post_stream_decision(user_query, error_text)
+            except Exception:
+                pass
+
     def get_query_suggestions(self, partial_query: str = "") -> List[str]:
         """
         获取查询建议
@@ -477,3 +629,80 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
                 return greetings[1] + "\n\n您可以尝试搜索截图、查询应用使用情况，或者询问系统功能。"
         else:
             return "我理解您的问题，但可能需要更多信息才能提供准确的回答。您可以尝试更具体的查询，比如搜索特定内容或统计使用情况。"
+    
+    async def process_query_stream(self, user_query: str) -> Dict[str, Any]:
+        """
+        为流式接口处理查询，返回构建好的messages和temperature
+        避免重复的意图识别调用
+        """
+        try:
+            # 1. 意图识别
+            logger.info(f"[stream] 开始处理查询: {user_query}")
+            intent_result = self.llm_client.classify_intent(user_query)
+            needs_db = intent_result.get('needs_database', True)
+            
+            messages = []
+            temperature = 0.7
+            
+            if not needs_db:
+                # 不需要数据库查询的情况
+                intent_type = intent_result.get('intent_type', 'general_chat')
+                if intent_type == 'system_help':
+                    system_prompt = """
+你是LifeTrace的智能助手。LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
+1. 自动截图记录用户的屏幕活动
+2. OCR文字识别和内容分析
+3. 应用使用情况统计
+4. 智能搜索和查询功能
+
+请根据用户的问题提供有用的帮助信息。
+"""
+                else:
+                    system_prompt = """
+你是LifeTrace的智能助手，请以友好、自然的方式与用户对话。
+如果用户需要查询数据或统计信息，请引导他们使用具体的查询语句。
+"""
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_query}
+                ]
+            else:
+                # 需要数据库查询的情况
+                parsed_query = self.query_parser.parse_query(user_query)
+                query_type = 'statistics' if '统计' in user_query else 'search'
+                retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 50)
+                
+                # 构建上下文
+                if query_type == 'statistics':
+                    stats = None
+                    if isinstance(parsed_query, QueryConditions):
+                        stats = self.retrieval_service.get_statistics(parsed_query)
+                    context_text = self.context_builder.build_statistics_context(
+                        user_query, retrieved_data, stats
+                    )
+                else:
+                    context_text = self.context_builder.build_search_context(
+                        user_query, retrieved_data
+                    )
+                
+                messages = [
+                    {"role": "system", "content": context_text},
+                    {"role": "user", "content": user_query}
+                ]
+                temperature = 0.3
+            
+            return {
+                "success": True,
+                "messages": messages,
+                "temperature": temperature,
+                "intent_result": intent_result
+            }
+            
+        except Exception as e:
+            logger.error(f"[stream] 处理查询失败: {e}")
+            return {
+                "success": False,
+                "response": f"处理查询时出现错误: {str(e)}",
+                "messages": [],
+                "temperature": 0.7
+            }

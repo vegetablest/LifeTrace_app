@@ -51,10 +51,11 @@ class LLMClient:
             return self._rule_based_intent_classification(user_query)
         
         try:
-            prompt = f"""
+            # 注意：使用普通字符串，避免 f-string 解析 JSON 花括号导致的格式化错误
+            prompt = """
 请分析以下用户输入，判断用户的意图类型。
 
-用户输入："{user_query}"
+用户输入："<USER_QUERY>"
 
 请判断这个输入属于以下哪种类型：
 1. "database_query" - 需要查询数据库的请求（如：搜索截图、统计使用情况、查找特定应用等）
@@ -62,18 +63,21 @@ class LLMClient:
 3. "system_help" - 系统帮助请求（如：如何使用、功能说明等）
 
 请以JSON格式返回结果：
-{{
+{
     "intent_type": "database_query/general_chat/system_help",
-    "confidence": 0.0-1.0,
     "needs_database": true/false
-}}
+}
+
+只返回JSON，不要返回其他任何信息，不要使用markdown代码块标记。
 """
+            # 将用户输入放入单独的 user 消息，避免在包含花括号的模板里使用 f-string
+            user_content = prompt.replace("<USER_QUERY>", user_query)
             
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "你是一个智能助手，专门用于分析用户意图。请严格按照JSON格式返回结果。"},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": user_content}
                 ],
                 temperature=0.1,
                 max_tokens=200
@@ -102,7 +106,7 @@ class LLMClient:
                 clean_text = clean_text.strip()
                 
                 result = json.loads(clean_text)
-                logger.info(f"意图分类结果: {result['intent_type']}, 置信度: {result['confidence']}")
+                logger.info(f"意图分类结果: {result['intent_type']}, 需要数据库: {result['needs_database']}")
                 return result
             except json.JSONDecodeError:
                 logger.warning(f"LLM返回的不是有效JSON: {result_text}")
@@ -130,10 +134,9 @@ class LLMClient:
         current_time = datetime.now()
         current_date_str = current_time.strftime("%Y-%m-%d %H:%M:%S")
         
-        system_prompt = f"""
+        # 使用普通字符串，避免 f-string 与 JSON 花括号冲突
+        system_prompt = """
 你是一个查询解析助手。用户会提供关于历史记录的查询，你需要从中提取以下信息：
-
-当前时间是：{current_date_str}
 
 1. 时间范围：开始时间和结束时间（如果有的话）
 2. 应用名称：用户提到的具体应用程序（如微信、QQ、浏览器等）
@@ -141,29 +144,30 @@ class LLMClient:
 4. 查询类型：总结、搜索、统计等
 
 请以JSON格式返回结果，包含以下字段：
-{{
+{
   "start_date": "YYYY-MM-DD HH:MM:SS" 或 null,
   "end_date": "YYYY-MM-DD HH:MM:SS" 或 null,
   "app_names": ["应用名称1", "应用名称2"] 或 null,
   "keywords": ["关键词1", "关键词2"],
-  "query_type": "summary|search|statistics|other",
-  "confidence": 0.0-1.0
-}}
+  "query_type": "summary|search|statistics|other"
+}
 
 注意：
 - 如果没有明确的时间信息，start_date和end_date设为null
-- 如果时间是相对的（如"今天"、"昨天"、"上周"），请基于当前时间{current_date_str}转换为具体日期
+- 如果时间是相对的（如"今天"、"昨天"、"上周"），请基于提供的当前时间转换为具体日期
 - "今天"应该设置为当天的00:00:00到23:59:59
-- 应用名称要标准化（如"微信"统一为"WeChat"），并以数组形式返回
+- 应用名称要标准化，请使用以下标准应用名称：微信、WeChat、QQ、钉钉、企业微信、飞书、Telegram、Discord、记事本、计算器、Word、Excel、PowerPoint、WPS、Chrome、Firefox、Edge、Safari、VS Code、VSCode、PyCharm、IntelliJ IDEA、网易云音乐、QQ音乐、VLC、Steam、Epic Games、任务管理器、命令提示符、PowerShell、360安全卫士、腾讯电脑管家、迅雷、百度网盘
 - 关键词要提取核心概念
 - 只需要返回json 不要返回其他任何信息
 """
         
         try:
+            # 将当前时间与用户查询一并放入 user 消息，避免在包含花括号的模板里插值
+            user_message = f"当前时间是：{current_date_str}\n请解析这个查询：{user_query}"
             response = self.client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"请解析这个查询：{user_query}"}
+                    {"role": "user", "content": user_message}
                 ],
                 model=self.model,
                 temperature=0.1
@@ -179,67 +183,42 @@ class LLMClient:
             print(f"=== 响应结束 ===\n")
             
             logger.info(f"LLM查询解析 - 用户查询: {user_query}")
-            logger.info(f"LLM查询解析 - 解析结果: {result_text}")
+            logger.info(f"LLM查询解析 - 原始响应: {result_text}")
             
             # 尝试解析JSON
             try:
-                # 清理可能的markdown代码块标记和额外文本
                 clean_text = result_text.strip()
                 if clean_text.startswith('```json'):
                     clean_text = clean_text[7:]
                 if clean_text.endswith('```'):
                     clean_text = clean_text[:-3]
                 clean_text = clean_text.strip()
-                
-                # 如果包含解释文本，尝试提取JSON部分
-                if '解析说明：' in clean_text or '\n\n' in clean_text:
-                    lines = clean_text.split('\n')
-                    json_lines = []
-                    in_json = False
-                    brace_count = 0
-                    
-                    for line in lines:
-                        if line.strip().startswith('{'):
-                            in_json = True
-                            brace_count += line.count('{') - line.count('}')
-                            json_lines.append(line)
-                        elif in_json:
-                            brace_count += line.count('{') - line.count('}')
-                            json_lines.append(line)
-                            if brace_count <= 0:
-                                break
-                    
-                    if json_lines:
-                        clean_text = '\n'.join(json_lines)
-                
                 result = json.loads(clean_text)
                 return result
             except json.JSONDecodeError:
-                print("解析失败")
-                logger.warning("LLM返回的不是有效JSON，使用规则解析")
+                logger.warning(f"LLM返回的不是有效JSON: {result_text}")
                 return self._rule_based_parse(user_query)
-                
+            
         except Exception as e:
-            logger.error(f"LLM查询解析失败: {e}")
+            logger.error(f"LLM解析失败: {e}")
             return self._rule_based_parse(user_query)
     
     def generate_summary(self, query: str, context_data: List[Dict[str, Any]]) -> str:
         """
-        基于检索到的数据生成总结
+        生成基于查询和上下文数据的总结
         
         Args:
-            query: 用户原始查询
-            context_data: 检索到的相关数据
+            query: 用户的查询
+            context_data: 上下文数据列表
             
         Returns:
             生成的总结文本
         """
         if not self.is_available():
+            logger.warning("LLM客户端不可用，使用规则总结")
             return self._fallback_summary(query, context_data)
         
-        # 构建上下文
-        context_text = self._build_context(context_data)
-        
+        # 构建系统提示，指导LLM生成结构化、重点突出的总结
         system_prompt = """
 你是一个智能助手，专门帮助用户分析和总结历史记录数据。
 
@@ -250,6 +229,43 @@ class LLMClient:
 
 请用中文回答，保持简洁明了，重点突出关键信息。
 """
+        
+        # 构建用户提示，包含原始查询和检索结果
+        if not context_data:
+            context_text = "没有找到相关的历史记录数据。"
+        else:
+            # 构建上下文文本
+            context_parts = [f"找到 {len(context_data)} 条相关记录:"]
+            
+            for i, record in enumerate(context_data[:10]):  # 最多显示10条
+                timestamp = record.get('timestamp', '未知时间')
+                if timestamp and timestamp != '未知时间':
+                    try:
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        timestamp = dt.strftime('%Y-%m-%d %H:%M')
+                    except:
+                        pass
+                
+                app_name = record.get('app_name', '未知应用')
+                ocr_text = record.get('ocr_text', '无文本内容')
+                window_title = record.get('window_title', '')
+                
+                # 截断过长的文本
+                if len(ocr_text) > 200:
+                    ocr_text = ocr_text[:200] + "..."
+                
+                record_text = f"{i+1}. [{app_name}] {timestamp}"
+                if window_title:
+                    record_text += f" - {window_title}"
+                record_text += f"\n   内容: {ocr_text}"
+                
+                context_parts.append(record_text)
+            
+            if len(context_data) > 10:
+                context_parts.append(f"... 还有 {len(context_data) - 10} 条记录")
+            
+            context_text = "\n\n".join(context_parts)
         
         user_prompt = f"""
 用户查询：{query}
@@ -287,6 +303,33 @@ class LLMClient:
             logger.error(f"LLM总结生成失败: {e}")
             return self._fallback_summary(query, context_data)
     
+    def stream_chat(self, messages: List[Dict[str, str]], temperature: float = 0.7, model: Optional[str] = None):
+        """
+        通用流式聊天方法：对OpenAI兼容接口使用stream=True逐token返回。
+        若客户端不可用则抛出异常，由上层决定回退策略。
+        """
+        if not self.is_available():
+            raise RuntimeError("LLM客户端不可用，无法进行流式生成")
+        try:
+            stream = self.client.chat.completions.create(
+                model=model or self.model,
+                messages=messages,
+                temperature=temperature,
+                stream=True
+            )
+            for chunk in stream:
+                try:
+                    delta = chunk.choices[0].delta
+                    text = getattr(delta, 'content', None)
+                    if text:
+                        yield text
+                except Exception:
+                    # 某些chunk不包含文本（如role、tool_calls等），可忽略
+                    continue
+        except Exception as e:
+            logger.error(f"流式聊天失败: {e}")
+            raise
+    
     def _rule_based_intent_classification(self, user_query: str) -> Dict[str, Any]:
         """基于规则的意图分类（备用方案）"""
         query_lower = user_query.lower()
@@ -318,142 +361,84 @@ class LLMClient:
         # 判断意图类型
         if database_score > 0:
             intent_type = "database_query"
-            confidence = min(0.8, 0.5 + database_score * 0.1)
             needs_database = True
         elif help_score > 0:
             intent_type = "system_help"
-            confidence = min(0.7, 0.4 + help_score * 0.1)
             needs_database = False
         elif chat_score > 0:
             intent_type = "general_chat"
-            confidence = min(0.6, 0.3 + chat_score * 0.1)
             needs_database = False
         else:
             # 默认认为是数据库查询（保守策略）
             intent_type = "database_query"
-            confidence = 0.3
             needs_database = True
         
         return {
             "intent_type": intent_type,
-            "confidence": confidence,
             "needs_database": needs_database
         }
     
     def _rule_based_parse(self, user_query: str) -> Dict[str, Any]:
         """基于规则的查询解析（备用方案）"""
-        import re
-        from datetime import datetime, timedelta
+        query_lower = user_query.lower()
         
-        result = {
-            "start_date": None,
-            "end_date": None,
-            "app_names": None,
-            "keywords": [],
-            "query_type": "search",
-            "confidence": 0.5
+        # 简单的关键词规则识别
+        keywords = []
+        time_keywords = ['今天', '昨天', '本周', '上周', '本月', '上月', '最近']
+        app_keywords = ['微信', 'qq', '浏览器', 'chrome', 'edge', 'word', 'excel']
+        
+        for kw in ['会议', '报告', '代码', '邮件', '聊天', '文档', '图片', '视频']:
+            if kw in user_query:
+                keywords.append(kw)
+        
+        # 时间判断（非常简化）
+        start_date = None
+        end_date = None
+        if '今天' in user_query:
+            now = datetime.now()
+            start_date = now.strftime('%Y-%m-%d 00:00:00')
+            end_date = now.strftime('%Y-%m-%d 23:59:59')
+        
+        # 应用识别（非常简化）
+        apps = []
+        for app in app_keywords:
+            if app in user_query:
+                apps.append(app)
+        
+        # 查询类型（简化）
+        if any(kw in user_query for kw in ['统计', '数量', '时长']):
+            query_type = 'statistics'
+        elif any(kw in user_query for kw in ['搜索', '查找', '包含']):
+            query_type = 'search'
+        else:
+            query_type = 'summary'
+        
+        return {
+            "start_date": start_date,
+            "end_date": end_date,
+            "app_names": apps or None,
+            "keywords": keywords or None,
+            "query_type": query_type
         }
-        
-        # 时间关键词映射
-        time_keywords = {
-            '今天': 0,
-            '昨天': 1,
-            '前天': 2,
-            '本周': 7,
-            '上周': 14,
-            '最近一周': 7,
-            '本月': 30,
-            '上月': 60
-        }
-        
-        # 检测时间范围
-        now = datetime.now()
-        for keyword, days_ago in time_keywords.items():
-            if keyword in user_query:
-                if keyword in ['本周', '上周', '最近一周']:
-                    # 计算一周前
-                    start_date = now - timedelta(days=days_ago)
-                    result["start_date"] = start_date.isoformat()
-                    result["end_date"] = now.isoformat()
-                elif keyword in ['今天']:
-                    # 今天
-                    start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                    result["start_date"] = start_date.isoformat()
-                    result["end_date"] = now.isoformat()
-                elif keyword in ['昨天', '前天']:
-                    # 昨天或前天
-                    target_date = now - timedelta(days=days_ago)
-                    start_date = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                    end_date = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-                    result["start_date"] = start_date.isoformat()
-                    result["end_date"] = end_date.isoformat()
-                break
-        
-        # 应用名称映射
-        app_mapping = {
-            "微信": "WeChat",
-            "QQ": "QQ",
-            "浏览器": "Browser",
-            "chrome": "Chrome",
-            "firefox": "Firefox",
-            "edge": "Edge"
-        }
-        
-        # 检测应用名称
-        for chinese_name, english_name in app_mapping.items():
-            if chinese_name in user_query.lower() or english_name.lower() in user_query.lower():
-                result["app_names"] = [english_name]
-                break
-        
-        # 检测查询类型
-        if any(word in user_query for word in ["总结", "汇总", "概括"]):
-            result["query_type"] = "summary"
-        elif any(word in user_query for word in ["统计", "数量", "多少"]):
-            result["query_type"] = "statistics"
-        
-        # 简单的关键词提取
-        keywords = re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z]+', user_query)
-        result["keywords"] = [kw for kw in keywords if len(kw) > 1]
-        
-        return result
     
     def _build_context(self, context_data: List[Dict[str, Any]]) -> str:
-        """构建上下文文本"""
-        if not context_data:
-            return "没有找到相关的历史数据。"
-        
+        """构建用于LLM生成的上下文文本"""
         context_parts = []
-        for i, item in enumerate(context_data[:10]):  # 限制最多10条
-            timestamp = item.get('timestamp', '未知时间')
-            app_name = item.get('app_name', '未知应用')
-            ocr_text = item.get('ocr_text', '无文本内容')
-            
-            context_parts.append(f"{i+1}. 时间: {timestamp}, 应用: {app_name}\n   内容: {ocr_text[:200]}...")
-        
-        return "\n\n".join(context_parts)
+        for i, item in enumerate(context_data[:50], start=1):
+            text = item.get('text', '')
+            if not text:
+                text = item.get('ocr_result', {}).get('text', '') if isinstance(item.get('ocr_result'), dict) else ''
+            app_name = item.get('metadata', {}).get('app_name', '') if isinstance(item.get('metadata'), dict) else ''
+            timestamp = item.get('metadata', {}).get('created_at', '') if isinstance(item.get('metadata'), dict) else ''
+            context_parts.append(f"[{i}] 应用: {app_name}, 时间: {timestamp}\n{text}\n")
+        return "\n".join(context_parts)
     
     def _fallback_summary(self, query: str, context_data: List[Dict[str, Any]]) -> str:
-        """备用总结方案"""
-        if not context_data:
-            return "抱歉，没有找到相关的历史记录数据。"
-        
+        """在LLM不可用或失败时的总结备选方案"""
         summary_parts = [
-            f"根据您的查询 '{query}'，我找到了 {len(context_data)} 条相关记录：",
-            ""
+            "以下是根据历史数据的简要总结：",
+            "- 共检索到相关记录若干条",
+            "- 涉及多个应用和时间点",
+            "- 建议进一步细化查询条件以获得更精确的结果"
         ]
-        
-        # 按应用分组
-        app_groups = {}
-        for item in context_data:
-            app_name = item.get('app_name', '未知应用')
-            if app_name not in app_groups:
-                app_groups[app_name] = []
-            app_groups[app_name].append(item)
-        
-        for app_name, items in app_groups.items():
-            summary_parts.append(f"• {app_name}: {len(items)} 条记录")
-        
-        summary_parts.append("")
-        summary_parts.append("如需更详细的分析，请提供更具体的查询条件。")
-        
         return "\n".join(summary_parts)

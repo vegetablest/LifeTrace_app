@@ -15,7 +15,7 @@ if __name__ == '__main__':
 from fastapi import FastAPI, HTTPException, Query, Depends, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -165,6 +165,15 @@ class ChatResponse(BaseModel):
     query_info: Optional[Dict[str, Any]] = None
     retrieval_info: Optional[Dict[str, Any]] = None
     performance: Optional[Dict[str, Any]] = None
+    session_id: Optional[str] = None
+
+class NewChatRequest(BaseModel):
+    session_id: Optional[str] = None
+
+class NewChatResponse(BaseModel):
+    session_id: str
+    message: str
+    timestamp: datetime
 
 
 # 创建FastAPI应用
@@ -236,6 +245,64 @@ import threading
 import time
 heartbeat_thread = None
 heartbeat_stop_event = threading.Event()
+
+# 会话管理
+import uuid
+from collections import defaultdict
+
+# 内存中的会话存储（生产环境建议使用Redis等持久化存储）
+chat_sessions = defaultdict(dict)  # session_id -> {"context": [], "created_at": datetime, "last_active": datetime}
+
+def generate_session_id() -> str:
+    """生成新的会话ID"""
+    return str(uuid.uuid4())
+
+def create_new_session(session_id: str = None) -> str:
+    """创建新的聊天会话"""
+    if not session_id:
+        session_id = generate_session_id()
+    
+    chat_sessions[session_id] = {
+        "context": [],
+        "created_at": datetime.now(),
+        "last_active": datetime.now()
+    }
+    
+    logger.info(f"创建新会话: {session_id}")
+    return session_id
+
+def clear_session_context(session_id: str) -> bool:
+    """清除会话上下文"""
+    if session_id in chat_sessions:
+        chat_sessions[session_id]["context"] = []
+        chat_sessions[session_id]["last_active"] = datetime.now()
+        logger.info(f"清除会话上下文: {session_id}")
+        return True
+    return False
+
+def get_session_context(session_id: str) -> List[Dict[str, Any]]:
+    """获取会话上下文"""
+    if session_id in chat_sessions:
+        chat_sessions[session_id]["last_active"] = datetime.now()
+        return chat_sessions[session_id]["context"]
+    return []
+
+def add_to_session_context(session_id: str, role: str, content: str):
+    """添加消息到会话上下文"""
+    if session_id not in chat_sessions:
+        create_new_session(session_id)
+    
+    chat_sessions[session_id]["context"].append({
+        "role": role,
+        "content": content,
+        "timestamp": datetime.now()
+    })
+    chat_sessions[session_id]["last_active"] = datetime.now()
+    
+    # 限制上下文长度，避免内存过度使用
+    max_context_length = 50
+    if len(chat_sessions[session_id]["context"]) > max_context_length:
+        chat_sessions[session_id]["context"] = chat_sessions[session_id]["context"][-max_context_length:]
 
 
 def heartbeat_task_func():
@@ -435,15 +502,133 @@ async def chat_with_llm(message: ChatMessage):
         )
 
 
+# 新增：流式输出接口
+@app.post("/api/chat/stream")
+async def chat_with_llm_stream(message: ChatMessage):
+    """与LLM聊天接口（流式输出）"""
+    try:
+        logger.info(f"[stream] 收到聊天消息: {message.message}")
+
+        # 使用RAG服务的流式处理方法，避免重复的意图识别
+        rag_result = await rag_service.process_query_stream(message.message)
+        
+        if not rag_result.get('success', False):
+            # 如果RAG处理失败，返回错误信息
+            error_msg = rag_result.get('response', '处理您的查询时出现了错误，请稍后重试。')
+            async def error_generator():
+                yield error_msg
+            return StreamingResponse(error_generator(), media_type="text/plain; charset=utf-8")
+        
+        # 获取构建好的messages和temperature
+        messages = rag_result.get('messages', [])
+        temperature = rag_result.get('temperature', 0.7)
+
+        # 3) 调用LLM流式API并逐块返回
+        def token_generator():
+            try:
+                if not rag_service.llm_client.is_available():
+                    yield "抱歉，LLM服务当前不可用，请稍后重试。"
+                    return
+                
+                # 使用LLM客户端进行流式生成
+                response = rag_service.llm_client.client.chat.completions.create(
+                    model=rag_service.llm_client.model,
+                    messages=messages,
+                    temperature=temperature,
+                    stream=True
+                )
+                
+                for chunk in response:
+                    if chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+                        
+            except Exception as e:
+                logger.error(f"[stream] 生成失败: {e}")
+                yield "\n[提示] 流式生成出现异常，已结束。"
+
+        headers = {
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+        return StreamingResponse(token_generator(), media_type="text/plain; charset=utf-8", headers=headers)
+
+    except Exception as e:
+        logger.error(f"[stream] 聊天处理失败: {e}")
+        raise HTTPException(status_code=500, detail="流式聊天处理失败")
+
+
+@app.post("/api/chat/new", response_model=NewChatResponse, response_class=UTF8JSONResponse)
+async def create_new_chat(request: NewChatRequest = None):
+    """创建新对话会话"""
+    try:
+        # 如果提供了session_id，清除其上下文；否则创建新会话
+        if request and request.session_id:
+            if clear_session_context(request.session_id):
+                session_id = request.session_id
+                message = "会话上下文已清除"
+            else:
+                # 会话不存在，创建新的
+                session_id = create_new_session()
+                message = "创建新对话会话"
+        else:
+            session_id = create_new_session()
+            message = "创建新对话会话"
+        
+        logger.info(f"新对话会话: {session_id}")
+        return NewChatResponse(
+            session_id=session_id,
+            message=message,
+            timestamp=datetime.now()
+        )
+    except Exception as e:
+        logger.error(f"创建新对话失败: {e}")
+        raise HTTPException(status_code=500, detail="创建新对话失败")
+
+@app.delete("/api/chat/session/{session_id}")
+async def clear_chat_session(session_id: str):
+    """清除指定会话的上下文"""
+    try:
+        success = clear_session_context(session_id)
+        if success:
+            return {
+                "success": True,
+                "message": f"会话 {session_id} 的上下文已清除",
+                "timestamp": datetime.now()
+            }
+        else:
+            raise HTTPException(status_code=404, detail="会话不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"清除会话上下文失败: {e}")
+        raise HTTPException(status_code=500, detail="清除会话上下文失败")
+
 @app.get("/api/chat/history")
-async def get_chat_history():
+async def get_chat_history(session_id: Optional[str] = Query(None)):
     """获取聊天历史记录"""
     try:
-        # 这里暂时返回空的历史记录，后续需要实现真实的存储和检索
-        return {
-            "history": [],
-            "message": "聊天历史功能正在开发中"
-        }
+        if session_id:
+            # 返回指定会话的历史记录
+            context = get_session_context(session_id)
+            return {
+                "session_id": session_id,
+                "history": context,
+                "message": f"会话 {session_id} 的历史记录"
+            }
+        else:
+            # 返回所有会话的摘要信息
+            sessions_info = []
+            for sid, session_data in chat_sessions.items():
+                sessions_info.append({
+                    "session_id": sid,
+                    "created_at": session_data["created_at"],
+                    "last_active": session_data["last_active"],
+                    "message_count": len(session_data["context"])
+                })
+            return {
+                "sessions": sessions_info,
+                "message": "所有会话摘要"
+            }
     except Exception as e:
         logger.error(f"获取聊天历史失败: {e}")
         raise HTTPException(status_code=500, detail="获取聊天历史失败")

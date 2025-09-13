@@ -18,6 +18,11 @@ APP_MAPPING: Dict[str, Dict[str, List[str]]] = {
         "Darwin": ["WeChat"],  # macOS
         "Linux": ["wechat", "electronic-wechat"]
     },
+    "WeChat": {
+        "Windows": ["WeChat.exe", "Weixin.exe"],
+        "Darwin": ["WeChat"],  # macOS
+        "Linux": ["wechat", "electronic-wechat"]
+    },
     "QQ": {
         "Windows": ["QQ.exe", "QQScLauncher.exe"],
         "Darwin": ["QQ"],
@@ -109,6 +114,11 @@ APP_MAPPING: Dict[str, Dict[str, List[str]]] = {
         "Darwin": ["Visual Studio Code"],
         "Linux": ["code"]
     },
+    "VSCode": {
+        "Windows": ["Code.exe"],
+        "Darwin": ["Visual Studio Code"],
+        "Linux": ["code"]
+    },
     "PyCharm": {
         "Windows": ["pycharm64.exe", "pycharm.exe"],
         "Darwin": ["PyCharm"],
@@ -196,24 +206,34 @@ class AppMapper:
     """应用名称映射器"""
     
     def __init__(self):
-        self.current_platform = platform.system()
         self._process_cache: Dict[str, Set[str]] = {}
     
     def get_process_names(self, app_name: str) -> List[str]:
         """
-        根据应用名称获取当前平台的进程名列表
+        根据应用名称获取所有平台的进程名列表（合并去重）
         
         Args:
             app_name: 友好的应用名称
             
         Returns:
-            当前平台对应的进程名列表，如果应用不存在则返回空列表
+            所有平台进程名的合并列表，如果应用不存在则返回空列表
         """
         if app_name not in APP_MAPPING:
             return []
         
+        # 使用缓存提高性能
+        if app_name in self._process_cache:
+            return list(self._process_cache[app_name])
+        
+        # 合并所有平台的进程名
+        all_processes = set()
         platform_mapping = APP_MAPPING[app_name]
-        return platform_mapping.get(self.current_platform, [])
+        for platform_processes in platform_mapping.values():
+            all_processes.update(platform_processes)
+        
+        # 缓存结果
+        self._process_cache[app_name] = all_processes
+        return list(all_processes)
     
     def expand_app_names(self, app_names: List[str]) -> List[str]:
         """

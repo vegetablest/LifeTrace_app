@@ -187,6 +187,7 @@
             max-width: 64rem;
             margin: 0 auto;
             width: 100%;
+            transition: opacity 0.15s ease-in-out;
         }
         
         .welcome-screen {
@@ -528,6 +529,9 @@
                 <span class="header-title">LifeTrace Chat</span>
             </div>
             <div class="header-right">
+                <button class="btn btn-ghost btn-icon" id="newChatBtn" title="开始新对话">
+                    <i data-lucide="plus"></i>
+                </button>
                 <button class="btn btn-ghost btn-icon" id="themeToggle">
                     <i data-lucide="moon" id="themeIcon"></i>
                 </button>
@@ -639,6 +643,9 @@
             const maxSaved = 200;
             if (h.length > maxSaved) h.splice(0, h.length - maxSaved);
             saveHistory(h);
+        }
+        function clearHistory() {
+            localStorage.removeItem(HISTORY_KEY);
         }
         function clearHistoryUI() {
             messagesList.innerHTML = '';
@@ -787,7 +794,7 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
-        // 处理表单提交
+        // 处理表单提交（流式版本）
         chatForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -807,8 +814,46 @@
             // 组装带有最近K条历史的提示
             const payloadMessage = buildPromptWithHistory(message);
             
+            // 创建AI消息容器
+            let aiMessageDiv = null;
+            let aiContentDiv = null;
+            let fullResponse = '';
+            
+            function createAIMessage() {
+                // 隐藏欢迎屏幕，显示消息列表
+                if (welcomeScreen.style.display !== 'none') {
+                    welcomeScreen.style.display = 'none';
+                    messagesList.style.display = 'flex';
+                }
+                
+                aiMessageDiv = document.createElement('div');
+                aiMessageDiv.className = 'message assistant';
+                
+                const time = new Date().toLocaleTimeString('zh-CN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                
+                aiMessageDiv.innerHTML = `
+                    <div class="message-avatar"><i data-lucide="sparkles"></i></div>
+                    <div class="message-card">
+                        <div class="message-content"></div>
+                        <span class="message-time">${time}</span>
+                    </div>
+                `;
+                
+                messagesList.appendChild(aiMessageDiv);
+                aiContentDiv = aiMessageDiv.querySelector('.message-content');
+                
+                // 重新创建图标
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+            
             try {
-                const response = await fetch('/api/chat', {
+                const response = await fetch('/api/chat/stream', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -820,11 +865,41 @@
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
-                const data = await response.json();
+                // 创建AI消息容器
+                createAIMessage();
                 
-                // 添加AI回复并保存到历史
-                addMessage(data.response);
-                pushHistory('assistant', data.response);
+                // 读取流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    fullResponse += chunk;
+                    
+                    // 实时更新显示内容
+                    if (aiContentDiv) {
+                        // 检测并渲染Markdown
+                        let processedContent = fullResponse;
+                        if (typeof marked !== 'undefined') {
+                            const hasMarkdown = /[#*`_\[\]\(\)\-\+]|\n\n/.test(fullResponse);
+                            if (hasMarkdown) {
+                                processedContent = marked.parse(fullResponse);
+                            }
+                        }
+                        aiContentDiv.innerHTML = processedContent;
+                        
+                        // 滚动到底部
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                }
+                
+                // 保存完整回复到历史
+                if (fullResponse) {
+                    pushHistory('assistant', fullResponse);
+                }
                 
             } catch (error) {
                 console.error('Chat error:', error);
@@ -836,6 +911,59 @@
             }
         });
         
+        // 新对话按钮功能
+        const newChatBtn = document.getElementById('newChatBtn');
+        if (newChatBtn) {
+            newChatBtn.addEventListener('click', async function() {
+                // 确认对话框
+                if (loadHistory().length > 0) {
+                    if (!confirm('确定要开始新对话吗？当前对话记录将被清除。')) {
+                        return;
+                    }
+                }
+                
+                try {
+                    // 调用后端API创建新对话
+                    const response = await fetch('/api/chat/new', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({})
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        console.log('新对话创建成功:', result);
+                        
+                        // 清除本地历史记录
+                        clearHistory();
+                        
+                        // 重置界面状态
+                        clearHistoryUI();
+                        
+                        // 聚焦输入框
+                        chatInput.focus();
+                        
+                        // 添加平滑过渡效果
+                        messagesList.style.opacity = '0';
+                        setTimeout(() => {
+                            messagesList.style.opacity = '1';
+                        }, 150);
+                        
+                        // 可选：显示成功提示
+                        // showMessage('新对话已开始', 'success');
+                    } else {
+                        console.error('创建新对话失败:', response.statusText);
+                        showError('创建新对话失败，请稍后重试');
+                    }
+                } catch (error) {
+                    console.error('创建新对话时发生错误:', error);
+                    showError('创建新对话时发生错误：' + error.message);
+                }
+            });
+        }
+
         // 页面加载完成后：回放历史并聚焦输入框
         window.addEventListener('load', function() {
             // 回放历史

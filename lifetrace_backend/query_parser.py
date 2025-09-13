@@ -10,6 +10,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+from .app_mapping import app_mapper
 
 
 @dataclass
@@ -178,11 +179,17 @@ class QueryParser:
     
     def _extract_app_names(self, query: str) -> Optional[List[str]]:
         """提取应用名称"""
-        app_names = []
+        friendly_app_names = []
         
+        # 首先检查app_mapping中支持的应用名称
+        for app_name in app_mapper.get_supported_apps():
+            if app_name in query:
+                friendly_app_names.append(app_name)
+        
+        # 检查传统的应用别名映射
         for app_alias, real_names in self.app_name_mapping.items():
-            if app_alias in query:
-                app_names.extend(real_names)
+            if app_alias in query and app_alias not in friendly_app_names:
+                friendly_app_names.append(app_alias)
         
         # 直接匹配可能的应用名称
         app_patterns = [
@@ -195,10 +202,22 @@ class QueryParser:
             matches = re.findall(pattern, query)
             for match in matches:
                 app_name = match.strip()
-                if app_name and app_name not in app_names:
-                    app_names.append(app_name)
+                if app_name and app_name not in friendly_app_names:
+                    friendly_app_names.append(app_name)
         
-        return app_names if app_names else None
+        # 转换为实际进程名
+        if friendly_app_names:
+            actual_process_names = []
+            for app_name in friendly_app_names:
+                process_names = app_mapper.get_process_names(app_name)
+                if process_names:
+                    actual_process_names.extend(process_names)
+                else:
+                    # 如果映射中没有找到，保留原名称
+                    actual_process_names.append(app_name)
+            return actual_process_names
+        
+        return None
     
     def _extract_keywords(self, query: str) -> Optional[List[str]]:
         """提取关键词"""
@@ -275,9 +294,18 @@ class QueryParser:
                 except (ValueError, TypeError):
                     pass
         
-        # 处理应用名称
+        # 处理应用名称 - 使用app_mapping转换为实际进程名
         if parsed_data.get('app_names'):
-            conditions.app_names = parsed_data['app_names']
+            actual_process_names = []
+            for app_name in parsed_data['app_names']:
+                # 使用AppMapper获取当前平台的实际进程名
+                process_names = app_mapper.get_process_names(app_name)
+                if process_names:
+                    actual_process_names.extend(process_names)
+                else:
+                    # 如果映射中没有找到，保留原名称
+                    actual_process_names.append(app_name)
+            conditions.app_names = actual_process_names if actual_process_names else None
         
         # 处理关键词
         if parsed_data.get('keywords'):
