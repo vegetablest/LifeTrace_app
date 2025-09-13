@@ -467,6 +467,71 @@ async def get_config():
     )
 
 
+@app.post("/api/save-config")
+async def save_config(settings: Dict[str, Any]):
+    """保存配置到config.yaml文件"""
+    try:
+        import yaml
+        
+        # 读取当前配置文件
+        config_path = config.config_path
+        
+        # 如果配置文件不存在，创建默认配置
+        if not os.path.exists(config_path):
+            config.save_config()
+        
+        # 读取现有配置
+        with open(config_path, 'r', encoding='utf-8') as f:
+            current_config = yaml.safe_load(f) or {}
+        
+        # 更新配置项
+        # 映射前端设置到配置文件结构
+        config_mapping = {
+            'isDark': 'ui.dark_mode',
+            'darkMode': 'ui.dark_mode',
+            'language': 'ui.language',
+            'blacklistEnabled': 'record.blacklist_enabled',
+            'blacklistApps': 'record.blacklist_apps',
+            'recordingEnabled': 'record.enabled',
+            'recordInterval': 'record.interval',
+            'screenSelection': 'record.screens',
+            'storageEnabled': 'storage.enabled',
+            'maxDays': 'storage.max_days',
+            'deduplicateEnabled': 'storage.deduplicate',
+            'model': 'llm.model',
+            'temperature': 'llm.temperature',
+            'maxTokens': 'llm.max_tokens',
+            'notifications': 'ui.notifications',
+            'soundEnabled': 'ui.sound_enabled',
+            'autoSave': 'ui.auto_save',
+            'localHistory': 'chat.local_history',
+            'historyLimit': 'chat.history_limit'
+        }
+        
+        # 更新配置
+        for frontend_key, config_key in config_mapping.items():
+            if frontend_key in settings:
+                # 处理嵌套配置键
+                keys = config_key.split('.')
+                current = current_config
+                for key in keys[:-1]:
+                    if key not in current:
+                        current[key] = {}
+                    current = current[key]
+                current[keys[-1]] = settings[frontend_key]
+        
+        # 保存配置文件
+        with open(config_path, 'w', encoding='utf-8') as f:
+            yaml.dump(current_config, f, allow_unicode=True, sort_keys=False)
+        
+        logger.info(f"配置已保存到: {config_path}")
+        return {"success": True, "message": "配置保存成功"}
+        
+    except Exception as e:
+        logger.error(f"保存配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}")
+
+
 @app.post("/api/chat", response_model=ChatResponse, response_class=UTF8JSONResponse)
 async def chat_with_llm(message: ChatMessage):
     """与LLM聊天接口 - 集成RAG功能"""

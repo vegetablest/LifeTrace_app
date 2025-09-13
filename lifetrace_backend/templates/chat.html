@@ -69,6 +69,7 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
             transition: background-color 0.2s, color 0.2s;
         }
         
@@ -183,11 +184,15 @@
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 1rem;
-            max-width: 64rem;
-            margin: 0 auto;
+            padding: 1rem 0;
             width: 100%;
             transition: opacity 0.15s ease-in-out;
+        }
+        
+        .chat-messages > * {
+            max-width: 64rem;
+            margin: 0 auto;
+            padding: 0 1rem;
         }
         
         .welcome-screen {
@@ -287,12 +292,49 @@
         }
         
         .message-time {
-            font-size: 0.75rem;
-            color: var(--muted-foreground);
-            margin-top: 0.5rem;
-            display: block;
+            display: none;
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--muted);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--muted-foreground);
+            border-radius: 4px;
+            opacity: 0.5;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--foreground);
             opacity: 0.7;
         }
+        
+        /* 聊天区域滚动条 */
+        .chat-messages {
+            scrollbar-width: thin;
+            scrollbar-color: var(--muted-foreground) var(--muted);
+        }
+        
+        /* 输入框滚动条 - 隐藏滚动条 */
+        .chat-input {
+            overflow-y: auto;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        
+        .chat-input::-webkit-scrollbar {
+            display: none; /* Chrome, Safari and Opera */
+        }
+        
+
         
         /* Markdown样式 */
         .message-content h1, .message-content h2, .message-content h3,
@@ -404,13 +446,16 @@
         .input-container {
             flex: 1;
             position: relative;
+            display: flex;
+            align-items: end;
+            gap: 0.5rem;
         }
         
         .chat-input {
-            width: 100%;
+            flex: 1;
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 0.75rem 3rem 0.75rem 0.75rem;
+            padding: 0.75rem;
             font-size: 0.875rem;
             resize: none;
             min-height: 2.75rem;
@@ -432,24 +477,25 @@
         }
         
         .send-button {
-            position: absolute;
-            right: 0.25rem;
-            top: 0.25rem;
-            height: 2rem;
-            width: 2rem;
+            height: 2.75rem;
+            width: 2.75rem;
             background: var(--primary);
             color: var(--primary-foreground);
             border: none;
             border-radius: var(--radius);
             cursor: pointer;
-            transition: opacity 0.2s;
+            transition: all 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            flex-shrink: 0;
         }
         
         .send-button:hover:not(:disabled) {
-            opacity: 0.9;
+            background: var(--primary);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
         }
         
         .send-button:disabled {
@@ -457,12 +503,7 @@
             cursor: not-allowed;
         }
         
-        .agent-selector {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
+
         
         .loading {
             display: none;
@@ -535,6 +576,9 @@
                 <button class="btn btn-ghost btn-icon" id="themeToggle">
                     <i data-lucide="moon" id="themeIcon"></i>
                 </button>
+                <a href="/chat/settings" class="btn btn-ghost btn-icon" title="设置">
+                    <i data-lucide="settings"></i>
+                </a>
                 <a href="/" class="btn btn-outline">首页</a>
                 <a href="/api/docs" class="btn btn-primary">API文档</a>
             </div>
@@ -589,18 +633,15 @@
                             required
                         ></textarea>
                         <button type="submit" class="send-button" id="sendButton">
-                            <i data-lucide="send"></i>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path>
+                                <path d="m21.854 2.147-10.94 10.939"></path>
+                            </svg>
                         </button>
                     </div>
                 </form>
                 
-                <!-- Agent Selector -->
-                <div class="agent-selector">
-                    <button class="btn btn-ghost" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
-                        <i data-lucide="sparkles" style="width: 0.75rem; height: 0.75rem;"></i>
-                        智能助手
-                    </button>
-                </div>
+
             </div>
         </div>
     </main>
@@ -727,12 +768,6 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
             
-            const time = timestamp || new Date().toLocaleTimeString('zh-CN', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-            
             // 对于AI回复，检测并渲染Markdown
             let processedContent = content;
             if (!isUser && typeof marked !== 'undefined') {
@@ -749,7 +784,6 @@
                 <div class="message-avatar">${avatarContent}</div>
                 <div class="message-card">
                     <div class="message-content">${processedContent}</div>
-                    <span class="message-time">${time}</span>
                 </div>
             `;
             
@@ -780,7 +814,6 @@
                 </div>
                 <div class="message-card" style="border-color: var(--destructive); background: var(--destructive); color: var(--destructive-foreground);">
                     <div class="message-content">${message}</div>
-                    <span class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                 </div>
             `;
             
@@ -829,17 +862,10 @@
                 aiMessageDiv = document.createElement('div');
                 aiMessageDiv.className = 'message assistant';
                 
-                const time = new Date().toLocaleTimeString('zh-CN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
-                
                 aiMessageDiv.innerHTML = `
                     <div class="message-avatar"><i data-lucide="sparkles"></i></div>
                     <div class="message-card">
                         <div class="message-content"></div>
-                        <span class="message-time">${time}</span>
                     </div>
                 `;
                 
@@ -972,8 +998,7 @@
                 welcomeScreen.style.display = 'none';
                 messagesList.style.display = 'flex';
                 history.forEach(m => {
-                    const ts = m.time ? new Date(m.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
-                    addMessage(m.content, m.role === 'user', ts);
+                    addMessage(m.content, m.role === 'user');
                 });
             }
             chatInput.focus();

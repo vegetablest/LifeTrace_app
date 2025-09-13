@@ -449,7 +449,68 @@
     els.historyLimitLabel.textContent = state.historyLimit + ' 轮';
 
     // 事件与保存
-    const persist = () => save(state);
+    const persist = async () => {
+      save(state);
+      try {
+        const response = await fetch('/api/save-config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(state)
+        });
+        if (response.ok) {
+          showSaveNotification('设置已保存，重启后生效');
+        } else {
+          console.error('保存配置失败:', response.statusText);
+        }
+      } catch (error) {
+        console.error('保存配置时发生错误:', error);
+      }
+    };
+    
+    // 显示保存成功提示
+    function showSaveNotification(message) {
+      // 移除已存在的通知
+      const existing = document.querySelector('.save-notification');
+      if (existing) existing.remove();
+      
+      // 创建新通知
+      const notification = document.createElement('div');
+      notification.className = 'save-notification';
+      notification.textContent = message;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: var(--accent);
+        color: var(--accent-foreground);
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        font-size: 14px;
+        font-weight: 500;
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+      `;
+      
+      document.body.appendChild(notification);
+      
+      // 显示动画
+      setTimeout(() => {
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateX(0)';
+      }, 10);
+      
+      // 3秒后自动隐藏
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => notification.remove(), 300);
+      }, 3000);
+    }
 
     els.themeToggle.addEventListener('click', () => {
       const newDark = !document.documentElement.classList.contains('dark');
