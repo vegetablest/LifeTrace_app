@@ -26,7 +26,7 @@ Successfully integrated the high-performance RapidOCR engine into the LifeTrace 
 #### `requirements.txt`
 - **Dependency Updates**: 
   - Removed: `paddleocr>=2.7.0`, `paddlepaddle>=2.5.0`
-  - Added: `rapidocr-onnxruntime>=1.3.0`, `numpy>=1.21.0`
+  - Added: `rapidocr-onnxruntime`, `numpy>=1.21.0`
 
 ### 2. Performance Optimization Features
 
