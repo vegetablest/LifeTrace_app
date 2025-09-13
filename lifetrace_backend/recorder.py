@@ -22,6 +22,7 @@ from lifetrace_backend.utils import ensure_dir, get_active_window_info, get_scre
 from lifetrace_backend.storage import db_manager
 from lifetrace_backend.logging_config import setup_logging
 from lifetrace_backend.heartbeat import HeartbeatLogger
+from lifetrace_backend.app_mapping import expand_blacklist_apps
 
 # 设置日志系统
 logger_manager = setup_logging(config)
@@ -184,6 +185,38 @@ class ScreenRecorder:
             logger.error(f"获取窗口信息失败: {e}")
             return ("未知应用", "未知窗口")
     
+    def _is_app_blacklisted(self, app_name: str, window_title: str) -> bool:
+        """检查应用是否在黑名单中"""
+        # 检查黑名单功能是否启用
+        blacklist_enabled = self.config.get('record.blacklist.enabled', False)
+        if not blacklist_enabled:
+            return False
+        
+        # 获取黑名单配置
+        blacklist_apps = self.config.get('record.blacklist.apps', [])
+        blacklist_windows = self.config.get('record.blacklist.windows', [])
+        
+        # 扩展黑名单应用列表（包含映射的应用名称）
+        expanded_blacklist_apps = expand_blacklist_apps(blacklist_apps)
+        
+        # 检查应用名是否在黑名单中
+        if app_name and expanded_blacklist_apps:
+            app_name_lower = app_name.lower()
+            for blacklist_app in expanded_blacklist_apps:
+                if blacklist_app.lower() == app_name_lower or blacklist_app.lower() in app_name_lower:
+                    logger.info(f"应用 '{app_name}' 在黑名单中，跳过截图")
+                    return True
+        
+        # 检查窗口标题是否在黑名单中
+        if window_title and blacklist_windows:
+            window_title_lower = window_title.lower()
+            for blacklist_window in blacklist_windows:
+                if blacklist_window.lower() == window_title_lower or blacklist_window.lower() in window_title_lower:
+                    logger.info(f"窗口 '{window_title}' 在黑名单中，跳过截图")
+                    return True
+        
+        return False
+    
     def _get_screen_list(self) -> List[int]:
         """获取要截图的屏幕列表"""
         screens_config = self.config.get('record.screens', 'all')
@@ -232,7 +265,7 @@ class ScreenRecorder:
             logger.error(f"比较图像哈希失败: {e}")
             return False
     
-    def _capture_screen(self, screen_id: int) -> Optional[str]:
+    def _capture_screen(self, screen_id: int, app_name: str = None, window_title: str = None) -> Optional[str]:
         """截取指定屏幕"""
         try:
             with mss.mss() as sct:
@@ -270,8 +303,9 @@ class ScreenRecorder:
                 # 更新哈希记录
                 self.last_hashes[screen_id] = image_hash
                 
-                # 获取窗口信息（带超时）
-                app_name, window_title = self._get_window_info()
+                # 使用传入的窗口信息，如果没有则重新获取
+                if app_name is None or window_title is None:
+                    app_name, window_title = self._get_window_info()
                 
                 # 获取图像尺寸（带超时）
                 width, height = self._get_image_size(file_path)
@@ -307,8 +341,16 @@ class ScreenRecorder:
         """截取所有屏幕"""
         captured_files = []
         
+        # 获取当前活动窗口信息，用于黑名单检查
+        app_name, window_title = self._get_window_info()
+        
+        # 检查是否在黑名单中
+        if self._is_app_blacklisted(app_name, window_title):
+            logger.debug(f"当前应用 '{app_name}' 或窗口 '{window_title}' 在黑名单中，跳过所有屏幕截图")
+            return captured_files
+        
         for screen_id in self.screens:
-            file_path = self._capture_screen(screen_id)
+            file_path = self._capture_screen(screen_id, app_name, window_title)
             if file_path:
                 captured_files.append(file_path)
         

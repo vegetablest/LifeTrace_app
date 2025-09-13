@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>设置 - LifeTrace Chat</title>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    :root{
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.145 0 0);
+      --muted: oklch(0.97 0 0);
+      --muted-foreground: oklch(0.556 0 0);
+      --card: oklch(0.985 0 0);
+      --card-foreground: oklch(0.145 0 0);
+      --border: oklch(0.922 0 0);
+      --accent: oklch(0.646 0.222 264.376);
+      --accent-foreground: oklch(0.985 0 0);
+      --destructive: oklch(0.637 0.257 25);
+      --radius: 0.625rem;
+    }
+    .dark{
+      --background: oklch(0.145 0 0);
+      --foreground: oklch(0.985 0 0);
+      --muted: oklch(0.269 0 0);
+      --muted-foreground: oklch(0.708 0 0);
+      --card: oklch(0.205 0 0);
+      --card-foreground: oklch(0.985 0 0);
+      --border: oklch(0.269 0 0);
+      --accent: oklch(0.646 0.222 264.376);
+      --accent-foreground: oklch(0.985 0 0);
+      --destructive: oklch(0.637 0.257 25);
+    }
+    *{box-sizing: border-box}
+    body{
+      margin:0; min-height:100vh; background:var(--background); color:var(--foreground);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Ubuntu, Cantarell, Helvetica Neue, Arial, Apple Color Emoji, Segoe UI Emoji;
+    }
+    /* Header */
+    .header{position:sticky; top:0; z-index:20; border-bottom:1px solid var(--border); background:color-mix(in oklch, var(--background) 95%, transparent)}
+    .header-inner{height:3.5rem; display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:0 .75rem; max-width:64rem; margin:0 auto}
+    .icon-btn{display:inline-flex; align-items:center; justify-content:center; width:2rem; height:2rem; border:1px solid var(--border); border-radius:.5rem; background:transparent; color:var(--foreground); cursor:pointer}
+    .icon-btn:hover{background:var(--muted)}
+    .brand{display:flex; align-items:center; gap:.5rem}
+    .brand-badge{display:flex; align-items:center; justify-content:center; width:2rem; height:2rem; border-radius:.375rem; background:var(--accent); color:var(--accent-foreground)}
+    .title{font-weight:600}
+
+    /* Layout */
+    .container{max-width:64rem; margin:0 auto; padding:1rem; display:flex; flex-direction:column; gap:1rem}
+
+    /* Card */
+    .card{border:1px solid var(--border); border-radius:var(--radius); background:var(--card); color:var(--card-foreground)}
+    .card-h{padding:1rem 1rem .5rem; border-bottom:1px solid var(--border)}
+    .card-t{font-weight:600; display:flex; align-items:center; gap:.5rem}
+    .card-d{margin-top:.25rem; color:var(--muted-foreground); font-size:.875rem}
+    .card-c{padding:1rem; display:flex; flex-direction:column; gap:1rem}
+    .row{display:flex; align-items:center; justify-content:space-between; gap:1rem}
+    .col{display:flex; flex-direction:column; gap:.25rem}
+    .label{font-weight:600}
+    .hint{font-size:.75rem; color:var(--muted-foreground)}
+    .sep{height:1px; background:var(--border)}
+
+    /* Controls */
+    .switch{position:relative; width:42px; height:24px; border-radius:999px; background:var(--muted); border:1px solid var(--border); cursor:pointer}
+    .switch::after{content:""; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--card-foreground); transition:transform .15s ease}
+    .switch.on{background:var(--accent)}
+    .switch.on::after{transform:translateX(18px); background:var(--accent-foreground)}
+    select, input[type="text"], input[type="number"]{min-width:14rem; padding:.5rem .5rem; border:1px solid var(--border); border-radius:.5rem; background:var(--background); color:var(--foreground)}
+    .slider{width:100%}
+    input[type="range"]{appearance:none; width:100%; height:4px; border-radius:999px; background:var(--border); outline:none}
+    input[type="range"]::-webkit-slider-thumb{appearance:none; width:16px; height:16px; border-radius:50%; background:var(--accent); cursor:pointer}
+
+    /* Enhanced Select */
+    .select-wrap{position:relative; display:inline-flex; align-items:center}
+    .select{appearance:none; -webkit-appearance:none; -moz-appearance:none; min-width:12rem; height:2.25rem; line-height:1; padding:.5rem .75rem; padding-right:2rem; border:1px solid var(--border); border-radius:.5rem; background:var(--background); color:var(--foreground); transition:box-shadow .15s ease, background-color .15s ease, border-color .15s ease}
+    .select:hover{background:var(--muted)}
+    .select:focus{outline:none; box-shadow:0 0 0 2px color-mix(in oklch, var(--accent) 35%, transparent); border-color:color-mix(in oklch, var(--accent) 50%, var(--border))}
+    .select:disabled{opacity:.6; cursor:not-allowed}
+    .select-icon{position:absolute; right:.5rem; width:16px; height:16px; color:var(--muted-foreground); pointer-events:none}
+    .select:disabled + .select-icon{opacity:.5}
+
+    /* Buttons */
+    .btn{display:inline-flex; align-items:center; gap:.5rem; border:1px solid var(--border); border-radius:.5rem; padding:.5rem .75rem; background:transparent; color:var(--foreground); cursor:pointer}
+    .btn:hover{background:var(--muted)}
+    .btn-outline-danger{color:var(--destructive); border-color:color-mix(in oklch, var(--destructive) 30%, var(--border))}
+    .btn-outline-danger:hover{background:color-mix(in oklch, var(--destructive) 10%, transparent)}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">
+        <button class="icon-btn" onclick="location.href='/chat'" title="返回">
+          <i data-lucide="arrow-left"></i>
+        </button>
+        <div class="brand-badge"><i data-lucide="sparkles"></i></div>
+        <span class="title">设置</span>
+      </div>
+      <button id="themeToggle" class="icon-btn" title="主题">
+        <i id="themeIcon" data-lucide="moon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 外观设置 -->
+    <section class="card">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="moon"></i>外观设置</div>
+        <div class="card-d">自定义界面外观和主题</div>
+      </div>
+      <div class="card-c">
+        <div class="row">
+          <div class="col">
+            <div class="label">深色模式</div>
+            <div class="hint">切换深色/浅色主题</div>
+          </div>
+          <div class="switch" id="isDark"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="label">语言</div>
+          <div class="select-wrap">
+            <select id="language" class="select">
+              <option value="zh-CN">简体中文</option>
+              <option value="zh-TW">繁體中文</option>
+              <option value="en">English</option>
+              <option value="ja">日本語</option>
+            </select>
+            <i class="select-icon" data-lucide="chevron-down"></i>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 应用黑名单设置 -->
+    <section class="card">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="ban"></i>应用黑名单</div>
+        <div class="card-d">设置不需要录制和截图的应用程序</div>
+      </div>
+      <div class="card-c">
+        <div class="row">
+          <div class="col">
+            <div class="label">启用黑名单</div>
+            <div class="hint">过滤指定应用的录制和截图</div>
+          </div>
+          <div class="switch" id="blacklistEnabled"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="label">黑名单应用</div>
+          <input id="blacklistApps" type="text" placeholder="输入应用名称，用逗号分隔，如：微信,QQ,钉钉" />
+          <div class="hint">这些应用的窗口将不会被录制或截图，保护您的隐私</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 屏幕录制设置 -->
+    <section class="card">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="camera"></i>屏幕录制</div>
+        <div class="card-d">配置屏幕录制和截图参数</div>
+      </div>
+      <div class="card-c">
+        <div class="row">
+          <div class="col">
+            <div class="label">启用录制</div>
+            <div class="hint">开启屏幕录制和截图功能</div>
+          </div>
+          <div class="switch" id="recordingEnabled"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="row" style="align-items:center">
+            <div class="label">截图间隔</div>
+            <div class="hint" id="recordIntervalLabel">1 秒</div>
+          </div>
+          <div class="slider"><input id="recordInterval" type="range" min="1" max="10" step="1" value="1"/></div>
+          <div class="hint">设置自动截图的时间间隔</div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="label">录制屏幕</div>
+          <div class="select-wrap">
+            <select id="screenSelection" class="select">
+              <option value="all">所有屏幕</option>
+              <option value="primary">主屏幕</option>
+              <option value="secondary">副屏幕</option>
+              <option value="custom">自定义选择</option>
+            </select>
+            <i class="select-icon" data-lucide="chevron-down"></i>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 数据存储设置 -->
+    <section class="card">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="database"></i>数据存储</div>
+        <div class="card-d">管理录制数据的存储和清理策略</div>
+      </div>
+      <div class="card-c">
+        <div class="row">
+          <div class="col">
+            <div class="label">启用存储管理</div>
+            <div class="hint">自动管理录制数据的存储</div>
+          </div>
+          <div class="switch" id="storageEnabled"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="row" style="align-items:center">
+            <div class="label">数据保留天数</div>
+            <div class="hint" id="maxDaysLabel">30 天</div>
+          </div>
+          <div class="slider"><input id="maxDays" type="range" min="7" max="90" step="1" value="30"/></div>
+          <div class="hint">超过此天数的数据将被自动删除</div>
+        </div>
+        <div class="sep"></div>
+        <div class="row">
+          <div class="col">
+            <div class="label">启用去重</div>
+            <div class="hint">自动删除重复的截图和录制内容</div>
+          </div>
+          <div class="switch" id="deduplicateEnabled"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI 模型设置 -->
+    <section class="card">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="sparkles"></i>AI 模型设置</div>
+        <div class="card-d">配置 AI 助手的行为和参数</div>
+      </div>
+      <div class="card-c">
+        <div class="col" style="gap:.5rem">
+          <div class="label">模型选择</div>
+          <div class="select-wrap">
+            <select id="model" class="select">
+              <option value="doubao-pro">豆包 Pro</option>
+              <option value="doubao-lite">豆包 Lite</option>
+              <option value="doubao-creative">豆包 Creative</option>
+            </select>
+            <i class="select-icon" data-lucide="chevron-down"></i>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="row" style="align-items:center">
+            <div class="label">创造性 (Temperature)</div>
+            <div class="hint" id="temperatureLabel">0.7</div>
+          </div>
+          <div class="slider"><input id="temperature" type="range" min="0" max="1" step="0.1" value="0.7"/></div>
+          <div class="hint">较低的值使输出更加确定，较高的值使输出更加创造性</div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="row" style="align-items:center">
+            <div class="label">最大输出长度</div>
+            <div class="hint" id="maxTokensLabel">2048 tokens</div>
+          </div>
+          <div class="slider"><input id="maxTokens" type="range" min="256" max="4096" step="256" value="2048"/></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 通知设置 -->
+    <section class="card">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="bell"></i>通知设置</div>
+        <div class="card-d">管理通知和提醒</div>
+      </div>
+      <div class="card-c">
+        <div class="row">
+          <div class="col">
+            <div class="label">桌面通知</div>
+            <div class="hint">接收新消息的桌面通知</div>
+          </div>
+          <div class="switch" id="notifications"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="row">
+          <div class="col">
+            <div class="label" style="display:flex; align-items:center; gap:.5rem"><i data-lucide="volume-2"></i>声音提醒</div>
+            <div class="hint">播放消息提示音</div>
+          </div>
+          <div class="switch" id="soundEnabled"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 数据与隐私 -->
+    <section class="card">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="shield"></i>数据与隐私</div>
+        <div class="card-d">管理您的数据和隐私设置</div>
+      </div>
+      <div class="card-c">
+        <div class="row">
+          <div class="col">
+            <div class="label">自动保存对话</div>
+            <div class="hint">自动保存聊天记录到本地</div>
+          </div>
+          <div class="switch" id="autoSave"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="row">
+          <div class="col">
+            <div class="label">启用对话上下文</div>
+            <div class="hint">在本地保留最近 K 轮问答，发送消息时一并作为上下文，仅保存在本设备</div>
+          </div>
+          <div class="switch" id="localHistory"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="row" style="align-items:center">
+            <div class="label">上下文轮数 (K)</div>
+            <div class="hint" id="historyLimitLabel">6 轮</div>
+          </div>
+          <div class="slider"><input id="historyLimit" type="range" min="2" max="12" step="1" value="6"/></div>
+          <div class="hint">发送时会附带最近 K 条问答作为上下文，有助于改进多轮对话体验</div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="label" style="color:var(--destructive); display:flex; align-items:center; gap:.5rem"><i data-lucide="trash-2"></i>危险操作</div>
+          <button class="btn btn-outline-danger" id="clearChats">清除所有聊天记录</button>
+          <button class="btn btn-outline-danger" id="resetSettings">重置所有设置</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 关于 -->
+    <section class="card">
+      <div class="card-h">
+        <div class="card-t">关于豆包聊天</div>
+        <div class="card-d">版本信息和帮助</div>
+      </div>
+      <div class="card-c">
+        <div class="col" style="gap:.25rem; font-size:.95rem">
+          <div><strong>版本:</strong> 1.0.0</div>
+          <div><strong>构建时间:</strong> 2024-01-01</div>
+          <div><strong>技术栈:</strong> Next.js, React, Tailwind CSS</div>
+        </div>
+        <div class="sep"></div>
+        <div style="display:flex; gap:.5rem; flex-wrap:wrap">
+          <button class="btn">用户手册</button>
+          <button class="btn">反馈建议</button>
+          <button class="btn">隐私政策</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+
+    const KEY = 'lifetrace_chat_settings';
+    const defaults = {
+      // 来自参考页面的设置
+      isDark: false,
+      language: 'zh-CN',
+      blacklistEnabled: true,
+      blacklistApps: '',
+      recordingEnabled: true,
+      recordInterval: 1,
+      screenSelection: 'all',
+      storageEnabled: true,
+      maxDays: 30,
+      deduplicateEnabled: true,
+      model: 'doubao-pro',
+      temperature: 0.7,
+      maxTokens: 2048,
+      notifications: true,
+      soundEnabled: true,
+      autoSave: true,
+      // 与 chat.html 兼容的键（保留）
+      darkMode: false,
+      fontSize: 'md',
+      modelName: 'gpt-4o-mini',
+      enableRag: true,
+      ragTopK: 10,
+      localHistory: true,
+      historyLimit: 6,
+    };
+    function load(){ try{ return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch{ return { ...defaults }; } }
+    function save(s){ localStorage.setItem(KEY, JSON.stringify(s)); }
+    const $ = id => document.getElementById(id);
+    const els = {
+      themeToggle: $('themeToggle'), themeIcon: $('themeIcon'),
+      isDark: $('isDark'), language: $('language'),
+      blacklistEnabled: $('blacklistEnabled'), blacklistApps: $('blacklistApps'),
+      recordingEnabled: $('recordingEnabled'), recordInterval: $('recordInterval'), recordIntervalLabel: $('recordIntervalLabel'), screenSelection: $('screenSelection'),
+      storageEnabled: $('storageEnabled'), maxDays: $('maxDays'), maxDaysLabel: $('maxDaysLabel'), deduplicateEnabled: $('deduplicateEnabled'),
+      model: $('model'), temperature: $('temperature'), temperatureLabel: $('temperatureLabel'), maxTokens: $('maxTokens'), maxTokensLabel: $('maxTokensLabel'),
+      notifications: $('notifications'), soundEnabled: $('soundEnabled'), autoSave: $('autoSave'),
+      localHistory: $('localHistory'), historyLimit: $('historyLimit'), historyLimitLabel: $('historyLimitLabel'),
+      clearChats: $('clearChats'), resetSettings: $('resetSettings')
+    };
+
+    let state = load();
+
+    // 初始化 UI
+    function setSwitch(el, on){ el.classList.toggle('on', !!on); }
+    function setDisabledWhenRecording(disabled){ els.recordInterval.disabled = disabled; els.screenSelection.disabled = disabled; }
+    function setDisabledWhenStorage(disabled){ els.maxDays.disabled = disabled; els.deduplicateEnabled.classList.toggle('disabled', disabled); }
+
+    // 同步到文档主题（与 chat.html 兼容）
+    document.documentElement.classList.toggle('dark', !!(state.isDark || state.darkMode));
+
+    // 外观
+    setSwitch(els.isDark, state.isDark || state.darkMode);
+    els.language.value = state.language;
+
+    // 黑名单
+    setSwitch(els.blacklistEnabled, state.blacklistEnabled);
+    els.blacklistApps.value = state.blacklistApps;
+    els.blacklistApps.disabled = !state.blacklistEnabled;
+
+    // 录制
+    setSwitch(els.recordingEnabled, state.recordingEnabled);
+    els.recordInterval.value = String(state.recordInterval);
+    els.recordIntervalLabel.textContent = state.recordInterval + ' 秒';
+    setDisabledWhenRecording(!state.recordingEnabled);
+    els.screenSelection.value = state.screenSelection;
+
+    // 存储
+    setSwitch(els.storageEnabled, state.storageEnabled);
+    els.maxDays.value = String(state.maxDays);
+    els.maxDaysLabel.textContent = state.maxDays + ' 天';
+    setDisabledWhenStorage(!state.storageEnabled);
+    setSwitch(els.deduplicateEnabled, state.deduplicateEnabled);
+
+    // 模型
+    els.model.value = state.model;
+    els.temperature.value = String(state.temperature);
+    els.temperatureLabel.textContent = String(state.temperature);
+    els.maxTokens.value = String(state.maxTokens);
+    els.maxTokensLabel.textContent = state.maxTokens + ' tokens';
+
+    // 通知与隐私
+    setSwitch(els.notifications, state.notifications);
+    setSwitch(els.soundEnabled, state.soundEnabled);
+    setSwitch(els.autoSave, state.autoSave);
+    setSwitch(els.localHistory, state.localHistory);
+    els.historyLimit.value = String(state.historyLimit);
+    els.historyLimitLabel.textContent = state.historyLimit + ' 轮';
+
+    // 事件与保存
+    const persist = () => save(state);
+
+    els.themeToggle.addEventListener('click', () => {
+      const newDark = !document.documentElement.classList.contains('dark');
+      document.documentElement.classList.toggle('dark', newDark);
+      setSwitch(els.isDark, newDark);
+      state.isDark = newDark; state.darkMode = newDark; persist();
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+
+    els.isDark.addEventListener('click', () => {
+      const on = !els.isDark.classList.contains('on');
+      setSwitch(els.isDark, on);
+      document.documentElement.classList.toggle('dark', on);
+      state.isDark = on; state.darkMode = on; persist();
+    });
+
+    els.language.addEventListener('change', e => { state.language = e.target.value; persist(); });
+
+    els.blacklistEnabled.addEventListener('click', () => {
+      const on = !els.blacklistEnabled.classList.contains('on');
+      setSwitch(els.blacklistEnabled, on); state.blacklistEnabled = on; els.blacklistApps.disabled = !on; persist();
+    });
+    els.blacklistApps.addEventListener('input', e => { state.blacklistApps = e.target.value; persist(); });
+
+    els.recordingEnabled.addEventListener('click', () => {
+      const on = !els.recordingEnabled.classList.contains('on');
+      setSwitch(els.recordingEnabled, on); state.recordingEnabled = on; setDisabledWhenRecording(!on); persist();
+    });
+    els.recordInterval.addEventListener('input', e => { const v = parseInt(e.target.value||'1'); els.recordIntervalLabel.textContent = v + ' 秒'; state.recordInterval = v; persist(); });
+    els.screenSelection.addEventListener('change', e => { state.screenSelection = e.target.value; persist(); });
+
+    els.storageEnabled.addEventListener('click', () => {
+      const on = !els.storageEnabled.classList.contains('on');
+      setSwitch(els.storageEnabled, on); state.storageEnabled = on; setDisabledWhenStorage(!on); persist();
+    });
+    els.maxDays.addEventListener('input', e => { const v = parseInt(e.target.value||'30'); els.maxDaysLabel.textContent = v + ' 天'; state.maxDays = v; persist(); });
+    els.deduplicateEnabled.addEventListener('click', () => { const on = !els.deduplicateEnabled.classList.contains('on'); setSwitch(els.deduplicateEnabled, on); state.deduplicateEnabled = on; persist(); });
+
+    els.model.addEventListener('change', e => { state.model = e.target.value; persist(); });
+    els.temperature.addEventListener('input', e => { const v = parseFloat(e.target.value||'0.7'); els.temperatureLabel.textContent = String(v); state.temperature = v; persist(); });
+    els.maxTokens.addEventListener('input', e => { const v = parseInt(e.target.value||'2048'); els.maxTokensLabel.textContent = v + ' tokens'; state.maxTokens = v; persist(); });
+
+    els.notifications.addEventListener('click', () => { const on = !els.notifications.classList.contains('on'); setSwitch(els.notifications, on); state.notifications = on; persist(); });
+    els.soundEnabled.addEventListener('click', () => { const on = !els.soundEnabled.classList.contains('on'); setSwitch(els.soundEnabled, on); state.soundEnabled = on; persist(); });
+    els.autoSave.addEventListener('click', () => { const on = !els.autoSave.classList.contains('on'); setSwitch(els.autoSave, on); state.autoSave = on; persist(); });
+    els.localHistory.addEventListener('click', () => { const on = !els.localHistory.classList.contains('on'); setSwitch(els.localHistory, on); state.localHistory = on; persist(); });
+    els.historyLimit.addEventListener('input', (e) => { const v = parseInt(e.target.value||'6'); els.historyLimitLabel.textContent = v + ' 轮'; state.historyLimit = v; persist(); });
+
+    els.clearChats.addEventListener('click', () => {
+      // 仅清理前端本地潜在的聊天记录键（如未来新增），当前 chat.html 不持久化消息
+      localStorage.removeItem('lifetrace_chat_history');
+      alert('已清除本地聊天记录（如果有）。');
+    });
+    els.resetSettings.addEventListener('click', () => {
+      localStorage.removeItem(KEY);
+      alert('设置已重置');
+      location.reload();
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  </script>
+</body>
+</html>

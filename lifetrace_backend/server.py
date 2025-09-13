@@ -333,6 +333,23 @@ async def chat_page(request: Request):
         </html>
         """)
 
+@app.get("/chat/settings", response_class=HTMLResponse)
+async def chat_settings_page(request: Request):
+    """聊天设置页面"""
+    if templates:
+        return templates.TemplateResponse("settings.html", {"request": request})
+    else:
+        return HTMLResponse("""
+        <html>
+            <head><title>LifeTrace Settings</title></head>
+            <body>
+                <h1>设置页面暂不可用</h1>
+                <p>模板文件未找到</p>
+                <p><a href="/chat">返回聊天</a></p>
+            </body>
+        </html>
+        """)
+
 
 @app.get("/health")
 async def health_check():

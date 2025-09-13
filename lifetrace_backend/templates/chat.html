@@ -612,10 +612,67 @@
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
         
+        // 轻量级会话上下文：设置与历史存储键
+        const SETTINGS_KEY = 'lifetrace_chat_settings';
+        const HISTORY_KEY = 'lifetrace_chat_history';
+
+        // 加载设置
+        function loadSettings() {
+            try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch { return {}; }
+        }
+        function getSetting(key, defVal) {
+            const s = loadSettings();
+            return (s && s[key] !== undefined) ? s[key] : defVal;
+        }
+
+        // 历史读写
+        function loadHistory() {
+            try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
+        }
+        function saveHistory(history) {
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        }
+        function pushHistory(role, content) {
+            const h = loadHistory();
+            h.push({ role, content, time: Date.now() });
+            // 限制最大保存条数，防止无限增长（软上限）
+            const maxSaved = 200;
+            if (h.length > maxSaved) h.splice(0, h.length - maxSaved);
+            saveHistory(h);
+        }
+        function clearHistoryUI() {
+            messagesList.innerHTML = '';
+            welcomeScreen.style.display = '';
+            messagesList.style.display = 'none';
+            chatMessages.scrollTop = 0;
+        }
+
+        // 构建带K条历史的提示
+        function buildPromptWithHistory(currentMessage) {
+            const enabled = getSetting('localHistory', true);
+            if (!enabled) return currentMessage;
+            const K = getSetting('historyLimit', 6); // 若未在设置中配置，则默认6条
+            const history = loadHistory();
+            if (!history.length) return currentMessage;
+            const tail = history.slice(-K);
+            const ctx = tail.map(m => `${m.role === 'user' ? '用户' : '助手'}: ${m.content}`).join('\n');
+            return `【对话上下文】\n${ctx}\n\n【当前问题】\n用户: ${currentMessage}\n\n请仅回答【当前问题】，必要时参考【对话上下文】。`;
+        }
+        
         // 初始化图标
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
+            }
+            // 按设置恢复主题
+            const s = loadSettings();
+            const shouldDark = !!s.darkMode;
+            if (shouldDark) {
+                document.documentElement.classList.add('dark');
+                if (themeIcon) {
+                    themeIcon.setAttribute('data-lucide', 'sun');
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
             }
         });
         
@@ -737,8 +794,9 @@
             const message = chatInput.value.trim();
             if (!message) return;
             
-            // 添加用户消息
+            // 添加用户消息到UI与本地历史
             addMessage(message, true);
+            pushHistory('user', message);
             
             // 清空输入框并禁用
             chatInput.value = '';
@@ -746,13 +804,16 @@
             sendButton.disabled = true;
             loadingIndicator.style.display = 'flex';
             
+            // 组装带有最近K条历史的提示
+            const payloadMessage = buildPromptWithHistory(message);
+            
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ message: payloadMessage })
                 });
                 
                 if (!response.ok) {
@@ -761,8 +822,9 @@
                 
                 const data = await response.json();
                 
-                // 添加AI回复
+                // 添加AI回复并保存到历史
                 addMessage(data.response);
+                pushHistory('assistant', data.response);
                 
             } catch (error) {
                 console.error('Chat error:', error);
@@ -774,9 +836,40 @@
             }
         });
         
-        // 页面加载完成后聚焦输入框
+        // 页面加载完成后：回放历史并聚焦输入框
         window.addEventListener('load', function() {
+            // 回放历史
+            const history = loadHistory();
+            if (history.length) {
+                welcomeScreen.style.display = 'none';
+                messagesList.style.display = 'flex';
+                history.forEach(m => {
+                    const ts = m.time ? new Date(m.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
+                    addMessage(m.content, m.role === 'user', ts);
+                });
+            }
             chatInput.focus();
+        });
+
+        // 监听来自设置页的清除历史操作
+        window.addEventListener('storage', (e) => {
+            if (e.key === HISTORY_KEY) {
+                if (!e.newValue || e.newValue === '[]') {
+                    clearHistoryUI();
+                }
+            }
+            if (e.key === SETTINGS_KEY) {
+                // 立即应用暗色模式变更
+                try {
+                    const s = JSON.parse(e.newValue || '{}');
+                    const dm = !!(s && s.darkMode);
+                    document.documentElement.classList.toggle('dark', dm);
+                    if (themeIcon) {
+                        themeIcon.setAttribute('data-lucide', dm ? 'sun' : 'moon');
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                    }
+                } catch {}
+            }
         });
     </script>
 </body>
