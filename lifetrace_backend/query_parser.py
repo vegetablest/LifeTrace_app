@@ -220,25 +220,40 @@ class QueryParser:
         return None
     
     def _extract_keywords(self, query: str) -> Optional[List[str]]:
-        """提取关键词"""
-        # 移除时间和应用相关的词汇，提取剩余的关键词
+        """提取关键词 - 改进版本，区分功能描述词和搜索关键词"""
         keywords = []
         
-        # 移除常见的查询词汇
-        stop_words = ['帮我', '总结', '一下', '查找', '搜索', '显示', '看看', '的', '在', '上', '中', '里']
+        # 检查是否有明确的搜索意图
+        search_indicators = ['搜索', '查找', '包含', '关于', '找到', '寻找']
+        has_search_intent = any(indicator in query for indicator in search_indicators)
+        
+        # 如果没有搜索意图，直接返回None
+        if not has_search_intent:
+            return None
+        
+        # 功能描述词列表（这些词不应该作为搜索关键词）
+        function_words = ['聊天', '浏览', '编辑', '查看', '打开', '使用', '运行', '操作', '活动', '记录', '情况', '状态']
+        
+        # 停用词列表
+        stop_words = ['帮我', '总结', '一下', '查找', '搜索', '显示', '看看', '的', '在', '上', '中', '里', '包含', '关于', '找到', '寻找']
+        
+        # 创建查询副本用于处理
+        processed_query = query
         
         # 移除时间词汇
         for time_word in self.time_keywords.keys():
-            query = query.replace(time_word, '')
+            processed_query = processed_query.replace(time_word, '')
         
         # 移除应用名称
         for app_alias in self.app_name_mapping.keys():
-            query = query.replace(app_alias, '')
+            processed_query = processed_query.replace(app_alias, '')
         
         # 分词并过滤
-        words = re.findall(r'[\u4e00-\u9fa5a-zA-Z0-9]+', query)
+        words = re.findall(r'[\u4e00-\u9fa5a-zA-Z0-9]+', processed_query)
         for word in words:
-            if word not in stop_words and len(word) > 1:
+            if (word not in stop_words and 
+                word not in function_words and 
+                len(word) > 1):
                 keywords.append(word)
         
         return keywords if keywords else None

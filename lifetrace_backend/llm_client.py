@@ -140,7 +140,10 @@ class LLMClient:
 
 1. 时间范围：开始时间和结束时间（如果有的话）
 2. 应用名称：用户提到的具体应用程序（如微信、QQ、浏览器等）
-3. 关键词：用户想要搜索的关键内容，用数组形式返回，重点是这里应该是用户问句中的关键性名词，如果没有明确关键词可以填null
+3. 关键词：用户想要搜索的具体内容关键词，用数组形式返回。注意区分：
+   - 功能描述词（如"聊天"、"浏览"、"编辑"等）不是搜索关键词
+   - 只有用户明确要搜索特定内容时才提取关键词（如"包含项目报告的文档"中的"项目报告"）
+   - 如果用户只是想查看某应用的活动记录而没有指定搜索内容，keywords应为null
 4. 查询类型：总结、搜索、统计等
 
 请以JSON格式返回结果，包含以下字段：
@@ -148,7 +151,7 @@ class LLMClient:
   "start_date": "YYYY-MM-DD HH:MM:SS" 或 null,
   "end_date": "YYYY-MM-DD HH:MM:SS" 或 null,
   "app_names": ["应用名称1", "应用名称2"] 或 null,
-  "keywords": ["关键词1", "关键词2"],
+  "keywords": ["关键词1", "关键词2"] 或 null,
   "query_type": "summary|search|statistics|other"
 }
 
@@ -157,7 +160,10 @@ class LLMClient:
 - 如果时间是相对的（如"今天"、"昨天"、"上周"），请基于提供的当前时间转换为具体日期
 - "今天"应该设置为当天的00:00:00到23:59:59
 - 应用名称要标准化，请使用以下标准应用名称：微信、WeChat、QQ、钉钉、企业微信、飞书、Telegram、Discord、记事本、计算器、Word、Excel、PowerPoint、WPS、Chrome、Firefox、Edge、Safari、VS Code、VSCode、PyCharm、IntelliJ IDEA、网易云音乐、QQ音乐、VLC、Steam、Epic Games、任务管理器、命令提示符、PowerShell、360安全卫士、腾讯电脑管家、迅雷、百度网盘
-- 关键词要提取核心概念
+- 关键词提取原则：
+  * "查看今天微信聊天情况" -> keywords: null（聊天是功能描述）
+  * "搜索包含会议的微信消息" -> keywords: ["会议"]（会议是搜索目标）
+  * "找到关于项目报告的文档" -> keywords: ["项目报告"]（项目报告是搜索目标）
 - 只需要返回json 不要返回其他任何信息
 """
         
@@ -382,14 +388,24 @@ class LLMClient:
         """基于规则的查询解析（备用方案）"""
         query_lower = user_query.lower()
         
-        # 简单的关键词规则识别
+        # 简单的关键词规则识别 - 移除硬编码关键词列表
         keywords = []
         time_keywords = ['今天', '昨天', '本周', '上周', '本月', '上月', '最近']
         app_keywords = ['微信', 'qq', '浏览器', 'chrome', 'edge', 'word', 'excel']
         
-        for kw in ['会议', '报告', '代码', '邮件', '聊天', '文档', '图片', '视频']:
-            if kw in user_query:
-                keywords.append(kw)
+        # 只有在明确搜索特定内容时才提取关键词
+        # 检查是否包含搜索意图的词汇
+        search_indicators = ['搜索', '查找', '包含', '关于', '找到']
+        has_search_intent = any(indicator in user_query for indicator in search_indicators)
+        
+        if has_search_intent:
+            # 简单提取可能的搜索关键词（排除功能描述词）
+            function_words = ['聊天', '浏览', '编辑', '查看', '打开', '使用', '运行']
+            words = user_query.split()
+            for word in words:
+                if len(word) > 1 and word not in function_words and word not in time_keywords and word not in app_keywords:
+                    if word not in ['搜索', '查找', '包含', '关于', '找到', '今天', '昨天', '的', '在', '上', '中', '里']:
+                        keywords.append(word)
         
         # 时间判断（非常简化）
         start_date = None
