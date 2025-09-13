@@ -12,25 +12,50 @@ class LifeTraceConfig:
     
     def _get_default_config_path(self) -> str:
         """获取默认配置文件路径"""
-        # 优先使用项目目录下的配置文件
-        project_config = os.path.join(Path(__file__).parent.parent, 'config', 'default_config.yaml')
+        # 确保config目录存在
+        config_dir = os.path.join(Path(__file__).parent.parent, 'config')
+        os.makedirs(config_dir, exist_ok=True)
+        
+        # 使用项目目录下的config/config.yaml作为配置文件
+        project_config = os.path.join(config_dir, 'config.yaml')
         if os.path.exists(project_config):
             return project_config
-        # 如果项目配置不存在，使用用户目录配置
-        return os.path.join(Path.home(), '.lifetrace', 'config.yaml')
+        # 如果config.yaml不存在，检查default_config.yaml是否存在
+        default_config = os.path.join(config_dir, 'default_config.yaml')
+        if os.path.exists(default_config):
+            # 如果default_config.yaml存在，返回config.yaml的路径（即使不存在）
+            return project_config
+        # 如果两者都不存在，返回config.yaml的路径
+        return project_config
     
     def _load_config(self) -> dict:
-        """加载配置文件"""
+        """加载配置文件
+        直接加载配置文件，不进行配置合并
+        """
+        # 如果配置文件存在，直接加载
         if os.path.exists(self.config_path):
             with open(self.config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f) or {}
+                config = yaml.safe_load(f) or {}
+                return config
+        
+        # 如果配置文件不存在，返回默认配置
         return self._get_default_config()
+    
+    def _merge_configs(self, default_config: dict, user_config: dict):
+        """递归合并配置，用户配置会覆盖默认配置中的同名项"""
+        for key, value in user_config.items():
+            if isinstance(value, dict) and key in default_config and isinstance(default_config[key], dict):
+                # 如果两边都是字典，递归合并
+                self._merge_configs(default_config[key], value)
+            else:
+                # 否则直接覆盖
+                default_config[key] = value
     
     def _get_default_config(self) -> dict:
         """默认配置"""
         return {
-            'base_dir': os.path.join(Path.home(), '.lifetrace'),
-            'database_path': 'lifetrace.db',
+            'base_dir': 'data',
+            'database_path': 'data/lifetrace.db',
             'screenshots_dir': 'screenshots',
             'server': {
                 'host': '127.0.0.1',
@@ -84,7 +109,7 @@ class LifeTraceConfig:
                 'interval': 1.0,  # 心跳记录间隔（秒）
                 'timeout': 30,  # 心跳超时时间（秒）
                 'check_interval': 30,  # 心跳检查间隔（秒）
-                'log_dir': 'logs/heartbeat',  # 心跳日志目录
+                'log_dir': 'data/logs/heartbeat',  # 心跳日志目录
                 'log_rotation': {
                     'max_size_mb': 10,  # 单个日志文件最大大小（MB）
                     'max_files': 5,  # 最大日志文件数量
@@ -100,10 +125,47 @@ class LifeTraceConfig:
         }
     
     def save_config(self):
-        """保存配置到文件"""
+        """保存配置文件
+        如果配置文件不存在，则创建默认配置文件
+        配置文件保存在config目录下，而不是~目录
+        """
+        # 获取默认配置文件路径
+        default_config_path = os.path.join(Path(__file__).parent.parent, 'config', 'default_config.yaml')
+        
+        # 确保配置目录存在
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
+        
+        # 如果默认配置文件存在，复制并修改
+        if os.path.exists(default_config_path):
+            import shutil
+            shutil.copy2(default_config_path, self.config_path)
+            
+            # 读取复制后的配置文件
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config_data = yaml.safe_load(f)
+            
+            # 修改路径设置
+            config_data['base_dir'] = 'data'
+            config_data['database_path'] = 'data/lifetrace.db'
+            config_data['screenshots_dir'] = 'screenshots'
+            
+            # 保存修改后的配置
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config_data, f, allow_unicode=True, sort_keys=False)
+            
+            # 重新加载配置
+            self._config = self._load_config()
+            return
+        
+        # 如果默认配置文件不存在，创建默认配置
+        default_config = self._get_default_config()
+        # 确保base_dir、database_path和screenshots_dir使用相对路径
+        default_config['base_dir'] = 'data'
+        default_config['database_path'] = 'data/lifetrace.db'
+        default_config['screenshots_dir'] = 'screenshots'
+        
         with open(self.config_path, 'w', encoding='utf-8') as f:
-            yaml.dump(self._config, f, allow_unicode=True, default_flow_style=False)
+            yaml.dump(default_config, f, allow_unicode=True, sort_keys=False)
     
     def get(self, key: str, default=None):
         """获取配置值"""
@@ -128,18 +190,30 @@ class LifeTraceConfig:
     
     @property
     def base_dir(self) -> str:
-        return self.get('base_dir')
+        base_dir = self.get('base_dir')
+        # 如果是相对路径，转换为绝对路径
+        if not os.path.isabs(base_dir):
+            base_dir = os.path.join(Path(__file__).parent.parent, base_dir)
+        # 确保路径末尾没有多余的斜杠
+        return base_dir.rstrip(os.sep)
     
     @property
     def database_path(self) -> str:
-        db_path = self.get('database_path')
+        """数据库路径"""
+        db_path = self.get('database_path', 'data/lifetrace.db')
+        # 如果是相对路径，转换为绝对路径
         if not os.path.isabs(db_path):
-            return os.path.join(self.base_dir, db_path)
+            db_path = os.path.join(Path(__file__).parent.parent, db_path)
         return db_path
     
     @property
     def screenshots_dir(self) -> str:
-        return os.path.join(self.base_dir, self.get('screenshots_dir'))
+        """截图目录路径"""
+        screenshots_dir = self.get('screenshots_dir', 'screenshots')
+        if not os.path.isabs(screenshots_dir):
+            # 如果是相对路径，先转换为相对于项目根目录的路径
+            screenshots_dir = os.path.join(self.base_dir, screenshots_dir)
+        return screenshots_dir
     
     @property
     def vector_db_enabled(self) -> bool:
@@ -237,7 +311,14 @@ class LifeTraceConfig:
     @property
     def heartbeat_log_dir(self) -> str:
         """心跳日志目录"""
-        return self.get('heartbeat.log_dir', 'logs/heartbeat')
+        log_dir = self.get('heartbeat.log_dir', 'logs/heartbeat')
+        if not os.path.isabs(log_dir):
+            # 如果log_dir以'data/'开头，直接与项目根目录拼接
+            if log_dir.startswith('data/'):
+                return os.path.join(Path(__file__).parent.parent, log_dir)
+            else:
+                return os.path.join(self.base_dir, log_dir)
+        return log_dir
     
     @property
     def heartbeat_log_max_size_mb(self) -> int:

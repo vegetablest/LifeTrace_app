@@ -24,9 +24,10 @@ class LifeTraceLogger:
     def _setup_log_directories(self):
         """创建日志目录结构"""
         if self.config:
-            base_dir = getattr(self.config, 'base_dir', os.path.join(Path.home(), '.lifetrace'))
+            base_dir = getattr(self.config, 'base_dir')
         else:
-            base_dir = os.path.join(Path.home(), '.lifetrace')
+            # 如果没有配置，使用项目根目录下的data目录
+            base_dir = os.path.join(Path(__file__).parent.parent, 'data')
         
         self.log_dir = os.path.join(base_dir, 'logs')
         os.makedirs(self.log_dir, exist_ok=True)

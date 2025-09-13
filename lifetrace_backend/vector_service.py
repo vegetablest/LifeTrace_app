@@ -5,14 +5,21 @@
 """
 
 import logging
+import sys
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import hashlib
+from pathlib import Path
 
-from .vector_db import VectorDatabase, create_vector_db
-from .storage import DatabaseManager
-from .models import OCRResult, Screenshot
-from .config import config
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
+from lifetrace_backend.vector_db import VectorDatabase, create_vector_db
+from lifetrace_backend.storage import DatabaseManager
+from lifetrace_backend.models import OCRResult, Screenshot
+from lifetrace_backend.config import config
 
 
 class VectorService:
@@ -252,7 +259,7 @@ class VectorService:
                     if ocr_result_id:
                         # 获取OCR结果详细信息
                         with self.db_manager.get_session() as session:
-                            from .models import OCRResult, Screenshot
+                            from lifetrace_backend.models import OCRResult, Screenshot
                             
                             ocr_result = session.query(OCRResult).filter(OCRResult.id == ocr_result_id).first()
                             if ocr_result:
@@ -348,7 +355,7 @@ class VectorService:
             for event_id, score_info in event_scores.items():
                 try:
                     with self.db_manager.get_session() as session:
-                        from .models import Event, Screenshot
+                        from lifetrace_backend.models import Event, Screenshot
                         event = session.query(Event).filter(Event.id == event_id).first()
                         
                         if event:

@@ -1,5 +1,0 @@
-2025-08-22 09:55:27,970 - test_module - INFO - test_logging_system.py:54 - 这是一条信息
-2025-08-22 09:55:27,970 - test_module - WARNING - test_logging_system.py:55 - 这是一条警告
-2025-08-22 09:55:27,970 - test_module - ERROR - test_logging_system.py:56 - 这是一条错误信息
-2025-08-22 09:55:27,970 - lifetrace.server - INFO - test_logging_system.py:59 - 服务器模块日志测试
-2025-08-22 09:55:27,970 - lifetrace.processor - INFO - test_logging_system.py:60 - 处理器模块日志测试

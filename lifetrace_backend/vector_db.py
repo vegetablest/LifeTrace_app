@@ -5,12 +5,18 @@
 """
 
 import os
+import sys
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 import json
 import hashlib
 from datetime import datetime
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
 
 try:
     from sentence_transformers import SentenceTransformer, CrossEncoder
@@ -25,7 +31,7 @@ except ImportError as e:
     chromadb = None
     np = None
 
-from .config import config
+from lifetrace_backend.config import config
 
 
 class VectorDatabase:

@@ -71,8 +71,10 @@ def manual_reset():
     
     # 5. 重新创建目录结构
     print(f"\n4. 重新创建目录结构...")
+    # 确保只创建~/目录下的结构，不在项目根目录创建文件
+    # base_dir已经在config中处理为正确的路径，不需要单独创建
     directories = [
-        config.base_dir,
+        # 不需要单独创建base_dir，它应该已经存在
         config.screenshots_dir,
         os.path.join(config.base_dir, 'logs'),
         config.vector_db_persist_directory

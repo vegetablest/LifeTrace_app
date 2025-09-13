@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import logging
 from datetime import datetime
@@ -7,17 +8,22 @@ from typing import List, Set
 import threading
 from queue import Queue, Empty
 
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from PIL import Image
 import imagehash
 
-from .config import config
-from .storage import db_manager
-from .utils import get_file_hash, get_active_window_info
-from .logging_config import setup_logging
-from .consistency_checker import ConsistencyChecker
-from .heartbeat import HeartbeatLogger
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.utils import get_file_hash, get_active_window_info
+from lifetrace_backend.logging_config import setup_logging
+from lifetrace_backend.consistency_checker import ConsistencyChecker
+from lifetrace_backend.heartbeat import HeartbeatLogger
 
 # 设置日志系统
 logger_manager = setup_logging(config)
@@ -308,7 +314,7 @@ def get_screenshot_by_path(self, file_path: str):
     """根据文件路径获取截图"""
     try:
         with self.get_session() as session:
-            from .models import Screenshot
+            from lifetrace_backend.models import Screenshot
             return session.query(Screenshot).filter_by(file_path=file_path).first()
     except Exception as e:
         logging.error(f"根据路径获取截图失败: {e}")

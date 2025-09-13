@@ -1,16 +1,23 @@
 import os
+import sys
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from contextlib import contextmanager
+from pathlib import Path
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from .config import config
-from .models import Base, Screenshot, OCRResult, SearchIndex, ProcessingQueue, Event
-from .utils import ensure_dir, get_file_hash
+from lifetrace_backend.config import config
+from lifetrace_backend.models import Base, Screenshot, OCRResult, SearchIndex, ProcessingQueue, Event
+from lifetrace_backend.utils import ensure_dir, get_file_hash
 
 
 class DatabaseManager:
@@ -303,7 +310,7 @@ class DatabaseManager:
         """聚合事件下所有截图的OCR文本内容，按时间排序拼接"""
         try:
             with self.get_session() as session:
-                from .models import OCRResult
+                from lifetrace_backend.models import OCRResult
                 ocr_list = session.query(OCRResult).join(Screenshot, OCRResult.screenshot_id == Screenshot.id).\
                     filter(Screenshot.event_id == event_id).\
                     order_by(OCRResult.created_at.asc()).all()

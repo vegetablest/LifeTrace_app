@@ -1,12 +1,20 @@
 import logging
+import sys
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import asyncio
-from .llm_client import LLMClient
-from .retrieval_service import RetrievalService
-from .context_builder import ContextBuilder
-from .query_parser import QueryParser, QueryConditions
-from .storage import DatabaseManager
+from pathlib import Path
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
+from lifetrace_backend.llm_client import LLMClient
+from lifetrace_backend.retrieval_service import RetrievalService
+from lifetrace_backend.context_builder import ContextBuilder
+from lifetrace_backend.query_parser import QueryParser, QueryConditions
+from lifetrace_backend.storage import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

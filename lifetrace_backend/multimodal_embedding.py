@@ -4,12 +4,18 @@
 """
 
 import os
+import sys
 import logging
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple, Union
 from pathlib import Path
 import hashlib
 from PIL import Image
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
 
 try:
     import torch
@@ -20,7 +26,7 @@ except ImportError:
     MULTIMODAL_AVAILABLE = False
     logging.warning("多模态依赖未安装，请运行: pip install torch transformers clip-by-openai")
 
-from .config import config
+from lifetrace_backend.config import config
 
 
 class MultimodalEmbedding:

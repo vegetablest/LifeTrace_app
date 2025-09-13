@@ -1,8 +1,16 @@
 import os
+import sys
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from pathlib import Path
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
 
 from fastapi import FastAPI, HTTPException, Query, Depends, File, UploadFile
 from fastapi.staticfiles import StaticFiles
@@ -12,14 +20,14 @@ from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .config import config
-from .storage import db_manager
-from .simple_ocr import SimpleOCRProcessor
-from .vector_service import create_vector_service
-from .multimodal_vector_service import create_multimodal_vector_service
-from .logging_config import setup_logging
-from .heartbeat import HeartbeatLogger
-from .rag_service import RAGService
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.simple_ocr import SimpleOCRProcessor
+from lifetrace_backend.vector_service import create_vector_service
+from lifetrace_backend.multimodal_vector_service import create_multimodal_vector_service
+from lifetrace_backend.logging_config import setup_logging
+from lifetrace_backend.heartbeat import HeartbeatLogger
+from lifetrace_backend.rag_service import RAGService
 
 # 导入系统资源分析模块
 import psutil
@@ -601,7 +609,7 @@ async def get_screenshot(screenshot_id: int):
     ocr_data = None
     try:
         with db_manager.get_session() as session:
-            from .models import OCRResult
+            from lifetrace_backend.models import OCRResult
             ocr_result = session.query(OCRResult).filter_by(
                 screenshot_id=screenshot_id
             ).first()
@@ -706,7 +714,7 @@ async def get_queue_status():
     """获取处理队列状态"""
     try:
         with db_manager.get_session() as session:
-            from .models import ProcessingQueue
+            from lifetrace_backend.models import ProcessingQueue
             
             pending_count = session.query(ProcessingQueue).filter_by(status='pending').count()
             processing_count = session.query(ProcessingQueue).filter_by(status='processing').count()
@@ -1144,10 +1152,10 @@ async def get_system_resources():
                 continue
         
         # 获取数据库和截图存储信息
-        db_path = Path.home() / '.lifetrace' / 'lifetrace.db'
+        db_path = Path(config.database_path)
         db_size_mb = db_path.stat().st_size / 1024 / 1024 if db_path.exists() else 0
         
-        screenshots_path = Path.home() / '.lifetrace' / 'screenshots'
+        screenshots_path = Path(config.screenshots_dir)
         screenshots_size_mb = 0
         screenshots_count = 0
         if screenshots_path.exists():
@@ -1204,16 +1212,9 @@ async def logs_page(request: Request):
 async def get_log_files():
     """获取日志文件列表"""
     try:
-        # 优先使用用户主目录下的.lifetrace/logs目录
-        user_logs_dir = Path.home() / ".lifetrace" / "logs"
-        project_logs_dir = Path(config.base_dir) / "logs"
-        
-        # 选择存在的日志目录
-        if user_logs_dir.exists():
-            logs_dir = user_logs_dir
-        elif project_logs_dir.exists():
-            logs_dir = project_logs_dir
-        else:
+        # 使用配置中的日志目录
+        logs_dir = Path(config.base_dir) / "logs"
+        if not logs_dir.exists():
             return []
         
         log_files = []
@@ -1241,15 +1242,8 @@ async def get_log_files():
 async def get_log_content(file: str = Query(..., description="日志文件相对路径")):
     """获取日志文件内容"""
     try:
-        # 优先使用用户主目录下的.lifetrace/logs目录
-        user_logs_dir = Path.home() / ".lifetrace" / "logs"
-        project_logs_dir = Path(config.base_dir) / "logs"
-        
-        # 选择存在的日志目录
-        if user_logs_dir.exists():
-            logs_dir = user_logs_dir
-        else:
-            logs_dir = project_logs_dir
+        # 使用配置中的日志目录
+        logs_dir = Path(config.base_dir) / "logs"
             
         log_file = logs_dir / file
         

@@ -6,18 +6,25 @@
 """
 
 import os
+import sys
 import logging
 import threading
 import time
 from pathlib import Path
 from typing import Optional, Set
 import traceback
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileDeletedEvent, FileMovedEvent
 
-from .storage import db_manager
-from .models import Screenshot, OCRResult, SearchIndex, ProcessingQueue
-from .config import config
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.models import Screenshot, OCRResult, SearchIndex, ProcessingQueue
+from lifetrace_backend.config import config
 
 
 class ScreenshotFileHandler(FileSystemEventHandler):

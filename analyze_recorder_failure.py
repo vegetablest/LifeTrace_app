@@ -232,10 +232,10 @@ def check_error_logs():
     print("\n=== 错误日志检查 ===")
     
     log_dirs = [
-        Path('logs/error'),
-        Path('logs/core'),
-        Path('logs/app'),
-        Path('logs/debug')
+        Path('data/logs/error'),
+        Path('data/logs/core'),
+        Path('data/logs/app'),
+        Path('data/logs/debug')
     ]
     
     error_found = False

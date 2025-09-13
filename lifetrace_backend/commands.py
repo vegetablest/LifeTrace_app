@@ -14,10 +14,10 @@ from rich.table import Table
 from rich.panel import Panel
 from rich import print as rprint
 
-from .config import config
-from .storage import db_manager
-from .utils import ensure_dir
-from .logging_config import setup_logging
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.utils import ensure_dir
+from lifetrace_backend.logging_config import setup_logging
 
 
 app = typer.Typer(help="LifeTrace 智能生活记录系统")
@@ -44,14 +44,16 @@ def init(
     ensure_dir(config.base_dir)
     ensure_dir(config.screenshots_dir)
     ensure_dir(os.path.join(config.base_dir, 'logs'))
+    ensure_dir(os.path.join(Path(__file__).parent.parent, 'config'))
+    ensure_dir(os.path.join(Path(__file__).parent.parent, 'data'))
     
     # 初始化配置文件
     config_file = config.config_path
     if not os.path.exists(config_file) or force:
         config.save_config()
-        rprint(f"[green]OK[/green] 配置文件已创建: {config_file}")
+        rprint(f"[green]OK[/green] 配置文件已创建: \n{config_file}")
     else:
-        rprint(f"[yellow]WARN[/yellow] 配置文件已存在: {config_file}")
+        rprint(f"[yellow]WARN[/yellow] 配置文件已存在: \n{config_file}")
     
     # 初始化数据库
     try:
@@ -66,10 +68,10 @@ def init(
     logger = logger_manager.get_main_logger()
     
     rprint(f"\n[green]SUCCESS[/green] LifeTrace 初始化完成!")
-    rprint(f"数据目录: {config.base_dir}")
-    rprint(f"截图目录: {config.screenshots_dir}")
+    rprint(f"数据目录: {os.path.abspath(config.base_dir)}")
+    rprint(f"截图目录: {os.path.abspath(os.path.join(config.base_dir, 'screenshots'))}")
     rprint(f"配置文件: {config_file}")
-    rprint(f"数据库: {config.database_path}")
+    rprint(f"数据库: {os.path.abspath(config.database_path)}")
     
     rprint(f"\n接下来可以运行:")
     rprint(f"  lifetrace start    # 启动所有服务")
@@ -152,7 +154,7 @@ def record(
         config.set('record.screens', screen_list)
     
     # 启动记录器
-    from .recorder import main as recorder_main
+    from lifetrace_backend.recorder import main as recorder_main
     recorder_main()
 
 
@@ -171,7 +173,7 @@ def process(
     config.set('processing.max_workers', workers)
     
     # 启动处理器
-    from .processor import main as processor_main
+    from lifetrace_backend.processor import main as processor_main
     processor_main()
 
 
@@ -192,7 +194,7 @@ def serve(
     config.set('server.debug', debug)
     
     # 启动服务器
-    from .server import main as server_main
+    from lifetrace_backend.server import main as server_main
     server_main()
 
 
@@ -209,7 +211,7 @@ def simple_ocr(
     # 更新配置
     config.set('ocr.check_interval', interval)
     
-    from .simple_ocr import main as simple_ocr_main
+    from lifetrace_backend.simple_ocr import main as simple_ocr_main
     simple_ocr_main()
 
 
@@ -226,7 +228,7 @@ def ocr(
     # 更新配置
     config.set('ocr.check_interval', interval)
     
-    from .simple_ocr import SimpleOCRProcessor
+    from lifetrace_backend.simple_ocr import SimpleOCRProcessor
     processor = SimpleOCRProcessor()
     processor.start()
 

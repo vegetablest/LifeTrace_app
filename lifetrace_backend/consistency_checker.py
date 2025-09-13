@@ -6,6 +6,7 @@
 """
 
 import os
+import sys
 import logging
 import threading
 import time
@@ -14,10 +15,15 @@ from typing import List, Set, Tuple, Optional
 from datetime import datetime, timedelta
 import traceback
 
-from .storage import db_manager
-from .models import Screenshot, OCRResult, SearchIndex, ProcessingQueue
-from .config import config
-from .logging_config import setup_logging
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.models import Screenshot, OCRResult, SearchIndex, ProcessingQueue
+from lifetrace_backend.config import config
+from lifetrace_backend.logging_config import setup_logging
 
 # 初始化日志系统
 logger_manager = setup_logging()
@@ -291,7 +297,7 @@ class AdvancedConsistencyChecker(ConsistencyChecker):
     def _sync_vector_database(self) -> dict:
         """同步向量数据库"""
         try:
-            from .vector_service import create_vector_service
+            from lifetrace_backend.vector_service import create_vector_service
             
             vector_service = create_vector_service(config, db_manager)
             if not vector_service.is_enabled():

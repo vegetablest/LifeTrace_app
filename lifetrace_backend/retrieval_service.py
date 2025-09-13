@@ -1,9 +1,17 @@
 import logging
+import sys
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
-from .storage import DatabaseManager
-from .query_parser import QueryParser, QueryConditions
-from .models import Screenshot, OCRResult
+from pathlib import Path
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
+from lifetrace_backend.storage import DatabaseManager
+from lifetrace_backend.query_parser import QueryParser, QueryConditions
+from lifetrace_backend.models import Screenshot, OCRResult
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 

@@ -5,9 +5,15 @@ LifeTrace 简化OCR处理器
 """
 
 import os
+import sys
 import time
 import logging
 from pathlib import Path
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
 
 try:
     from rapidocr_onnxruntime import RapidOCR
@@ -19,10 +25,10 @@ except ImportError:
     print("错误: RapidOCR未安装，请运行: pip install rapidocr-onnxruntime")
     exit(1)
 
-from .config import config
-from .storage import db_manager
-from .vector_service import create_vector_service
-from .heartbeat import HeartbeatLogger
+from lifetrace_backend.config import config
+from lifetrace_backend.storage import db_manager
+from lifetrace_backend.vector_service import create_vector_service
+from lifetrace_backend.heartbeat import HeartbeatLogger
 
 
 class SimpleOCRProcessor:
@@ -50,7 +56,7 @@ class SimpleOCRProcessor:
     def get_statistics(self):
         """获取OCR处理统计信息"""
         try:
-            from .models import Screenshot, OCRResult
+            from lifetrace_backend.models import Screenshot, OCRResult
             with db_manager.get_session() as session:
                 total_screenshots = session.query(Screenshot).count()
                 ocr_results = session.query(OCRResult).count()
@@ -158,7 +164,7 @@ def save_to_database(image_path: str, ocr_result: dict, vector_service=None):
             try:
                 # 获取完整的OCR结果对象
                 with db_manager.get_session() as session:
-                    from .models import OCRResult, Screenshot
+                    from lifetrace_backend.models import OCRResult, Screenshot
                     ocr_obj = session.query(OCRResult).filter(OCRResult.id == ocr_result_id).first()
                     screenshot_obj = session.query(Screenshot).filter(Screenshot.id == screenshot_id).first()
                     
@@ -240,7 +246,7 @@ def get_unprocessed_screenshots(logger=None):
         logger = default_logging
         
     try:
-        from .models import Screenshot, OCRResult
+        from lifetrace_backend.models import Screenshot, OCRResult
         with db_manager.get_session() as session:
             # 查询没有OCR结果的截图记录
             unprocessed = session.query(Screenshot).outerjoin(
@@ -323,7 +329,7 @@ def main():
     print("LifeTrace 简化OCR处理器启动...")
     
     # 设置日志
-    from .logging_config import setup_logging
+    from lifetrace_backend.logging_config import setup_logging
     logger_manager = setup_logging(config)
     logger = logger_manager.get_ocr_logger()
     

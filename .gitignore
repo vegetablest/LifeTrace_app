@@ -10,3 +10,8 @@ lifetrace_backend/__pycache__/config.cpython-313.pyc
 /~/.lifetrace
 /logs
 /logs
+*.pyc
+*.pyc
+*.pyc
+/data
+/debug

@@ -7,6 +7,7 @@
 """
 
 import os
+import sys
 import time
 import json
 import threading
@@ -14,7 +15,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List
 import logging
-from .config import config
+
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
+from lifetrace_backend.config import config
 
 
 class HeartbeatLogger:

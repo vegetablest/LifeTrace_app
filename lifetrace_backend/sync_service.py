@@ -6,16 +6,23 @@
 """
 
 import logging
+import sys
 import threading
 import time
 from typing import Optional, Dict, Any
 from datetime import datetime
 import traceback
+from pathlib import Path
 
-from .file_monitor import file_monitor_service
-from .consistency_checker import consistency_checker
-from .config import config
-from .logging_config import setup_logging
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
+from lifetrace_backend.file_monitor import file_monitor_service
+from lifetrace_backend.consistency_checker import consistency_checker
+from lifetrace_backend.config import config
+from lifetrace_backend.logging_config import setup_logging
 
 # 设置日志系统
 logger_manager = setup_logging(config)

@@ -5,17 +5,24 @@
 """
 
 import logging
+import sys
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 import hashlib
 import json
+from pathlib import Path
 
-from .multimodal_embedding import get_multimodal_embedding
-from .vector_db import VectorDatabase, create_vector_db
-from .storage import DatabaseManager
-from .models import OCRResult, Screenshot
-from .config import config
+# 添加项目根目录到Python路径，以便直接运行此文件
+if __name__ == '__main__':
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
+from lifetrace_backend.multimodal_embedding import get_multimodal_embedding
+from lifetrace_backend.vector_db import VectorDatabase, create_vector_db
+from lifetrace_backend.storage import DatabaseManager
+from lifetrace_backend.models import OCRResult, Screenshot
+from lifetrace_backend.config import config
 
 
 class MultimodalVectorService:
