@@ -229,6 +229,7 @@
             display: flex;
             flex-direction: column;
             gap: 1rem;
+            padding-bottom: 90vh; /* 添加底部空间，确保用户消息能滚动到顶部 */
         }
         
         .message {
@@ -794,8 +795,7 @@
                 lucide.createIcons();
             }
             
-            // 滚动到底部
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            // 不再自动滚动到底部，保持用户消息居中显示
         }
         
         // 显示错误消息
@@ -824,7 +824,7 @@
                 lucide.createIcons();
             }
             
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            // 错误消息不自动滚动，保持当前位置
         }
         
         // 处理表单提交（流式版本）
@@ -837,6 +837,26 @@
             // 添加用户消息到UI与本地历史
             addMessage(message, true);
             pushHistory('user', message);
+            
+            // 滚动到用户消息位置，让用户消息上边缘贴住聊天区域的可见区域上边缘
+            setTimeout(() => {
+                const userMessages = messagesList.querySelectorAll('.message.user');
+                if (userMessages.length > 0) {
+                    const lastUserMessage = userMessages[userMessages.length - 1];
+                    // 直接控制chat-messages容器的滚动位置
+                    const chatMessagesContainer = document.querySelector('.chat-messages');
+                    // 获取用户消息相对于滚动容器的位置
+                    const containerRect = chatMessagesContainer.getBoundingClientRect();
+                    const messageRect = lastUserMessage.getBoundingClientRect();
+                    const currentScrollTop = chatMessagesContainer.scrollTop;
+                    const targetScrollTop = currentScrollTop + (messageRect.top - containerRect.top) - 10;
+                    
+                    chatMessagesContainer.scrollTo({
+                        top: targetScrollTop,
+                        behavior: 'smooth'
+                    });
+                }
+            }, 100); // 增加延迟确保DOM完全更新
             
             // 清空输入框并禁用
             chatInput.value = '';
@@ -917,8 +937,7 @@
                         }
                         aiContentDiv.innerHTML = processedContent;
                         
-                        // 滚动到底部
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        // AI回复完成后不自动滚动，保持用户消息居中
                     }
                 }
                 

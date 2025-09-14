@@ -16,3 +16,4 @@ lifetrace_backend/__pycache__/config.cpython-313.pyc
 /data
 /debug
 /reference_source
+*.pyc
