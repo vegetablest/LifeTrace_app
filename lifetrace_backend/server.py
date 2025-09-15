@@ -918,6 +918,25 @@ async def get_screenshot_image(screenshot_id: int):
     )
 
 
+@app.get("/api/screenshots/{screenshot_id}/path")
+async def get_screenshot_path(screenshot_id: int):
+    """获取截图文件路径"""
+    screenshot = db_manager.get_screenshot_by_id(screenshot_id)
+    
+    if not screenshot:
+        raise HTTPException(status_code=404, detail="截图不存在")
+    
+    file_path = screenshot['file_path']
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="图片文件不存在")
+    
+    return {
+        "screenshot_id": screenshot_id,
+        "file_path": file_path,
+        "exists": True
+    }
+
+
 @app.post("/api/ocr/process")
 async def process_ocr(screenshot_id: int):
     """手动触发OCR处理"""

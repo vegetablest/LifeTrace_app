@@ -708,6 +708,59 @@
             return `【对话上下文】\n${ctx}\n\n【当前问题】\n用户: ${currentMessage}\n\n请仅回答【当前问题】，必要时参考【对话上下文】。`;
         }
         
+        // 处理截图ID链接
+        function processScreenshotLinks(content) {
+            // 匹配 [截图ID: 数字-数字] 格式（范围）
+            const rangePattern = /\[截图ID:\s*(\d+)-(\d+)\]/g;
+            content = content.replace(rangePattern, function(match, startId, endId) {
+                const start = parseInt(startId);
+                const end = parseInt(endId);
+                const ids = [];
+                for (let i = start; i <= end; i++) {
+                    ids.push(i);
+                }
+                const thumbnails = ids.map(id => 
+                    `<div class="screenshot-thumbnail" style="display: inline-block; margin: 2px; padding: 4px 8px; background: #f0f8ff; border: 1px solid #0066cc; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 50px; max-width: 80px; text-align: center;" onclick="openScreenshotModal(${id})" onmouseover="this.style.background='#e6f3ff'" onmouseout="this.style.background='#f0f8ff'">
+                        <i data-lucide="image" style="width: 12px; height: 12px; margin-right: 3px; vertical-align: middle;"></i>
+                        <span style="color: #0066cc; font-size: 12px; vertical-align: middle;">${id}</span>
+                    </div>`
+                ).join('');
+                return `<div class="screenshot-gallery" style="margin: 8px 0; padding: 8px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa;">
+                    <div style="margin-bottom: 6px; font-size: 14px; font-weight: 500; color: #333;">截图范围 ${startId}-${endId}:</div>
+                    ${thumbnails}
+                </div>`;
+            });
+            
+            // 匹配 [截图ID: 数字] 格式（单个）
+            const singlePattern = /\[截图ID:\s*(\d+)\]/g;
+            content = content.replace(singlePattern, function(match, screenshotId) {
+                return `<div class="screenshot-thumbnail" style="display: inline-block; margin: 3px; padding: 5px 10px; background: #f0f8ff; border: 1px solid #0066cc; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 60px; max-width: 100px; text-align: center;" onclick="openScreenshotModal(${screenshotId})" onmouseover="this.style.background='#e6f3ff'" onmouseout="this.style.background='#f0f8ff'">
+                    <i data-lucide="image" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;"></i>
+                    <span style="color: #0066cc; font-size: 13px; vertical-align: middle;">截图 ${screenshotId}</span>
+                </div>`;
+            });
+            
+            // 匹配 [截图ID: 数字, 数字, 数字] 格式（多个）
+            const multiplePattern = /\[截图ID:\s*([\d,\s]+)\]/g;
+            content = content.replace(multiplePattern, function(match, screenshotIds) {
+                const ids = screenshotIds.split(',').map(id => id.trim()).filter(id => id);
+                const thumbnails = ids.map(id => 
+                    `<div class="screenshot-thumbnail" style="display: inline-block; margin: 2px; padding: 4px 8px; background: #f0f8ff; border: 1px solid #0066cc; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 50px; max-width: 80px; text-align: center;" onclick="openScreenshotModal(${id})" onmouseover="this.style.background='#e6f3ff'" onmouseout="this.style.background='#f0f8ff'">
+                        <i data-lucide="image" style="width: 12px; height: 12px; margin-right: 3px; vertical-align: middle;"></i>
+                        <span style="color: #0066cc; font-size: 12px; vertical-align: middle;">${id}</span>
+                    </div>`
+                ).join('');
+                return `<div class="screenshot-gallery" style="margin: 8px 0; padding: 8px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa;">
+                    <div style="margin-bottom: 6px; font-size: 14px; font-weight: 500; color: #333;">相关截图:</div>
+                    ${thumbnails}
+                </div>`;
+            });
+            
+            return content;
+        }
+        
+
+        
         // 初始化图标
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof lucide !== 'undefined') {
@@ -777,6 +830,11 @@
                 if (hasMarkdown) {
                     processedContent = marked.parse(content);
                 }
+            }
+            
+            // 处理截图ID链接（仅对AI回复）
+            if (!isUser) {
+                processedContent = processScreenshotLinks(processedContent);
             }
             
             const avatarContent = isUser ? 'U' : '<i data-lucide="bot"></i>';
@@ -941,6 +999,28 @@
                     }
                 }
                 
+                // 流式输出结束后，重新处理截图链接
+                if (aiContentDiv && fullResponse) {
+                    // 重新处理截图链接
+                    const processedContent = processScreenshotLinks(fullResponse);
+                    
+                    // 检测并渲染Markdown
+                    let finalContent = processedContent;
+                    if (typeof marked !== 'undefined') {
+                        const hasMarkdown = /[#*`_\[\]\(\)\-\+]|\n\n/.test(processedContent);
+                        if (hasMarkdown) {
+                            finalContent = marked.parse(processedContent);
+                        }
+                    }
+                    
+                    aiContentDiv.innerHTML = finalContent;
+                    
+                    // 重新创建图标
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }
+                
                 // 保存完整回复到历史
                 if (fullResponse) {
                     pushHistory('assistant', fullResponse);
@@ -1036,6 +1116,243 @@
                 } catch {}
             }
         });
+
+        // 截图预览功能
+        let currentScreenshotId = null;
+        let availableScreenshotIds = [];
+        
+        function openScreenshotModal(screenshotId) {
+            const modal = document.getElementById('screenshotModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalImage = document.getElementById('modalImage');
+            const modalLoading = document.getElementById('modalLoading');
+            const modalError = document.getElementById('modalError');
+            
+            // 设置当前截图ID
+            currentScreenshotId = parseInt(screenshotId);
+            
+            // 获取所有可用的截图ID
+            updateAvailableScreenshotIds();
+            
+            // 显示弹窗
+            modal.style.display = 'block';
+            modalTitle.textContent = `截图 ${screenshotId}`;
+            
+            // 更新导航按钮状态
+            updateNavigationButtons();
+            
+            // 显示加载状态
+            modalLoading.style.display = 'block';
+            modalImage.style.display = 'none';
+            modalError.style.display = 'none';
+            
+            // 加载图片
+            loadScreenshotImage(screenshotId);
+        }
+        
+        function loadScreenshotImage(screenshotId) {
+            const modalImage = document.getElementById('modalImage');
+            const modalLoading = document.getElementById('modalLoading');
+            const modalError = document.getElementById('modalError');
+            const modalTime = document.getElementById('modalTime');
+            
+            // 显示加载状态
+            modalLoading.style.display = 'block';
+            modalImage.style.display = 'none';
+            modalError.style.display = 'none';
+            modalTime.textContent = '';
+            
+            // 获取截图详细信息
+            fetch(`/api/screenshots/${screenshotId}`)
+                .then(response => response.json())
+                .then(data => {
+                    // 更新时间显示
+                    if (data.created_at) {
+                        const time = new Date(data.created_at).toLocaleString('zh-CN');
+                        modalTime.textContent = time;
+                    }
+                })
+                .catch(error => {
+                    console.error('获取截图信息失败:', error);
+                });
+            
+            const img = new Image();
+            img.onload = function() {
+                modalImage.src = this.src;
+                modalLoading.style.display = 'none';
+                modalImage.style.display = 'block';
+                modalError.style.display = 'none';
+                // 重新创建图标
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            };
+            img.onerror = function() {
+                modalLoading.style.display = 'none';
+                modalError.style.display = 'block';
+                modalImage.style.display = 'none';
+                // 重新创建图标
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            };
+            img.src = `/api/screenshots/${screenshotId}/image`;
+        }
+        
+        function updateAvailableScreenshotIds() {
+            // 从页面中提取所有截图ID，并获取完整范围
+            const screenshotElements = document.querySelectorAll('.screenshot-thumbnail');
+            const ids = new Set();
+            
+            screenshotElements.forEach(element => {
+                const onclick = element.getAttribute('onclick');
+                if (onclick) {
+                    const match = onclick.match(/openScreenshotModal\((\d+)\)/);
+                    if (match) {
+                        ids.add(parseInt(match[1]));
+                    }
+                }
+            });
+            
+            // 如果有截图ID，创建从0到最大ID的完整范围
+            if (ids.size > 0) {
+                const maxId = Math.max(...Array.from(ids));
+                availableScreenshotIds = [];
+                for (let i = 0; i <= maxId; i++) {
+                    availableScreenshotIds.push(i);
+                }
+            } else {
+                availableScreenshotIds = [];
+            }
+        }
+        
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevScreenshotBtn');
+            const nextBtn = document.getElementById('nextScreenshotBtn');
+            
+            if (!prevBtn || !nextBtn) return;
+            
+            const currentIndex = availableScreenshotIds.indexOf(currentScreenshotId);
+            
+            // 更新按钮状态
+            prevBtn.style.opacity = currentIndex > 0 ? '1' : '0.3';
+            prevBtn.style.cursor = currentIndex > 0 ? 'pointer' : 'not-allowed';
+            
+            nextBtn.style.opacity = currentIndex < availableScreenshotIds.length - 1 ? '1' : '0.3';
+            nextBtn.style.cursor = currentIndex < availableScreenshotIds.length - 1 ? 'pointer' : 'not-allowed';
+        }
+        
+        function navigateScreenshot(direction) {
+            const currentIndex = availableScreenshotIds.indexOf(currentScreenshotId);
+            let newIndex;
+            
+            if (direction === 'prev' && currentIndex > 0) {
+                newIndex = currentIndex - 1;
+            } else if (direction === 'next' && currentIndex < availableScreenshotIds.length - 1) {
+                newIndex = currentIndex + 1;
+            } else {
+                return; // 无法导航
+            }
+            
+            const newScreenshotId = availableScreenshotIds[newIndex];
+            currentScreenshotId = newScreenshotId;
+            
+            // 更新标题
+            const modalTitle = document.getElementById('modalTitle');
+            modalTitle.textContent = `截图 ${newScreenshotId}`;
+            
+            // 更新导航按钮状态
+            updateNavigationButtons();
+            
+            // 加载新图片
+            loadScreenshotImage(newScreenshotId);
+        }
+        
+        function closeScreenshotModal() {
+            const modal = document.getElementById('screenshotModal');
+            modal.style.display = 'none';
+            currentScreenshotId = null;
+            availableScreenshotIds = [];
+        }
+        
+        // 点击弹窗外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('screenshotModal');
+            if (event.target === modal) {
+                closeScreenshotModal();
+            }
+        }
+        
+        // ESC键关闭弹窗
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeScreenshotModal();
+            } else if (event.key === 'ArrowLeft') {
+                navigateScreenshot('prev');
+            } else if (event.key === 'ArrowRight') {
+                navigateScreenshot('next');
+            }
+        });
     </script>
+
+    <!-- 截图预览弹窗 -->
+    <div id="screenshotModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
+        <div class="modal-content" style="position: relative; margin: 2% auto; padding: 0; width: 95%; max-width: 1200px; background-color: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <div class="modal-header" style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <h3 id="modalTitle" style="margin: 0; color: #333; font-size: 18px;">截图预览</h3>
+                    <span id="modalTime" style="color: #666; font-size: 14px; font-weight: normal;"></span>
+                </div>
+                <span class="close" onclick="closeScreenshotModal()" style="font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; line-height: 1;" onmouseover="this.style.color='#000'" onmouseout="this.style.color='#aaa'">&times;</span>
+            </div>
+            <div class="modal-body" style="position: relative; padding: 20px; text-align: center;">
+                <!-- 左侧导航按钮 -->
+                <button id="prevScreenshotBtn" onclick="navigateScreenshot('prev')" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 10;" onmouseover="this.style.background='rgba(0,0,0,0.7)'" onmouseout="this.style.background='rgba(0,0,0,0.5)'">
+                    <i data-lucide="chevron-left" style="width: 22px; height: 22px;"></i>
+                </button>
+                
+                <!-- 右侧导航按钮 -->
+                <button id="nextScreenshotBtn" onclick="navigateScreenshot('next')" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 10;" onmouseover="this.style.background='rgba(0,0,0,0.7)'" onmouseout="this.style.background='rgba(0,0,0,0.5)'">
+                    <i data-lucide="chevron-right" style="width: 22px; height: 22px;"></i>
+                </button>
+                
+                <div id="modalLoading" style="display: none; color: #666; font-size: 16px; padding: 40px;">
+                    <i data-lucide="loader-2" style="width: 24px; height: 24px; margin-right: 8px; vertical-align: middle; animation: spin 1s linear infinite;"></i>
+                    加载中...
+                </div>
+                <img id="modalImage" style="max-width: 100%; max-height: 80vh; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" />
+                <div id="modalError" style="display: none; color: #e74c3c; font-size: 16px; padding: 40px;">
+                    <i data-lucide="alert-circle" style="width: 24px; height: 24px; margin-right: 8px; vertical-align: middle;"></i>
+                    图像加载失败
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .modal {
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-content {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+
 </body>
 </html>

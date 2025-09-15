@@ -6,7 +6,7 @@ server:
   port: 8840
 record:
   interval: 1
-  screens: custom
+  screens: all
   blacklist:
     enabled: true
     apps:
@@ -85,13 +85,13 @@ logging:
   file_monitor_log_level: INFO
 ui:
   dark_mode: false
-  language: zh-TW
+  language: zh-CN
   notifications: true
   sound_enabled: true
   auto_save: true
 llm:
   model: doubao-pro
-  temperature: 1
+  temperature: 0.7
   max_tokens: 2048
 chat:
   local_history: true
