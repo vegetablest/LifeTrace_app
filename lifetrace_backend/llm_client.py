@@ -233,6 +233,11 @@ class LLMClient:
 2. 分析提供的历史数据
 3. 生成准确、有用的总结
 
+重要要求：
+- 在回答中引用具体的截图ID来源，格式为：[截图ID: xxx]
+- 当提到某个具体信息时，请标注它来自哪个截图
+- 这样用户可以知道信息的具体来源
+
 请用中文回答，保持简洁明了，重点突出关键信息。
 """
         
@@ -256,6 +261,7 @@ class LLMClient:
                 app_name = record.get('app_name', '未知应用')
                 ocr_text = record.get('ocr_text', '无文本内容')
                 window_title = record.get('window_title', '')
+                screenshot_id = record.get('screenshot_id') or record.get('id')  # 获取截图ID
                 
                 # 截断过长的文本
                 if len(ocr_text) > 200:
@@ -264,6 +270,8 @@ class LLMClient:
                 record_text = f"{i+1}. [{app_name}] {timestamp}"
                 if window_title:
                     record_text += f" - {window_title}"
+                if screenshot_id:
+                    record_text += f" [截图ID: {screenshot_id}]"
                 record_text += f"\n   内容: {ocr_text}"
                 
                 context_parts.append(record_text)

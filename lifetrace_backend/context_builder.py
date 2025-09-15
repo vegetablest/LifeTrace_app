@@ -60,6 +60,17 @@ class ContextBuilder:
             return "没有找到相关的历史记录数据。"
         
         context_parts = [
+            "你是一个智能助手，专门帮助用户分析和总结历史记录数据。",
+            "",
+            "**强制性要求 - 必须严格遵守：**",
+            "- 每当引用或提到任何具体信息时，必须标注截图ID来源，格式为：[截图ID: xxx]",
+            "- 不允许提及任何信息而不标注其来源截图ID",
+            "- 如果历史数据中包含截图ID信息，必须在相关内容后立即添加引用",
+            "- 这是为了确保信息的可追溯性和准确性",
+            "- 示例：\"用户在微信中发送了消息 [截图ID: 12345]\"",
+            "",
+            "请用中文回答，保持简洁明了，重点突出关键信息。",
+            "",
             f"用户查询: {query}",
             f"找到 {len(retrieved_data)} 条相关记录:",
             ""
@@ -82,6 +93,7 @@ class ContextBuilder:
                 
                 ocr_text = record.get('ocr_text', '无文本内容')
                 window_title = record.get('window_title', '')
+                screenshot_id = record.get('screenshot_id') or record.get('id')  # 获取截图ID
                 
                 # 截断过长的文本
                 if len(ocr_text) > 200:
@@ -90,6 +102,8 @@ class ContextBuilder:
                 record_text = f"{i+1}. 时间: {timestamp}"
                 if window_title:
                     record_text += f", 窗口: {window_title}"
+                if screenshot_id:
+                    record_text += f", 截图ID: {screenshot_id}"
                 record_text += f"\n   内容: {ocr_text}"
                 
                 context_parts.append(record_text)
@@ -119,9 +133,20 @@ class ContextBuilder:
             格式化的上下文文本
         """
         if not retrieved_data:
-            return "没有找到匹配的搜索结果。"
+            return f"查询: {query}\n\n未找到相关记录。"
         
         context_parts = [
+            "你是一个智能助手，专门帮助用户分析和总结历史记录数据。",
+            "",
+            "**强制性要求 - 必须严格遵守：**",
+            "- 每当引用或提到任何具体信息时，必须标注截图ID来源，格式为：[截图ID: xxx]",
+            "- 不允许提及任何信息而不标注其来源截图ID",
+            "- 如果历史数据中包含截图ID信息，必须在相关内容后立即添加引用",
+            "- 这是为了确保信息的可追溯性和准确性",
+            "- 示例：\"用户在微信中发送了消息 [截图ID: 12345]\"",
+            "",
+            "请用中文回答，保持简洁明了，重点突出关键信息。",
+            "",
             f"搜索查询: {query}",
             f"找到 {len(retrieved_data)} 条匹配结果:",
             ""
@@ -144,13 +169,16 @@ class ContextBuilder:
             app_name = record.get('app_name', '未知应用')
             ocr_text = record.get('ocr_text', '无文本内容')
             relevance = record.get('relevance_score', 0)
+            screenshot_id = record.get('screenshot_id') or record.get('id')  # 获取截图ID
             
             # 截断过长的文本
             if len(ocr_text) > 150:
                 ocr_text = ocr_text[:150] + "..."
             
+            # 构建包含截图ID的上下文信息
+            id_info = f" (截图ID: {screenshot_id})" if screenshot_id else ""
             context_parts.append(
-                f"{i+1}. [{app_name}] {timestamp} (相关性: {relevance:.2f})\n"
+                f"{i+1}. [{app_name}] {timestamp} (相关性: {relevance:.2f}){id_info}\n"
                 f"   {ocr_text}"
             )
         
@@ -176,6 +204,17 @@ class ContextBuilder:
             格式化的上下文文本
         """
         context_parts = [
+            "你是一个智能助手，专门帮助用户分析和总结历史记录数据。",
+            "",
+            "**强制性要求 - 必须严格遵守：**",
+            "- 每当引用或提到任何具体信息时，必须标注截图ID来源，格式为：[截图ID: xxx]",
+            "- 不允许提及任何信息而不标注其来源截图ID",
+            "- 如果历史数据中包含截图ID信息，必须在相关内容后立即添加引用",
+            "- 这是为了确保信息的可追溯性和准确性",
+            "- 示例：\"用户在微信中发送了消息 [截图ID: 12345]\"",
+            "",
+            "请用中文回答，保持简洁明了，重点突出关键信息。",
+            "",
             f"统计查询: {query}",
             ""
         ]
@@ -287,7 +326,8 @@ class ContextBuilder:
                 "app_name": record.get('app_name'),
                 "window_title": record.get('window_title'),
                 "ocr_text": record.get('ocr_text', '')[:500],  # 截断OCR文本
-                "relevance_score": record.get('relevance_score', 0)
+                "relevance_score": record.get('relevance_score', 0),
+                "screenshot_id": record.get('screenshot_id') or record.get('id')  # 添加截图ID
             }
             detailed_records.append(detailed_record)
         

@@ -325,6 +325,13 @@ class RAGService:
 2. 分析提供的历史数据
 3. 生成准确、有用的总结
 
+**强制性要求 - 必须严格遵守：**
+- 每当引用或提到任何具体信息时，必须标注截图ID来源，格式为：[截图ID: xxx]
+- 不允许提及任何信息而不标注其来源截图ID
+- 如果历史数据中包含截图ID信息，必须在相关内容后立即添加引用
+- 这是为了确保信息的可追溯性和准确性
+- 示例："用户在微信中发送了消息 [截图ID: 12345]"
+
 请用中文回答，保持简洁明了，重点突出关键信息。
 """
             user_prompt = f"""
@@ -670,7 +677,7 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
                 # 需要数据库查询的情况
                 parsed_query = self.query_parser.parse_query(user_query)
                 query_type = 'statistics' if '统计' in user_query else 'search'
-                retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 50)
+                retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 500)
                 
                 # 构建上下文
                 if query_type == 'statistics':
@@ -684,7 +691,7 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
                     context_text = self.context_builder.build_search_context(
                         user_query, retrieved_data
                     )
-                
+                print(context_text)
                 messages = [
                     {"role": "system", "content": context_text},
                     {"role": "user", "content": user_query}
