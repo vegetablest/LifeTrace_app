@@ -21,8 +21,6 @@ record:
     - 微信
     - QQ
     - 钉钉
-  blacklist_enabled: true
-  blacklist_apps: ''
   enabled: true
 ocr:
   enabled: true
