@@ -1,4 +1,5 @@
-# LifeTrace Requirements
+# LifeTrace Merged Requirements
+# 合并所有requirements文件并去重
 
 # Core dependencies
 fastapi>=0.100.0
@@ -22,9 +23,6 @@ pyyaml>=6.0
 watchdog>=3.0.0
 typer>=0.9.0
 
-# Database
-# Note: ChromaDB is used for vector database functionality
-
 # Web interface
 jinja2>=3.1.0
 
@@ -33,8 +31,37 @@ psutil>=5.9.0
 python-dateutil>=2.8.0
 
 # Command line interface
-typer>=0.9.0
 rich>=13.0.0
+
+# PyTorch (CLIP需要)
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Transformers (Hugging Face CLIP模型)
+transformers>=4.21.0
+
+# 原版OpenAI CLIP (备选)
+#git+https://github.com/openai/CLIP.git
+
+# 数值计算
+scipy>=1.9.0
+
+# Embedding models and vector database
+sentence-transformers>=2.2.0
+chromadb>=0.4.0
+
+# Google Generative AI (optional for generation)
+google-generativeai>=0.3.0
 
 # OpenAI API
 openai>=1.0.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# 可选：中文CLIP支持
+# git+https://github.com/OFA-Sys/Chinese-CLIP.git
+
+# Note: ChromaDB is used for vector database functionality
+# Cross-encoder for reranking is included in sentence-transformers
