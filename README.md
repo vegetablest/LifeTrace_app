@@ -1,3 +1,9 @@
+![LifeTrace Logo](assets/rhn8yu8l.png)
+
+![GitHub stars](https://img.shields.io/github/stars/lifetrace/lifetrace?style=social) ![GitHub forks](https://img.shields.io/github/forks/lifetrace/lifetrace?style=social) ![GitHub issues](https://img.shields.io/github/issues/lifetrace/lifetrace) ![GitHub license](https://img.shields.io/github/license/lifetrace/lifetrace) ![Python version](https://img.shields.io/badge/python-3.8+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
+
+[📖 Documentation](doc/README.md) • [🚀 Quick Start](#quick-start) • [💡 Features](#core-features) • [🔧 API Reference](#web-api-service) • [🤝 Contributing](#contributing)
+
 # LifeTrace - Intelligent Life Recording System
 
 ## Project Overview
@@ -13,207 +19,6 @@ LifeTrace is an AI-powered intelligent life recording system that helps users re
 - **Web API Service**: Provides complete RESTful API interfaces
 - **Frontend Integration**: Supports integration with various frontend frameworks
 
-## Backend Architecture
-
-### System Architecture
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   LifeTrace Backend Architecture            │
-├─────────────────────────────────────────────────────────────┤
-│                                                            │
-│ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐     │
-│ │  Web API   │   │ Frontend UI │   │ Admin Tools │     │
-│ │(FastAPI)   │   │            │   │            │     │
-│ └─────────────┘   └─────────────┘   └─────────────┘     │
-│        │                  │                  │          │
-│        └───────────────────┼───────────────────┘          │
-│                            │                              │
-│ ┌─────────────────────────────────────────────────────────┐│
-│ │                  Core Services                         ││
-│ ├─────────────────────────────────────────────────────────┤│
-│ │                                                        ││
-│ │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐     ││
-│ │ │Screenshot   │ │File         │ │OCR          │     ││
-│ │ │Recorder     │ │Processor    │ │Service      │     ││
-│ │ └─────────────┘ └─────────────┘ └─────────────┘     ││
-│ │        │               │               │            ││
-│ │        └────────────────┼────────────────┘            ││
-│ │                         │                             ││
-│ │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐     ││
-│ │ │Vector       │ │Multimodal   │ │Storage      │     ││
-│ │ │Service      │ │Service      │ │Manager      │     ││
-│ │ └─────────────┘ └─────────────┘ └─────────────┘     ││
-│ └─────────────────────────────────────────────────────────┘│
-│                            │                              │
-│ ┌─────────────────────────────────────────────────────────┐│
-│ │                  Data Storage                          ││
-│ ├─────────────────────────────────────────────────────────┤│
-│ │                                                        ││
-│ │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐     ││
-│ │ │SQLite DB    │ │Vector DB    │ │File Storage │     ││
-│ │ │Metadata     │ │ChromaDB     │ │Screenshots  │     ││
-│ │ └─────────────┘ └─────────────┘ └─────────────┘     ││
-│ └─────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Core Module Details
-
-#### 1. Web API Service (`lifetrace_backend/server.py`)
-
-RESTful API service built on FastAPI, providing the following main endpoints:
-
-- **Screenshot Management**
-  - `GET /api/screenshots` - Get screenshot list
-  - `GET /api/screenshots/{id}` - Get single screenshot details
-  - `GET /api/screenshots/{id}/image` - Get screenshot image file
-
-- **Search Services**
-  - `POST /api/search` - Traditional keyword search
-  - `POST /api/semantic-search` - Semantic search
-  - `POST /api/multimodal-search` - Multimodal search
-
-- **System Management**
-  - `GET /api/statistics` - Get system statistics
-  - `GET /api/config` - Get system configuration
-  - `GET /api/health` - Health check
-  - `POST /api/cleanup` - Clean old data
-
-- **Vector Database Management**
-  - `GET /api/vector-stats` - Vector database statistics
-  - `POST /api/vector-sync` - Sync vector database
-  - `POST /api/vector-reset` - Reset vector database
-
-#### 2. Data Models (`lifetrace_backend/models.py`)
-
-Defines the core data models of the system:
-- **Screenshot**: Screenshot record model
-- **OCRResult**: OCR recognition result model
-- **SearchIndex**: Search index model
-- **ProcessingQueue**: Processing queue model
-
-#### 3. Configuration Management (`lifetrace_backend/config.py`)
-
-Unified configuration management system:
-- Supports YAML configuration files
-- Environment variable override
-- Default configuration
-- Configuration validation and type conversion
-
-#### 4. Storage Management (`lifetrace_backend/storage.py`)
-
-Database management and storage services:
-- **DatabaseManager**: SQLite database management
-- Transaction management support
-- Automatic database migration
-- Connection pool management
-- Data cleanup and maintenance
-
-#### 5. OCR Processing Module (`lifetrace_backend/simple_ocr.py`)
-
-Image text recognition service:
-- **SimpleOCRProcessor**: Text recognition based on RapidOCR
-- Supports multiple image formats
-- Batch processing capability
-- Result caching mechanism
-- Integration with vector services
-
-#### 6. Vector Services
-
-##### 6.1 Text Vector Service (`lifetrace_backend/vector_service.py`)
-
-- **VectorService**: Text semantic search service
-- Text embedding based on sentence-transformers
-- ChromaDB vector database storage
-- Supports reranking
-- Automatic synchronization mechanism
-
-##### 6.2 Multimodal Vector Service (`lifetrace_backend/multimodal_vector_service.py`)
-
-- **MultimodalVectorService**: Image + text joint search
-- Multimodal embedding based on CLIP model
-- Separate text and image vector storage
-- Weight fusion search algorithm
-- Cross-modal semantic understanding
-
-#### 7. File Processing Module (`lifetrace_backend/processor.py`)
-
-File system monitoring and processing:
-- **FileProcessor**: File monitoring and processing
-- **ScreenshotHandler**: Screenshot file event handling
-- Asynchronous processing queue
-- File change monitoring
-- Batch processing optimization
-
-#### 8. Screen Recording Module (`lifetrace_backend/recorder.py`)
-
-Automatic screenshot functionality:
-- **ScreenRecorder**: Screen recording management
-- Multi-screen support
-- Intelligent deduplication mechanism
-- Configurable screenshot interval
-- Active window information acquisition
-
-#### 9. Utility Module (`lifetrace_backend/utils.py`)
-
-Common utility functions:
-- Log configuration management
-- File hash calculation
-- Active window information acquisition
-- Cross-platform compatibility
-- File cleanup tools
-
-### Data Flow Architecture
-```
-Screenshot → File Monitor → OCR Process → Vector → Storage
-    ↓          ↓           ↓          ↓       ↓
-Scheduled   File Events  Text Extract Embedding Database
-    ↓          ↓           ↓          ↓       ↓
-Multi-screen Queue Process RapidOCR   CLIP    SQLite
-                                      ↓       ↓
-                                   Vector DB
-                                  (ChromaDB)
-```
-
-### Search Architecture
-
-```
-User Query
-    ↓
-┌─────────────┬─────────────┬─────────────┐
-│Keyword      │ Semantic    │Multimodal   │
-│Search       │ Search      │Search       │
-├─────────────┼─────────────┼─────────────┤
-│SQL LIKE     │Vector       │Image-Text   │
-│Full-text    │Similarity   │Fusion       │
-│Exact Match  │Semantic     │CLIP Model   │
-│             │Understanding│Cross-modal  │
-└─────────────┴─────────────┴─────────────┘
-    ↓            ↓            ↓
-Result Ranking → Reranking → Weight Fusion
-    ↓
-Unified Result Format
-```
-
-## Technology Stack
-
-### Backend Core
-- **FastAPI**: Web framework and API service
-- **SQLAlchemy**: ORM and database operations
-- **SQLite**: Main database
-- **ChromaDB**: Vector database
-
-### AI/ML Components
-- **RapidOCR**: Text recognition engine
-- **sentence-transformers**: Text embedding models
-- **CLIP**: Multimodal embedding model
-- **transformers**: Transformer model library
-
-### System Tools
-- **Pillow**: Image processing
-- **watchdog**: File system monitoring
-- **psutil**: System information acquisition
-- **pydantic**: Data validation
 
 ## Deployment and Configuration
 
@@ -302,76 +107,44 @@ LifeTrace/
 └── requirements.txt        # Dependencies
 ```
 
-### Extension Development
-1. **Add new search algorithms**: Extend `vector_service.py`
-2. **Support new OCR engines**: Modify `simple_ocr.py`
-3. **Add new API endpoints**: Extend `server.py`
-4. **Custom data models**: Modify `models.py`
 
-## Performance Optimization
-
-### Vector Database Optimization
-- Regular index rebuilding
-- Batch insert optimization
-- Memory usage monitoring
-
-### OCR Processing Optimization
-- Image preprocessing
-- Batch processing
-- Result caching
-
-### Search Performance Optimization
-- Result pagination
-- Query caching
-- Index optimization
-
-## Monitoring and Maintenance
-
-### Log Management
-- Log files: `logs/lifetrace_YYYYMMDD.log`
-- Log levels: DEBUG, INFO, WARNING, ERROR
-
-### Database Maintenance
-- Regular cleanup of old data
-- Database backup
-- Index rebuilding
-
-### System Monitoring
-- Service health check: `GET /api/health`
-- System statistics: `GET /api/statistics`
-- Queue status: `GET /api/queue/status`
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Vector database initialization failure**
-   - Check ChromaDB dependency installation
-   - Verify data directory permissions
-
-2. **Poor OCR recognition quality**
-   - Adjust image preprocessing parameters
-   - Check RapidOCR model files
-
-3. **Multimodal search unavailable**
-   - Install CLIP-related dependencies
-   - Check model download status
-
-### Debug Mode
-```bash
-python -m lifetrace_backend.server --debug
-```
 
 ## Contributing
 
-1. Fork the project
-2. Create a feature branch
-3. Commit changes
-4. Create a Pull Request
+The LifeTrace community is possible thanks to thousands of kind volunteers like you. We welcome all contributions to the community and are excited to welcome you aboard.
 
-## License
+> Please follow these steps to contribute.
 
-This project is licensed under the MIT License.
+**Recent Contributions:**
+
+![GitHub contributors](https://img.shields.io/github/contributors/tangyuanbo1/LifeTrace_app) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/tangyuanbo1/LifeTrace_app) ![GitHub last commit](https://img.shields.io/github/last-commit/tangyuanbo1/LifeTrace_app)
+
+**How to contribute:**
+
+1. **🍴 Fork the project** - Create your own copy of the repository
+2. **🌿 Create a feature branch** - `git checkout -b feature/amazing-feature`
+3. **💾 Commit your changes** - `git commit -m 'Add some amazing feature'`
+4. **📤 Push to the branch** - `git push origin feature/amazing-feature`
+5. **🔄 Create a Pull Request** - Submit your changes for review
+
+**Areas where you can contribute:**
+
+- 🐛 **Bug Reports** - Help us identify and fix issues
+- 💡 **Feature Requests** - Suggest new functionality
+- 📝 **Documentation** - Improve guides and tutorials
+- 🧪 **Testing** - Write tests and improve coverage
+- 🎨 **UI/UX** - Enhance the user interface
+- 🔧 **Code** - Implement new features and improvements
+
+**Getting Started:**
+
+- Check out our [Contributing Guidelines](CONTRIBUTING.md)
+- Look for issues labeled `good first issue` or `help wanted`
+- Join our community discussions in Issues and Pull Requests
+
+We appreciate all contributions, no matter how small! 🙏
+
+
 
 ## Documentation
 
@@ -386,3 +159,13 @@ For detailed documentation, please refer to the `doc/` directory:
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=tangyuanbo1/LifeTrace_app&type=Timeline)](https://www.star-history.com/#tangyuanbo1/LifeTrace_app&Timeline)
+
+
+## License
+
+Copyright © 2024 LifeTrace.org
+
+The content of this repository is bound by the following licenses:
+
+• The computer software is licensed under the [MIT](LICENSE) license.
+• The learning resources in the `/doc` directory including their subdirectories thereon are copyright © 2024 LifeTrace.org
