@@ -42,7 +42,7 @@ torchaudio>=2.0.0
 transformers>=4.21.0
 
 # 原版OpenAI CLIP (备选)
-git+https://github.com/openai/CLIP.git
+#git+https://github.com/openai/CLIP.git
 
 # 数值计算
 scipy>=1.9.0
