@@ -32,26 +32,9 @@ LifeTrace is an AI-powered intelligent life recording system that helps users re
 pip install -r requirements.txt
 ```
 
-### Configuration File
-Main configuration file: `config/default_config.yaml`
-
-```yaml
-server:
-  host: 127.0.0.1
-  port: 8840
-  debug: false
-
-vector_db:
-  enabled: true
-  collection_name: "lifetrace_ocr"
-  embedding_model: "shibing624/text2vec-base-chinese"
-  rerank_model: "BAAI/bge-reranker-base"
-  persist_directory: "vector_db"
-
-multimodal:
-  enabled: true
-  text_weight: 0.6
-  image_weight: 0.4
+### Initialize Database
+```bash
+python init_database.py
 ```
 
 ### Starting Services
@@ -78,33 +61,54 @@ python -m lifetrace_backend.processor
 python -m lifetrace_backend.simple_ocr
 ```
 
-## API Documentation
-
-After starting the service, access API documentation at:
-- Swagger UI: http://localhost:8840/docs
-- ReDoc: http://localhost:8840/redoc
-
 ## Development Guide
 
 ### Project Structure
 ```
-LifeTrace/
-├── lifetrace_backend/      # Core modules
-│   ├── server.py           # Web API service
-│   ├── models.py           # Data models
-│   ├── config.py           # Configuration management
-│   ├── storage.py          # Storage management
-│   ├── simple_ocr.py       # OCR processing
-│   ├── vector_service.py   # Vector service
-│   ├── multimodal_*.py     # Multimodal services
-│   ├── processor.py        # File processing
-│   ├── recorder.py         # Screen recording
-│   └── utils.py            # Utility functions
-├── config/                 # Configuration files
-├── doc/                    # Documentation
-├── data/                   # Data directory
-├── logs/                   # Log directory
-└── requirements.txt        # Dependencies
+LifeTrace_app/
+├── lifetrace_backend/          # Core backend modules
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── server.py               # Web API service
+│   ├── models.py               # Data models
+│   ├── config.py               # Configuration management
+│   ├── storage.py              # Storage management
+│   ├── simple_ocr.py           # OCR processing
+│   ├── vector_service.py       # Vector service
+│   ├── multimodal_*.py         # Multimodal services
+│   ├── processor.py            # File processing
+│   ├── recorder.py             # Screen recording
+│   ├── heartbeat.py            # Service heartbeat
+│   ├── rag_service.py          # RAG service
+│   ├── retrieval_service.py    # Retrieval service
+│   ├── sync_service.py         # Sync service
+│   ├── utils.py                # Utility functions
+│   └── templates/              # HTML templates
+├── config/                     # Configuration files
+│   ├── config.yaml
+│   └── default_config.yaml
+├── doc/                        # Documentation
+├── front/                      # Frontend application
+│   ├── components/             # React components
+│   ├── services/               # API services
+│   ├── public/                 # Static assets
+│   └── package.json            # Frontend dependencies
+├── debug/                      # Debug and diagnostic tools
+│   ├── test_*.py               # Test files
+│   ├── check_*.py              # Status check tools
+│   ├── diagnostic_tool.py      # System diagnostics
+│   ├── memory_analyzer.py      # Memory analysis
+│   └── *.py                    # Other debug utilities
+├── requirements/               # Dependency files
+│   ├── requirements.txt        # Main dependencies
+│   ├── requirements_multimodal.txt
+│   ├── requirements_rapidocr.txt
+│   └── requirements_vector.txt
+├── assets/                     # Static assets
+├── start_all_services.py       # Main service launcher
+├── init_database.py            # Database initialization
+├── init_config.py              # Configuration initialization
+└── setup.py                    # Project setup
 ```
 
 
