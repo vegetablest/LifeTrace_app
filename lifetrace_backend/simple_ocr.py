@@ -28,7 +28,7 @@ except ImportError:
 from lifetrace_backend.config import config
 from lifetrace_backend.storage import db_manager
 from lifetrace_backend.vector_service import create_vector_service
-from lifetrace_backend.heartbeat import HeartbeatLogger
+from lifetrace_backend.simple_heartbeat import SimpleHeartbeatSender
 
 
 class SimpleOCRProcessor:
@@ -333,8 +333,8 @@ def main():
     logger_manager = setup_logging(config)
     logger = logger_manager.get_ocr_logger()
     
-    # 初始化心跳记录器
-    heartbeat_logger = HeartbeatLogger('ocr')
+    # 初始化UDP心跳发送器
+    heartbeat_sender = SimpleHeartbeatSender('ocr')
     
     # 检查配置
     if not os.path.exists(config.database_path):
@@ -372,23 +372,20 @@ def main():
     print("按 Ctrl+C 停止服务")
     logger.info(f"OCR服务启动完成，检查间隔: {check_interval}秒")
     
-    # 记录心跳的时间戳
-    last_heartbeat_time = 0
-    heartbeat_interval = 1.0  # 每秒记录一次心跳
+    # 启动UDP心跳发送
+    heartbeat_sender.start(interval=1.0)
     processed_count = 0
     
     try:
         while True:
             start_time = time.time()
             
-            # 检查是否需要记录心跳
-            if start_time - last_heartbeat_time >= heartbeat_interval:
-                heartbeat_logger.record_heartbeat({
-                    'status': 'running',
-                    'processed_count': processed_count,
-                    'check_interval': check_interval
-                })
-                last_heartbeat_time = start_time
+            # 发送心跳（包含处理状态信息）
+            heartbeat_sender.send_heartbeat({
+                'status': 'running',
+                'processed_count': processed_count,
+                'check_interval': check_interval
+            })
             
             # 从数据库获取未处理的截图
             unprocessed_screenshots = get_unprocessed_screenshots(logger)
@@ -413,14 +410,15 @@ def main():
     except KeyboardInterrupt:
         print("\n收到停止信号，正在退出...")
         logger.info("收到停止信号，结束OCR处理")
-        heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
+        heartbeat_sender.send_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
     except Exception as e:
         print(f"服务异常: {e}")
         logger.error(f"OCR处理过程中发生错误: {e}")
-        heartbeat_logger.record_heartbeat({'status': 'error', 'error': str(e)})
+        heartbeat_sender.send_heartbeat({'status': 'error', 'error': str(e)})
         raise
     finally:
         print("OCR服务已停止")
+        heartbeat_sender.stop()
 
 
 if __name__ == '__main__':

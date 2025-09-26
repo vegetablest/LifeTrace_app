@@ -18,6 +18,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from lifetrace_backend.config import config
+from lifetrace_backend.simple_heartbeat import SimpleHeartbeatReceiver
 
 
 class ServiceManager:
@@ -34,6 +35,10 @@ class ServiceManager:
         
         self.last_heartbeat_check = {}
         self.restart_count = {}  # 记录每个服务的重启次数
+        
+        # 初始化UDP心跳接收器
+        self.heartbeat_receiver = SimpleHeartbeatReceiver(port=9999)
+        self.heartbeat_receiver.start()
     
     def start_service(self, name, module):
         """启动单个服务"""
@@ -52,6 +57,18 @@ class ServiceManager:
             self.restart_count[name] = 0  # 重置重启计数
             print(f"✅ {name} 服务已启动 (PID: {process.pid})")
             
+            # 等待一小段时间检查服务是否立即退出
+            time.sleep(1)
+            if process.poll() is not None:
+                # 服务已退出，读取错误信息
+                stdout, stderr = process.communicate()
+                print(f"❌ {name} 服务启动后立即退出 (退出码: {process.returncode})")
+                if stdout:
+                    print(f"📝 {name} STDOUT: {stdout}")
+                if stderr:
+                    print(f"🚨 {name} STDERR: {stderr}")
+                return False
+            
             return True
             
         except Exception as e:
@@ -60,19 +77,26 @@ class ServiceManager:
     
     def stop_all_services(self):
         """停止所有服务"""
-        print(f"\n🛑 正在停止所有服务...")
+        print("🛑 正在停止所有服务...")
+        
+        # 停止心跳接收器
+        if hasattr(self, 'heartbeat_receiver'):
+            self.heartbeat_receiver.stop()
         
         for name, process in self.processes.items():
             if process and process.poll() is None:
                 try:
+                    print(f"🛑 停止 {name}...")
                     process.terminate()
                     process.wait(timeout=5)
-                    print(f"✅ {name} 服务已停止")
+                    print(f"✅ {name} 已停止")
                 except subprocess.TimeoutExpired:
+                    print(f"⚠️  强制终止 {name}...")
                     process.kill()
-                    print(f"⚡ 强制停止 {name} 服务")
                 except Exception as e:
-                    print(f"❌ 停止 {name} 服务失败: {e}")
+                    print(f"❌ 停止 {name} 失败: {e}")
+        
+        self.processes.clear()
     
     def check_services(self):
         """检查服务状态"""
@@ -136,26 +160,22 @@ class ServiceManager:
         return None
     
     def check_service_heartbeat(self, service_name):
-        """检查服务心跳是否正常"""
-        heartbeat = self.get_service_heartbeat(service_name)
+        """检查服务心跳是否正常（使用UDP心跳）"""
+        # 服务名映射
+        service_mapping = {
+            "录制器": "recorder",
+            "处理器": "processor", 
+            "OCR服务": "ocr",
+            "Web服务": "server"
+        }
         
-        if not heartbeat:
-            return False
-            
-        try:
-            heartbeat_time = datetime.fromisoformat(heartbeat['timestamp'])
-            current_time = datetime.now()
-            time_diff = (current_time - heartbeat_time).total_seconds()
-            
-            # 如果心跳超时，认为服务异常
-            if time_diff > self.heartbeat_timeout:
-                print(f"⚠️  {service_name} 心跳超时 ({time_diff:.1f}秒)")
-                return False
-                
+        mapped_name = service_mapping.get(service_name, service_name.lower())
+        
+        # 使用UDP心跳检查
+        if self.heartbeat_receiver.is_service_alive(mapped_name, timeout=self.heartbeat_timeout):
             return True
-            
-        except Exception as e:
-            print(f"❌ 解析 {service_name} 心跳时间失败: {e}")
+        else:
+            print(f"⚠️  {service_name} UDP心跳超时")
             return False
     
     def restart_service(self, name, module):

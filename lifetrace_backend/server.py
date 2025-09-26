@@ -26,7 +26,7 @@ from lifetrace_backend.simple_ocr import SimpleOCRProcessor
 from lifetrace_backend.vector_service import create_vector_service
 from lifetrace_backend.multimodal_vector_service import create_multimodal_vector_service
 from lifetrace_backend.logging_config import setup_logging
-from lifetrace_backend.heartbeat import HeartbeatLogger
+from lifetrace_backend.simple_heartbeat import SimpleHeartbeatSender
 from lifetrace_backend.rag_service import RAGService
 
 # 导入系统资源分析模块
@@ -228,8 +228,8 @@ vector_service = create_vector_service(config, db_manager)
 # 初始化多模态向量数据库服务
 multimodal_vector_service = create_multimodal_vector_service(config, db_manager)
 
-# 初始化心跳记录器
-heartbeat_logger = HeartbeatLogger('server')
+# 初始化UDP心跳发送器
+heartbeat_sender = SimpleHeartbeatSender('server')
 
 # 初始化RAG服务
 rag_service = RAGService(
@@ -307,39 +307,36 @@ def add_to_session_context(session_id: str, role: str, content: str):
 
 def heartbeat_task_func():
     """心跳任务函数"""
-    last_heartbeat_time = 0
-    heartbeat_interval = 1.0  # 每秒记录一次心跳
-    
     try:
+        # 启动UDP心跳发送
+        heartbeat_sender.start(interval=1.0)
+        
         while not heartbeat_stop_event.is_set():
-            start_time = time.time()
+            # 获取系统资源信息
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            memory = psutil.virtual_memory()
             
-            # 检查是否需要记录心跳
-            if start_time - last_heartbeat_time >= heartbeat_interval:
-                # 获取系统资源信息
-                cpu_percent = psutil.cpu_percent(interval=0.1)
-                memory = psutil.virtual_memory()
-                
-                heartbeat_logger.record_heartbeat({
-                    'status': 'running',
-                    'cpu_percent': cpu_percent,
-                    'memory_percent': memory.percent,
-                    'memory_used_mb': memory.used // (1024 * 1024)
-                })
-                last_heartbeat_time = start_time
+            # 发送心跳（包含系统资源信息）
+            heartbeat_sender.send_heartbeat({
+                'status': 'running',
+                'cpu_percent': cpu_percent,
+                'memory_percent': memory.percent,
+                'memory_used_mb': memory.used // (1024 * 1024)
+            })
             
             # 短暂休眠，避免过度占用CPU
-            time.sleep(0.1)
+            time.sleep(1.0)
             
     except KeyboardInterrupt:
         logger.info("收到停止信号，结束服务器心跳")
-        heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
+        heartbeat_sender.send_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
     except Exception as e:
         logger.error(f"服务器心跳过程中发生错误: {e}")
-        heartbeat_logger.record_heartbeat({'status': 'error', 'error': str(e)})
+        heartbeat_sender.send_heartbeat({'status': 'error', 'error': str(e)})
         raise
     finally:
         logger.info("服务器心跳已停止")
+        heartbeat_sender.stop()
 
 
 @app.on_event("startup")
@@ -360,7 +357,7 @@ async def shutdown_event():
     heartbeat_stop_event.set()
     if heartbeat_thread and heartbeat_thread.is_alive():
         heartbeat_thread.join(timeout=2.0)
-    heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'shutdown'})
+    heartbeat_sender.send_heartbeat({'status': 'stopped', 'reason': 'shutdown'})
 
 
 @app.get("/", response_class=HTMLResponse)

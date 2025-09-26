@@ -23,7 +23,7 @@ from lifetrace_backend.storage import db_manager
 from lifetrace_backend.utils import get_file_hash, get_active_window_info
 from lifetrace_backend.logging_config import setup_logging
 from lifetrace_backend.consistency_checker import ConsistencyChecker
-from lifetrace_backend.heartbeat import HeartbeatLogger
+from lifetrace_backend.simple_heartbeat import SimpleHeartbeatSender
 
 # 设置日志系统
 logger_manager = setup_logging(config)
@@ -80,8 +80,8 @@ class FileProcessor:
             check_interval=self.config.get('consistency_check.interval', 300)
         )
         
-        # 初始化心跳记录器
-        self.heartbeat_logger = HeartbeatLogger('processor')
+        # 初始化UDP心跳发送器
+        self.heartbeat_sender = SimpleHeartbeatSender('processor')
         
         logging.info("文件处理器初始化完成")
     
@@ -240,24 +240,19 @@ class FileProcessor:
         
         logging.info("文件处理器启动完成（包含一致性检查功能）")
         
-        # 记录心跳的时间戳
-        last_heartbeat_time = 0
-        heartbeat_interval = 1.0  # 每秒记录一次心跳
+        # 启动UDP心跳发送
+        self.heartbeat_sender.start(interval=1.0)
         
         try:
             while self.running:
-                current_time = time.time()
-                
-                # 检查是否需要记录心跳
-                if current_time - last_heartbeat_time >= heartbeat_interval:
-                    queue_status = self.get_queue_status()
-                    self.heartbeat_logger.record_heartbeat({
-                        'status': 'running',
-                        'queue_size': queue_status['queue_size'],
-                        'processed_count': queue_status['processed_count'],
-                        'worker_count': queue_status['worker_count']
-                    })
-                    last_heartbeat_time = current_time
+                # 发送心跳（包含队列状态信息）
+                queue_status = self.get_queue_status()
+                self.heartbeat_sender.send_heartbeat({
+                    'status': 'running',
+                    'queue_size': queue_status['queue_size'],
+                    'processed_count': queue_status['processed_count'],
+                    'worker_count': queue_status['worker_count']
+                })
                 
                 time.sleep(1)
                 
@@ -268,10 +263,10 @@ class FileProcessor:
                     
         except KeyboardInterrupt:
             logging.info("收到停止信号")
-            self.heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
+            self.heartbeat_sender.send_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
         except Exception as e:
             logging.error(f"处理器运行异常: {e}")
-            self.heartbeat_logger.record_heartbeat({'status': 'error', 'error': str(e)})
+            self.heartbeat_sender.send_heartbeat({'status': 'error', 'error': str(e)})
         finally:
             self.stop()
     
@@ -280,6 +275,9 @@ class FileProcessor:
         logging.info("正在停止文件处理器...")
         
         self.running = False
+        
+        # 停止UDP心跳发送
+        self.heartbeat_sender.stop()
         
         # 停止一致性检查器
         self.consistency_checker.stop()

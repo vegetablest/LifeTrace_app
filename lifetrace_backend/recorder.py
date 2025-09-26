@@ -21,7 +21,7 @@ from lifetrace_backend.config import config
 from lifetrace_backend.utils import ensure_dir, get_active_window_info, get_screenshot_filename
 from lifetrace_backend.storage import db_manager
 from lifetrace_backend.logging_config import setup_logging
-from lifetrace_backend.heartbeat import HeartbeatLogger
+from lifetrace_backend.simple_heartbeat import SimpleHeartbeatSender
 from lifetrace_backend.app_mapping import expand_blacklist_apps
 
 # 设置日志系统
@@ -95,8 +95,8 @@ class ScreenRecorder:
         # 上一张截图的哈希值（用于去重）
         self.last_hashes = {}
         
-        # 初始化心跳记录器
-        self.heartbeat_logger = HeartbeatLogger('recorder')
+        # 初始化UDP心跳发送器
+        self.heartbeat_sender = SimpleHeartbeatSender('recorder')
         
         logger.info(f"超时配置 - 文件I/O: {self.file_io_timeout}s, 数据库: {self.db_timeout}s, 窗口信息: {self.window_info_timeout}s")
         
@@ -360,22 +360,19 @@ class ScreenRecorder:
         """开始录制"""
         logger.info("开始屏幕录制...")
         
-        # 记录心跳的时间戳
-        last_heartbeat_time = 0
-        heartbeat_interval = 1.0  # 每秒记录一次心跳
+        # 启动UDP心跳发送
+        self.heartbeat_sender.start(interval=1.0)
         
         try:
             while True:
                 start_time = time.time()
                 
-                # 检查是否需要记录心跳
-                if start_time - last_heartbeat_time >= heartbeat_interval:
-                    self.heartbeat_logger.record_heartbeat({
-                        'status': 'running',
-                        'screens': len(self.screens),
-                        'interval': self.interval
-                    })
-                    last_heartbeat_time = start_time
+                # 发送心跳（包含额外数据）
+                self.heartbeat_sender.send_heartbeat({
+                    'status': 'running',
+                    'screens': len(self.screens),
+                    'interval': self.interval
+                })
                 
                 # 截图
                 captured_files = self.capture_all_screens()
@@ -394,11 +391,14 @@ class ScreenRecorder:
                     
         except KeyboardInterrupt:
             logger.info("收到停止信号，结束录制")
-            self.heartbeat_logger.record_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
+            self.heartbeat_sender.send_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
         except Exception as e:
             logger.error(f"录制过程中发生错误: {e}")
-            self.heartbeat_logger.record_heartbeat({'status': 'error', 'error': str(e)})
+            self.heartbeat_sender.send_heartbeat({'status': 'error', 'error': str(e)})
             raise
+        finally:
+            # 停止心跳发送
+            self.heartbeat_sender.stop()
 
 def main():
     """主函数 - 命令行入口"""
