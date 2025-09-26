@@ -1389,7 +1389,7 @@ async def get_system_resources():
                 
                 if any(keyword in cmdline.lower() for keyword in [
                     'lifetrace', 'recorder.py', 'processor.py', 'server.py', 
-                    'start_all_services.py', 'start_ocr_service.py'
+                    'start_all_services.py'
                 ]):
                     # 使用非阻塞的CPU百分比获取，避免卡死
                     try:

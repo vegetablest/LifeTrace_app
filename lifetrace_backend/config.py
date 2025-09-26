@@ -63,7 +63,13 @@ class LifeTraceConfig:
             },
             'record': {
                 'interval': 1,  # 截图间隔（秒）
-                'screens': 'all'  # 截图屏幕：all 或屏幕编号列表
+                'screens': 'all',  # 截图屏幕：all 或屏幕编号列表
+                'auto_exclude_self': True,  # 自动排除LifeTrace自身窗口
+                'blacklist': {
+                    'enabled': False,  # 是否启用黑名单功能
+                    'apps': [],  # 应用黑名单
+                    'windows': []  # 窗口标题黑名单
+                }
             },
             'ocr': {
                 'enabled': True,

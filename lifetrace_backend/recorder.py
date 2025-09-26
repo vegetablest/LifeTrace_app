@@ -185,8 +185,72 @@ class ScreenRecorder:
             logger.error(f"获取窗口信息失败: {e}")
             return ("未知应用", "未知窗口")
     
+    def _is_lifetrace_window(self, app_name: str, window_title: str) -> bool:
+        """检查是否为LifeTrace相关窗口"""
+        if not app_name and not window_title:
+            return False
+        
+        # LifeTrace相关的应用名称模式
+        lifetrace_app_patterns = [
+            'python',
+            'pythonw',
+            'lifetrace',
+            'electron',
+            'chrome',
+            'msedge',
+            'firefox',
+            'browser'
+        ]
+        
+        # LifeTrace相关的窗口标题模式
+        lifetrace_window_patterns = [
+            'lifetrace',
+            'localhost:8840',
+            '127.0.0.1:8840',
+            'lifetrace - intelligent life recording system',
+            'lifetrace desktop',
+            'lifetrace 智能生活记录系统',
+            'lifetrace 桌面版',
+            'lifetrace frontend',
+            'lifetrace web interface'
+        ]
+        
+        # 检查应用名
+        if app_name:
+            app_name_lower = app_name.lower()
+            # 如果是浏览器类应用，需要进一步检查窗口标题
+            browser_apps = ['chrome', 'msedge', 'firefox', 'electron']
+            if any(browser in app_name_lower for browser in browser_apps):
+                if window_title:
+                    window_title_lower = window_title.lower()
+                    for pattern in lifetrace_window_patterns:
+                        if pattern in window_title_lower:
+                            return True
+            # 如果是Python相关应用，检查是否运行LifeTrace
+            elif any(pattern in app_name_lower for pattern in ['python', 'pythonw']):
+                if window_title:
+                    window_title_lower = window_title.lower()
+                    for pattern in lifetrace_window_patterns:
+                        if pattern in window_title_lower:
+                            return True
+        
+        # 检查窗口标题
+        if window_title:
+            window_title_lower = window_title.lower()
+            for pattern in lifetrace_window_patterns:
+                if pattern in window_title_lower:
+                    return True
+        
+        return False
+    
     def _is_app_blacklisted(self, app_name: str, window_title: str) -> bool:
         """检查应用是否在黑名单中"""
+        # 首先检查是否启用自动排除LifeTrace自身窗口
+        auto_exclude_self = self.config.get('record.auto_exclude_self', True)
+        if auto_exclude_self and self._is_lifetrace_window(app_name, window_title):
+            logger.info(f"检测到LifeTrace自身窗口 - 应用: '{app_name}', 窗口: '{window_title}', 跳过截图")
+            return True
+        
         # 检查黑名单功能是否启用
         blacklist_enabled = self.config.get('record.blacklist.enabled', False)
         if not blacklist_enabled:

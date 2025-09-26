@@ -14,6 +14,7 @@ server:
 record:
   interval: 1  # 截图间隔（秒）
   screens: 'all'  # 截图屏幕：all 或屏幕编号列表
+  auto_exclude_self: true  # 自动排除LifeTrace自身窗口
   blacklist:
     enabled: false  # 是否启用黑名单功能
     apps: []  # 应用黑名单，使用友好名称，例如: ["微信", "QQ", "钉钉"]

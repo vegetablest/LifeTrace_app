@@ -142,6 +142,14 @@
       <div class="card-c">
         <div class="row">
           <div class="col">
+            <div class="label">自动排除LifeTrace</div>
+            <div class="hint">自动排除LifeTrace自身窗口，避免记录闭环</div>
+          </div>
+          <div class="switch" id="autoExcludeSelf"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="row">
+          <div class="col">
             <div class="label">启用黑名单</div>
             <div class="hint">过滤指定应用的录制和截图</div>
           </div>
@@ -362,6 +370,7 @@
       // 来自参考页面的设置
       isDark: false,
       language: 'zh-CN',
+      autoExcludeSelf: true,
       blacklistEnabled: true,
       blacklistApps: '',
       recordingEnabled: true,
@@ -391,6 +400,7 @@
     const els = {
       themeToggle: $('themeToggle'), themeIcon: $('themeIcon'),
       isDark: $('isDark'), language: $('language'),
+      autoExcludeSelf: $('autoExcludeSelf'),
       blacklistEnabled: $('blacklistEnabled'), blacklistApps: $('blacklistApps'),
       recordingEnabled: $('recordingEnabled'), recordInterval: $('recordInterval'), recordIntervalLabel: $('recordIntervalLabel'), screenSelection: $('screenSelection'),
       storageEnabled: $('storageEnabled'), maxDays: $('maxDays'), maxDaysLabel: $('maxDaysLabel'), deduplicateEnabled: $('deduplicateEnabled'),
@@ -413,6 +423,9 @@
     // 外观
     setSwitch(els.isDark, state.isDark || state.darkMode);
     els.language.value = state.language;
+
+    // 自动排除设置
+    setSwitch(els.autoExcludeSelf, state.autoExcludeSelf);
 
     // 黑名单
     setSwitch(els.blacklistEnabled, state.blacklistEnabled);
@@ -528,6 +541,11 @@
     });
 
     els.language.addEventListener('change', e => { state.language = e.target.value; persist(); });
+
+    els.autoExcludeSelf.addEventListener('click', () => {
+      const on = !els.autoExcludeSelf.classList.contains('on');
+      setSwitch(els.autoExcludeSelf, on); state.autoExcludeSelf = on; persist();
+    });
 
     els.blacklistEnabled.addEventListener('click', () => {
       const on = !els.blacklistEnabled.classList.contains('on');
