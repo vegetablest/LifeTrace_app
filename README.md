@@ -150,15 +150,8 @@ We appreciate all contributions, no matter how small! 🙏
 
 
 
-## Documentation
-
-For detailed documentation, please refer to the `doc/` directory:
-- [OCR Optimization Guide](doc/OCR_优化说明.md)
-- [RapidOCR Integration Guide](doc/RapidOCR集成说明.md)
-- [Multimodal Search Guide](doc/multimodal_search_guide.md)
-- [Vector Database Usage Guide](doc/vector_db_usage.md)
-- [Frontend Integration Guide](doc/前端集成说明.md)
-- [Documentation Center](doc/README.md)
+## Document
+We use deepwiki to manage our docs, please ref to this [**website.**](https://deepwiki.com/tangyuanbo1/LifeTrace_app/6.2-deployment-and-setup)
 
 ## Star History
 
