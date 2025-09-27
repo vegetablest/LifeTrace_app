@@ -324,7 +324,14 @@ class ScreenRecorder:
             previous = imagehash.hex_to_hash(last_hash)
             distance = current - previous
             
-            return distance <= self.hash_threshold
+            is_duplicate = distance <= self.hash_threshold
+            
+            # 简单的去重通知
+            if is_duplicate:
+                logger.info(f"屏幕 {screen_id}: 跳过重复截图")
+                print(f"[去重] 屏幕 {screen_id}: 跳过重复截图")
+            
+            return is_duplicate
         except Exception as e:
             logger.error(f"比较图像哈希失败: {e}")
             return False
@@ -361,7 +368,6 @@ class ScreenRecorder:
                 if self._is_duplicate(screen_id, image_hash):
                     # 删除重复图像
                     os.remove(file_path)
-                    logger.debug(f"删除重复截图: {filename}")
                     return None
                 
                 # 更新哈希记录
@@ -411,6 +417,7 @@ class ScreenRecorder:
         # 检查是否在黑名单中
         if self._is_app_blacklisted(app_name, window_title):
             logger.debug(f"当前应用 '{app_name}' 或窗口 '{window_title}' 在黑名单中，跳过所有屏幕截图")
+            print(f"[黑名单] 跳过截图 - 应用: {app_name}, 窗口: {window_title}")
             return captured_files
         
         for screen_id in self.screens:
@@ -456,13 +463,20 @@ class ScreenRecorder:
         except KeyboardInterrupt:
             logger.info("收到停止信号，结束录制")
             self.heartbeat_sender.send_heartbeat({'status': 'stopped', 'reason': 'keyboard_interrupt'})
+            self._print_final_stats()
         except Exception as e:
             logger.error(f"录制过程中发生错误: {e}")
             self.heartbeat_sender.send_heartbeat({'status': 'error', 'error': str(e)})
+            self._print_final_stats()
             raise
         finally:
             # 停止心跳发送
             self.heartbeat_sender.stop()
+    
+    def _print_final_stats(self):
+        """输出最终统计信息"""
+        logger.info("录制会话结束")
+        print("录制结束")
 
 def main():
     """主函数 - 命令行入口"""

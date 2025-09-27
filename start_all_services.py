@@ -46,10 +46,12 @@ class ServiceManager:
             print(f"🚀 启动 {name} 服务...")
             
             cmd = [sys.executable, '-m', module]
+            # 修复：不捕获输出管道，让子进程直接输出到终端
+            # 这样避免了管道缓冲区阻塞问题
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                # stdout=None,  # 继承父进程的stdout（终端）
+                # stderr=None,  # 继承父进程的stderr（终端）
                 text=True
             )
             
@@ -58,15 +60,9 @@ class ServiceManager:
             print(f"✅ {name} 服务已启动 (PID: {process.pid})")
             
             # 等待一小段时间检查服务是否立即退出
-            time.sleep(1)
+            time.sleep(2)  # 增加等待时间，给服务更多启动时间
             if process.poll() is not None:
-                # 服务已退出，读取错误信息
-                stdout, stderr = process.communicate()
                 print(f"❌ {name} 服务启动后立即退出 (退出码: {process.returncode})")
-                if stdout:
-                    print(f"📝 {name} STDOUT: {stdout}")
-                if stderr:
-                    print(f"🚨 {name} STDERR: {stderr}")
                 return False
             
             return True
@@ -115,20 +111,9 @@ class ServiceManager:
     
     def show_service_output(self):
         """显示服务输出"""
-        for name, process in self.processes.items():
-            if process and process.poll() is None:
-                try:
-                    # 非阻塞读取输出
-                    stdout_data = process.stdout.read()
-                    stderr_data = process.stderr.read()
-                    
-                    if stdout_data:
-                        print(f"[{name} STDOUT] {stdout_data}")
-                    if stderr_data:
-                        print(f"[{name} STDERR] {stderr_data}")
-                        
-                except Exception:
-                    pass
+        # 由于不再捕获输出管道，此方法不再需要
+        # 服务输出会直接显示在终端中
+        pass
     
     def get_service_heartbeat(self, service_name):
         """获取服务的最新心跳信息"""
@@ -290,19 +275,18 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # 启动服务
+    # 启动服务（先启动 Web 服务，便于查看状态）
     services = [
+        ("Web服务", "lifetrace_backend.server"),
         ("录制器", "lifetrace_backend.recorder"),
-        ("处理器", "lifetrace_backend.processor"),
-        ("OCR服务", "lifetrace_backend.simple_ocr"),
-        ("Web服务", "lifetrace_backend.server")
+        ("OCR服务", "lifetrace_backend.simple_ocr")
     ]
     
     success_count = 0
     for name, module in services:
         if manager.start_service(name, module):
             success_count += 1
-            time.sleep(2)  # 给服务启动时间
+            time.sleep(4)  # 给服务启动时间，避免资源竞争
     
     if success_count == 0:
         print("❌ 没有服务启动成功")
