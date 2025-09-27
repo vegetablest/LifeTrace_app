@@ -1,6 +1,6 @@
 ![LifeTrace Logo](assets/rhn8yu8l.png)
 
-![GitHub stars](https://img.shields.io/github/stars/lifetrace/lifetrace?style=social) ![GitHub forks](https://img.shields.io/github/forks/lifetrace/lifetrace?style=social) ![GitHub issues](https://img.shields.io/github/issues/lifetrace/lifetrace) ![GitHub license](https://img.shields.io/github/license/lifetrace/lifetrace) ![Python version](https://img.shields.io/badge/python-3.8+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
+![GitHub stars](https://img.shields.io/github/stars/tangyuanbo1/LifeTrace_app?style=social) ![GitHub forks](https://img.shields.io/github/forks/tangyuanbo1/LifeTrace_app?style=social) ![GitHub issues](https://img.shields.io/github/issues/tangyuanbo1/LifeTrace_app) ![GitHub license](https://img.shields.io/github/license/tangyuanbo1/LifeTrace_app) ![Python version](https://img.shields.io/badge/python-3.8+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 
 [📖 Documentation](doc/README.md) • [🚀 Quick Start](#quick-start) • [💡 Features](#core-features) • [🔧 API Reference](#web-api-service) • [🤝 Contributing](#contributing)
 
@@ -19,6 +19,34 @@ LifeTrace is an AI-powered intelligent life recording system that helps users re
 - **Web API Service**: Provides complete RESTful API interfaces
 - **Frontend Integration**: Supports integration with various frontend frameworks
 
+## 📋 TODO & Roadmap
+
+### 🚀 High Priority
+
+
+- ☐ **User Experience Improvements**
+  - ☐ Implement keyboard shortcuts for power users
+  - ☐ Create interactive onboarding tutorial
+
+
+  
+
+### 💡 Future Ideas
+
+
+- ☐ **Mobile & Cross-Platform**
+  - ☐ Develop mobile companion app
+  - ☐ Add tablet-optimized interface
+  - ☐ Create web-based version
+
+
+### ✅ Recently Completed
+- ☑ **Core Infrastructure** - Basic screenshot recording and OCR functionality
+
+
+---
+
+> 💡 **Want to contribute?** Check out our [Contributing Guidelines](#contributing) and pick up any TODO item that interests you!
 
 ## Deployment and Configuration
 
