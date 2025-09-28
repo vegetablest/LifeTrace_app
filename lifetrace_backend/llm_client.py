@@ -18,9 +18,15 @@ class LLMClient:
             base_url: API基础URL
             model: 使用的模型名称
         """
-        self.api_key = api_key or "sk-8l2Kkkjshq5tqIgKg7BOL6boFCZbXAZy0tYsWrK1m7lAEk29"
-        self.base_url = base_url or "https://api.openai-proxy.org/v1"
-        self.model = model or "claude-sonnet-4-20250514"
+        # 原有Claude配置（已注释）
+        # self.api_key = api_key or "sk-8l2Kkkjshq5tqIgKg7BOL6boFCZbXAZy0tYsWrK1m7lAEk29"
+        # self.base_url = base_url or "https://api.openai-proxy.org/v1"
+        # self.model = model or "claude-sonnet-4-20250514"
+        
+        # 新的Qwen配置
+        self.api_key = api_key or "sk-ef4b56e3bc9c4693b596415dd364af56"
+        self.base_url = base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        self.model = model or "qwen3-max"
         
         try:
             self.client = OpenAI(

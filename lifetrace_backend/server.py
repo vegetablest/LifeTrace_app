@@ -234,9 +234,15 @@ heartbeat_sender = SimpleHeartbeatSender('server')
 # 初始化RAG服务
 rag_service = RAGService(
     db_manager=db_manager,
-    api_key="sk-8l2Kkkjshq5tqIgKg7BOL6boFCZbXAZy0tYsWrK1m7lAEk29",
-    base_url="https://api.openai-proxy.org/v1",
-    model="claude-sonnet-4-20250514"
+    # 原有Claude配置（已注释）
+    # api_key="sk-8l2Kkkjshq5tqIgKg7BOL6boFCZbXAZy0tYsWrK1m7lAEk29",
+    # base_url="https://api.openai-proxy.org/v1",
+    # model="claude-sonnet-4-20250514"
+    
+    # 新的Qwen配置
+    api_key="sk-ef4b56e3bc9c4693b596415dd364af56",
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model="qwen3-max"
 )
 
 # 心跳任务控制
