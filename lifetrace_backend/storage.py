@@ -518,7 +518,7 @@ class DatabaseManager:
     
     def search_screenshots(self, query: str = None, start_date: datetime = None, 
                           end_date: datetime = None, app_name: str = None, 
-                          limit: int = 50) -> List[Dict[str, Any]]:
+                          limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """搜索截图"""
         try:
             with self.get_session() as session:
@@ -541,7 +541,8 @@ class DatabaseManager:
                 if query:
                     query_obj = query_obj.filter(OCRResult.text_content.like(f"%{query}%"))
                 
-                results = query_obj.order_by(Screenshot.created_at.desc()).limit(limit).all()
+                # 应用分页：先排序，再应用offset和limit
+                results = query_obj.order_by(Screenshot.created_at.desc()).offset(offset).limit(limit).all()
                 
                 # 格式化结果
                 formatted_results = []

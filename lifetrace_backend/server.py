@@ -333,7 +333,7 @@ def heartbeat_task_func():
     except Exception as e:
         logger.error(f"服务器心跳过程中发生错误: {e}")
         heartbeat_sender.send_heartbeat({'status': 'error', 'error': str(e)})
-        raise
+        # 不再重新抛出异常，避免导致服务器退出
     finally:
         logger.info("服务器心跳已停止")
         heartbeat_sender.stop()
@@ -772,17 +772,14 @@ async def get_screenshots(
         if end_date:
             end_dt = datetime.fromisoformat(end_date)
         
-        # 搜索截图
+        # 搜索截图 - 直接传递offset和limit给数据库查询
         results = db_manager.search_screenshots(
             start_date=start_dt,
             end_date=end_dt,
             app_name=app_name,
-            limit=limit
+            limit=limit,
+            offset=offset  # 新增offset参数
         )
-        
-        # 应用偏移
-        if offset > 0:
-            results = results[offset:]
         
         return [ScreenshotResponse(**result) for result in results]
         

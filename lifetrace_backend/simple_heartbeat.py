@@ -49,7 +49,7 @@ class SimpleHeartbeatSender:
                 self.send_heartbeat()
                 time.sleep(interval)
             except Exception as e:
-                print(f"⚠️ {self.service_name} 心跳发送失败: {e}")
+                print(f"WARNING: {self.service_name} 心跳发送失败: {e}")
                 time.sleep(interval)
     
     def send_heartbeat(self, status: str = 'healthy', extra_data: Optional[Dict] = None):
@@ -70,7 +70,7 @@ class SimpleHeartbeatSender:
             self.sock.sendto(message, (self.manager_host, self.manager_port))
             return True
         except Exception as e:
-            print(f"⚠️ {self.service_name} 发送心跳失败: {e}")
+            print(f"WARNING: {self.service_name} 发送心跳失败: {e}")
             return False
 
 
@@ -130,7 +130,7 @@ class SimpleHeartbeatReceiver:
                 continue  # 正常超时，继续监听
             except Exception as e:
                 if self.running:  # 只在运行时打印错误
-                    print(f"⚠️ 心跳接收错误: {e}")
+                    print(f"WARNING: 心跳接收错误: {e}")
     
     def get_service_status(self, service_name: str) -> Optional[Dict]:
         """获取服务状态"""

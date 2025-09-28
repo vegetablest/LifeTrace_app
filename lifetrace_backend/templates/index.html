@@ -405,6 +405,128 @@
                 gap: 0.5rem;
             }
         }
+        
+        /* 翻页组件样式 */
+        .pagination-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 2rem 0;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .pagination-btn {
+            padding: 0.6rem 1rem;
+            border: 1px solid #e0e0e0;
+            background: white;
+            color: #495057;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            min-width: 44px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            user-select: none;
+        }
+        
+        .pagination-btn:hover:not(.disabled) {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .pagination-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+            font-weight: 600;
+        }
+        
+        .pagination-btn.disabled {
+            background: #f8f9fa;
+            color: #adb5bd;
+            cursor: not-allowed;
+            border-color: #e9ecef;
+            opacity: 0.6;
+        }
+        
+        .pagination-btn.disabled:hover {
+            transform: none;
+            box-shadow: none;
+            background: #f8f9fa;
+            color: #adb5bd;
+            border-color: #e9ecef;
+        }
+        
+        .pagination-ellipsis {
+            padding: 0.6rem 0.5rem;
+            color: #6c757d;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            height: 40px;
+        }
+        
+        .pagination-info {
+            margin-left: 1.5rem;
+            color: #495057;
+            font-size: 0.9rem;
+            font-weight: 500;
+            background: white;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            white-space: nowrap;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .pagination-container {
+                gap: 0.3rem;
+                padding: 0.8rem;
+                margin: 1.5rem 0;
+            }
+            
+            .pagination-btn {
+                padding: 0.5rem 0.7rem;
+                font-size: 0.8rem;
+                min-width: 36px;
+                height: 36px;
+            }
+            
+            .pagination-info {
+                margin-left: 0;
+                margin-top: 0.5rem;
+                font-size: 0.8rem;
+                width: 100%;
+                text-align: center;
+            }
+            
+            .pagination-container {
+                flex-direction: column;
+            }
+            
+            .pagination-container > div:first-child {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 0.3rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -520,6 +642,9 @@
             </div>
             <div id="resultsContainer">
                 <div class="loading">正在加载...</div>
+            </div>
+            <!-- 翻页组件 -->
+            <div class="pagination-container" style="display: none; text-align: center; margin: 2rem 0; padding: 1rem;">
             </div>
         </div>
     </div>
@@ -714,21 +839,51 @@
         // 加载截图列表
         async function loadScreenshots(params = {}) {
             const container = document.getElementById('resultsContainer');
+            const paginationContainer = document.querySelector('.pagination-container');
             container.innerHTML = '<div class="loading">正在加载...</div>';
             
             try {
+                // 获取总数统计
+                const statsResponse = await fetch('/api/statistics');
+                const stats = await statsResponse.json();
+                totalPages = Math.ceil(stats.total_screenshots / pageSize);
+                
+                console.log(`loadScreenshots: currentPage=${currentPage}, pageSize=${pageSize}, totalPages=${totalPages}`);
+                
+                // 设置默认参数，避免加载过多数据
+                const defaultParams = {
+                    limit: pageSize,  // 使用pageSize变量
+                    offset: (currentPage - 1) * pageSize,  // 计算偏移量
+                    ...params
+                };
+                
+                console.log(`loadScreenshots参数:`, defaultParams);
+                
                 const url = new URL('/api/screenshots', window.location.origin);
-                Object.keys(params).forEach(key => {
-                    if (params[key]) {
-                        url.searchParams.append(key, params[key]);
+                Object.keys(defaultParams).forEach(key => {
+                    if (defaultParams[key] !== undefined && defaultParams[key] !== null) {
+                        url.searchParams.append(key, defaultParams[key]);
                     }
                 });
+                
+                console.log(`loadScreenshots API URL: ${url.toString()}`);
                 
                 const response = await fetch(url);
                 const screenshots = await response.json();
                 
+                console.log(`loadScreenshots返回数据:`, screenshots);
+                console.log(`loadScreenshots返回数据长度: ${screenshots.length}`);
+                
                 currentResults = screenshots;
                 displayScreenshots(screenshots);
+                
+                // 显示和更新翻页组件
+                if (totalPages > 1) {
+                    paginationContainer.style.display = 'block';
+                    updatePagination();
+                } else {
+                    paginationContainer.style.display = 'none';
+                }
                 
             } catch (error) {
                 console.error('加载截图失败:', error);
@@ -745,11 +900,20 @@
             
             if (!query && !startDate && !endDate && !appName) {
                 // 如果没有任何搜索条件，加载最新截图
+                currentPage = 1; // 重置到第一页
                 loadScreenshots();
                 return;
             }
             
+            // 重置到第一页进行搜索
+            currentPage = 1;
+            await performSearchWithPagination(query, startDate, endDate, appName);
+        }
+        
+        // 支持翻页的搜索函数
+        async function performSearchWithPagination(query, startDate, endDate, appName) {
             const container = document.getElementById('resultsContainer');
+            const paginationContainer = document.querySelector('.pagination-container');
             container.innerHTML = '<div class="loading">正在搜索...</div>';
             
             if (currentSearchType === 'semantic') {
@@ -790,10 +954,27 @@
                 }
                 
                 currentResults = results;
+                
+                // 对于搜索结果，计算总页数
+                totalPages = Math.ceil(results.length / pageSize);
+                
+                // 获取当前页的数据
+                const startIndex = (currentPage - 1) * pageSize;
+                const endIndex = startIndex + pageSize;
+                const pageResults = results.slice(startIndex, endIndex);
+                
                 if (currentSearchType === 'event') {
-                    displayEventResults(results);
+                    displayEventResults(pageResults);
                 } else {
-                    displayScreenshots(results);
+                    displayScreenshots(pageResults);
+                }
+                
+                // 显示和更新翻页组件
+                if (totalPages > 1) {
+                    paginationContainer.style.display = 'block';
+                    updatePagination();
+                } else {
+                    paginationContainer.style.display = 'none';
                 }
                 
             } catch (error) {
@@ -1222,7 +1403,162 @@
             }
         }
         
-        // 定期刷新统计信息和向量数据库状态
+        // 全局变量跟踪当前页面
+        let currentPage = 1;
+        let totalPages = 1;
+        const pageSize = 50;
+        
+        // 翻页功能
+        async function goToPage(page) {
+            if (page < 1 || page > totalPages || page === currentPage) {
+                return;
+            }
+            
+            currentPage = page;
+            
+            // 检查是否在搜索状态
+            const query = document.getElementById('query').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const appName = document.getElementById('appName').value;
+            
+            if (query || startDate || endDate || appName) {
+                // 搜索状态下的翻页 - 从搜索结果中分页显示
+                const startIndex = (currentPage - 1) * pageSize;
+                const endIndex = startIndex + pageSize;
+                const pageResults = currentResults.slice(startIndex, endIndex);
+                
+                if (currentSearchType === 'event') {
+                    displayEventResults(pageResults);
+                } else {
+                    displayScreenshots(pageResults);
+                }
+                updatePagination();
+            } else {
+                // 普通浏览状态下的翻页 - 重新从API获取数据
+                const offset = (page - 1) * pageSize;
+                
+                try {
+                    // 获取总数统计以确保翻页信息正确
+                    const statsResponse = await fetch('/api/statistics');
+                    const stats = await statsResponse.json();
+                    totalPages = Math.ceil(stats.total_screenshots / pageSize);
+                    
+                    console.log(`翻页请求: page=${page}, offset=${offset}, limit=${pageSize}, totalPages=${totalPages}`);
+                    
+                    const url = new URL('/api/screenshots', window.location.origin);
+                    url.searchParams.append('limit', pageSize.toString());
+                    url.searchParams.append('offset', offset.toString());
+                    
+                    console.log(`API请求URL: ${url.toString()}`);
+                    
+                    const response = await fetch(url);
+                    const screenshots = await response.json();
+                    
+                    console.log(`API返回数据:`, screenshots);
+                    console.log(`返回数据长度: ${screenshots.length}`);
+                    
+                    currentResults = screenshots;
+                    displayScreenshots(screenshots);
+                    updatePagination();
+                    
+                } catch (error) {
+                    console.error('加载页面失败:', error);
+                    alert('加载页面失败，请重试');
+                }
+            }
+        }
+        
+        // 更新翻页组件
+        function updatePagination() {
+            const paginationContainer = document.querySelector('.pagination-container');
+            if (!paginationContainer) return;
+            
+            let paginationHtml = '<div>';
+            
+            // 上一页按钮
+            const prevDisabled = currentPage <= 1;
+            paginationHtml += `
+                <button onclick="goToPage(${currentPage - 1})" class="pagination-btn ${prevDisabled ? 'disabled' : ''}" ${prevDisabled ? 'disabled' : ''}>
+                    ← 上一页
+                </button>
+            `;
+            
+            // 页码显示逻辑优化
+            const maxVisiblePages = 7; // 增加可见页码数量
+            let startPage, endPage;
+            
+            if (totalPages <= maxVisiblePages) {
+                // 总页数少于最大显示数，显示所有页码
+                startPage = 1;
+                endPage = totalPages;
+            } else {
+                // 总页数较多，需要智能显示
+                const halfVisible = Math.floor(maxVisiblePages / 2);
+                
+                if (currentPage <= halfVisible + 1) {
+                    // 当前页靠近开始
+                    startPage = 1;
+                    endPage = maxVisiblePages - 2; // 为末尾省略号和最后一页留空间
+                } else if (currentPage >= totalPages - halfVisible) {
+                    // 当前页靠近结束
+                    startPage = totalPages - maxVisiblePages + 3; // 为开头省略号和第一页留空间
+                    endPage = totalPages;
+                } else {
+                    // 当前页在中间
+                    startPage = currentPage - halfVisible + 1;
+                    endPage = currentPage + halfVisible - 1;
+                }
+            }
+            
+            // 第一页（如果不在显示范围内）
+            if (startPage > 1) {
+                paginationHtml += `<button onclick="goToPage(1)" class="pagination-btn">1</button>`;
+                if (startPage > 2) {
+                    paginationHtml += `<span class="pagination-ellipsis">⋯</span>`;
+                }
+            }
+            
+            // 页码按钮
+            for (let i = startPage; i <= endPage; i++) {
+                const activeClass = i === currentPage ? 'active' : '';
+                paginationHtml += `
+                    <button onclick="goToPage(${i})" class="pagination-btn ${activeClass}">
+                        ${i}
+                    </button>
+                `;
+            }
+            
+            // 最后一页（如果不在显示范围内）
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHtml += `<span class="pagination-ellipsis">⋯</span>`;
+                }
+                paginationHtml += `<button onclick="goToPage(${totalPages})" class="pagination-btn">${totalPages}</button>`;
+            }
+            
+            // 下一页按钮
+            const nextDisabled = currentPage >= totalPages;
+            paginationHtml += `
+                <button onclick="goToPage(${currentPage + 1})" class="pagination-btn ${nextDisabled ? 'disabled' : ''}" ${nextDisabled ? 'disabled' : ''}>
+                    下一页 →
+                </button>
+            `;
+            
+            paginationHtml += '</div>';
+            
+            // 页面信息
+            paginationHtml += `
+                <div class="pagination-info">
+                    第 ${currentPage} 页，共 ${totalPages} 页
+                    ${currentResults && currentResults.length ? `（当前显示 ${currentResults.length} 条记录）` : ''}
+                </div>
+            `;
+            
+            paginationContainer.innerHTML = paginationHtml;
+        }
+         
+         // 定期刷新统计信息和向量数据库状态
         setInterval(() => {
             loadStatistics();
             loadVectorStatus();
