@@ -309,6 +309,21 @@ class ScreenRecorder:
             logging.error(f"计算图像哈希失败 {image_path}: {e}")
             return ""
     
+    def _calculate_image_hash_from_memory(self, screenshot) -> str:
+        """直接从内存中的截图计算图像感知哈希值"""
+        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="从内存计算图像哈希")
+        def _do_calculate_hash():
+            # 将mss截图转换为PIL Image对象
+            img = Image.frombytes('RGB', screenshot.size, screenshot.rgb)
+            return str(imagehash.phash(img))
+        
+        try:
+            result = _do_calculate_hash()
+            return result if result is not None else ""
+        except Exception as e:
+            logger.error(f"从内存计算图像哈希失败: {e}")
+            return ""
+    
     def _is_duplicate(self, screen_id: int, image_hash: str) -> bool:
         """检查是否为重复图像"""
         if not self.deduplicate:
@@ -352,26 +367,25 @@ class ScreenRecorder:
                 filename = get_screenshot_filename(screen_id, timestamp)
                 file_path = os.path.join(self.screenshots_dir, filename)
                 
-                # 保存截图（带超时）
-                if not self._save_screenshot(screenshot, file_path):
-                    logger.error(f"保存截图失败: {filename}")
-                    return None
-                
-                # 计算图像哈希（带超时）
-                image_hash = self._calculate_image_hash(file_path)
+                # 优化：先从内存计算图像哈希，避免不必要的磁盘I/O
+                image_hash = self._calculate_image_hash_from_memory(screenshot)
                 if not image_hash:
                     logger.error(f"计算图像哈希失败，跳过: {filename}")
-                    os.remove(file_path)
                     return None
                 
                 # 检查是否重复
                 if self._is_duplicate(screen_id, image_hash):
-                    # 删除重复图像
-                    os.remove(file_path)
+                    # 重复图像直接返回，不保存到磁盘
+                    logger.debug(f"检测到重复截图，跳过保存: {filename}")
                     return None
                 
                 # 更新哈希记录
                 self.last_hashes[screen_id] = image_hash
+                
+                # 只有非重复图像才保存到磁盘
+                if not self._save_screenshot(screenshot, file_path):
+                    logger.error(f"保存截图失败: {filename}")
+                    return None
                 
                 # 使用传入的窗口信息，如果没有则重新获取
                 if app_name is None or window_title is None:

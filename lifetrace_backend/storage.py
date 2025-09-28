@@ -62,6 +62,43 @@ class DatabaseManager:
                             logging.info("已为 screenshots 表添加 event_id 列")
             except Exception as me:
                 logging.warning(f"检查/添加 screenshots.event_id 列失败: {me}")
+
+            # 性能优化：添加关键索引
+            self._create_performance_indexes()
+            
+        except Exception as e:
+            logging.error(f"数据库初始化失败: {e}")
+            raise
+    
+    def _create_performance_indexes(self):
+        """创建性能优化索引"""
+        try:
+            if self.database_url.startswith('sqlite:///'):
+                with self.engine.connect() as conn:
+                    # 获取现有索引列表
+                    existing_indexes = [row[1] for row in conn.execute(text("SELECT name, sql FROM sqlite_master WHERE type='index'")).fetchall()]
+                    
+                    # 定义需要创建的索引
+                    indexes_to_create = [
+                        ("idx_ocr_results_screenshot_id", "CREATE INDEX IF NOT EXISTS idx_ocr_results_screenshot_id ON ocr_results(screenshot_id)"),
+                        ("idx_screenshots_created_at", "CREATE INDEX IF NOT EXISTS idx_screenshots_created_at ON screenshots(created_at)"),
+                        ("idx_screenshots_app_name", "CREATE INDEX IF NOT EXISTS idx_screenshots_app_name ON screenshots(app_name)"),
+                        ("idx_screenshots_event_id", "CREATE INDEX IF NOT EXISTS idx_screenshots_event_id ON screenshots(event_id)"),
+                        ("idx_processing_queue_status", "CREATE INDEX IF NOT EXISTS idx_processing_queue_status ON processing_queue(status)"),
+                        ("idx_processing_queue_task_type", "CREATE INDEX IF NOT EXISTS idx_processing_queue_task_type ON processing_queue(task_type)")
+                    ]
+                    
+                    # 创建索引
+                    for index_name, create_sql in indexes_to_create:
+                        if index_name not in existing_indexes:
+                            conn.execute(text(create_sql))
+                            logging.info(f"已创建性能索引: {index_name}")
+                    
+                    conn.commit()
+                    logging.info("性能索引创建完成")
+                    
+        except Exception as e:
+            logging.warning(f"创建性能索引失败: {e}")
             
         except Exception as e:
             logging.error(f"数据库初始化失败: {e}")

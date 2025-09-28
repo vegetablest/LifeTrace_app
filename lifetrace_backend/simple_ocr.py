@@ -238,8 +238,13 @@ def create_screenshot_record(image_path: str):
 # 日志配置已移至统一的logging_config.py中
 
 
-def get_unprocessed_screenshots(logger=None):
-    """从数据库获取未处理OCR的截图记录"""
+def get_unprocessed_screenshots(logger=None, limit=50):
+    """从数据库获取未处理OCR的截图记录
+    
+    Args:
+        logger: 日志记录器
+        limit: 限制返回的记录数量，避免内存溢出
+    """
     # 如果没有传入logger，使用默认的logging
     if logger is None:
         import logging as default_logging
@@ -248,10 +253,15 @@ def get_unprocessed_screenshots(logger=None):
     try:
         from lifetrace_backend.models import Screenshot, OCRResult
         with db_manager.get_session() as session:
-            # 查询没有OCR结果的截图记录
-            unprocessed = session.query(Screenshot).outerjoin(
-                OCRResult, Screenshot.id == OCRResult.screenshot_id
-            ).filter(OCRResult.id.is_(None)).all()
+            # 优化查询：使用NOT EXISTS子查询替代LEFT JOIN
+            # 这种方式在大数据量时性能更好
+            unprocessed = session.query(Screenshot).filter(
+                ~session.query(OCRResult).filter(
+                    OCRResult.screenshot_id == Screenshot.id
+                ).exists()
+            ).order_by(Screenshot.created_at.asc()).limit(limit).all()
+            
+            logger.info(f"查询到 {len(unprocessed)} 条未处理的截图记录")
             
             return [{
                 'id': screenshot.id,
