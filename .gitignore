@@ -19,3 +19,4 @@ lifetrace_backend/__pycache__/config.cpython-313.pyc
 *.pyc
 *.pyc
 /build
+/reports
