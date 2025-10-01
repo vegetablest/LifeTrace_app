@@ -18,3 +18,4 @@ lifetrace_backend/__pycache__/config.cpython-313.pyc
 /reference_source
 *.pyc
 *.pyc
+/build

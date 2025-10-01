@@ -6,7 +6,7 @@ server:
   port: 8840
 record:
   interval: 1
-  screens: all
+  screens: [1]
   auto_exclude_self: true
   blacklist:
     enabled: true

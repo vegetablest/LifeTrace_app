@@ -303,7 +303,8 @@ class LLMClient:
                     {"role": "user", "content": user_prompt}
                 ],
                 model=self.model,
-                temperature=0.3
+                temperature=0.3,
+                extra_body={"enable_thinking": True}
             )
             
             result = response.choices[0].message.content.strip()
@@ -335,6 +336,7 @@ class LLMClient:
                 model=model or self.model,
                 messages=messages,
                 temperature=temperature,
+                extra_body={"enable_thinking": True},
                 stream=True
             )
             for chunk in stream:
