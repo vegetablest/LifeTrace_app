@@ -264,8 +264,8 @@
         }
         
         .message.assistant .message-avatar {
-            background: var(--accent);
-            color: var(--accent-foreground);
+            background: transparent;
+            color: var(--muted-foreground);
         }
         
         .message-card {
@@ -506,26 +506,36 @@
         
 
         
-        /* 改进的思考状态样式 */
-        .thinking-indicator {
-            display: none;
-            align-items: center;
+        /* 改进的思考状态样式 - 整合到消息流中 */
+        .thinking-message {
+            display: flex;
             gap: 0.75rem;
-            padding: 1rem;
-            margin: 0.5rem 0;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            justify-content: flex-start;
             opacity: 0;
             transform: translateY(10px);
-            transition: all 0.3s ease-out;
-            max-width: 80%;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
-        .thinking-indicator.show {
+        .thinking-message.show {
             opacity: 1;
             transform: translateY(0);
+        }
+        
+        .thinking-message .message-card {
+            max-width: 80%;
+            padding: 0.75rem;
+            border-radius: var(--radius);
+            background: var(--card);
+            color: var(--card-foreground);
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            word-wrap: break-word;
+        }
+        
+        .thinking-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
         
         .thinking-avatar {
@@ -723,7 +733,7 @@
             <div class="messages-list" id="messagesList" style="display: none;"></div>
         </div>
         
-        <div class="thinking-indicator" id="thinkingIndicator">
+        <div class="thinking-indicator" id="thinkingIndicator" style="display: none;">
             <div class="thinking-avatar">
                 <i data-lucide="bot"></i>
             </div>
@@ -784,14 +794,46 @@
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
         
-        // 思考状态控制函数
+        // 思考状态控制函数 - 整合到消息流中
+        let thinkingMessageDiv = null;
+        
         function showThinking(text = '正在思考') {
-            thinkingText.textContent = text;
-            thinkingIndicator.style.display = 'flex';
+            // 隐藏欢迎屏幕，显示消息列表
+            if (welcomeScreen.style.display !== 'none') {
+                welcomeScreen.style.display = 'none';
+                messagesList.style.display = 'flex';
+            }
+            
+            // 创建思考消息元素
+            thinkingMessageDiv = document.createElement('div');
+            thinkingMessageDiv.className = 'thinking-message';
+            thinkingMessageDiv.innerHTML = `
+                <div class="message-avatar" style="background: transparent; color: var(--muted-foreground);">
+                    <i data-lucide="bot"></i>
+                </div>
+                <div class="message-card">
+                    <div class="thinking-indicator">
+                        <div class="thinking-content">
+                            <div class="thinking-text">${text}</div>
+                            <div class="thinking-dots">
+                                <div class="thinking-dot"></div>
+                                <div class="thinking-dot"></div>
+                                <div class="thinking-dot"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 添加到消息列表
+            messagesList.appendChild(thinkingMessageDiv);
+            
             // 使用requestAnimationFrame确保DOM更新后再添加show类
             requestAnimationFrame(() => {
-                thinkingIndicator.classList.add('show');
+                thinkingMessageDiv.classList.add('show');
             });
+            
+            // 注意：不在这里滚动，让消息发送后的统一滚动逻辑处理
             
             // 重新创建图标
             if (typeof lucide !== 'undefined') {
@@ -800,13 +842,25 @@
         }
         
         function hideThinking() {
-            thinkingIndicator.classList.remove('show');
-            // 等待动画完成后隐藏元素
-            setTimeout(() => {
-                if (!thinkingIndicator.classList.contains('show')) {
-                    thinkingIndicator.style.display = 'none';
+            if (thinkingMessageDiv) {
+                thinkingMessageDiv.classList.remove('show');
+                // 等待动画完成后移除元素
+                setTimeout(() => {
+                    if (thinkingMessageDiv && thinkingMessageDiv.parentNode) {
+                        thinkingMessageDiv.parentNode.removeChild(thinkingMessageDiv);
+                        thinkingMessageDiv = null;
+                    }
+                }, 300);
+            }
+        }
+        
+        function updateThinkingText(text) {
+            if (thinkingMessageDiv) {
+                const textElement = thinkingMessageDiv.querySelector('.thinking-text');
+                if (textElement) {
+                    textElement.textContent = text;
                 }
-            }, 300);
+            }
         }
         
         // 轻量级会话上下文：设置与历史存储键
@@ -1047,25 +1101,14 @@
             addMessage(message, true);
             pushHistory('user', message);
             
-            // 滚动到用户消息位置，让用户消息上边缘贴住聊天区域的可见区域上边缘
+            // 滚动到最后一条用户消息，让其显示在可见区域的最上方
             setTimeout(() => {
                 const userMessages = messagesList.querySelectorAll('.message.user');
                 if (userMessages.length > 0) {
                     const lastUserMessage = userMessages[userMessages.length - 1];
-                    // 直接控制chat-messages容器的滚动位置
-                    const chatMessagesContainer = document.querySelector('.chat-messages');
-                    // 获取用户消息相对于滚动容器的位置
-                    const containerRect = chatMessagesContainer.getBoundingClientRect();
-                    const messageRect = lastUserMessage.getBoundingClientRect();
-                    const currentScrollTop = chatMessagesContainer.scrollTop;
-                    const targetScrollTop = currentScrollTop + (messageRect.top - containerRect.top) - 10;
-                    
-                    chatMessagesContainer.scrollTo({
-                        top: targetScrollTop,
-                        behavior: 'smooth'
-                    });
+                    lastUserMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
-            }, 100); // 增加延迟确保DOM完全更新
+            }, 100);
             
             // 清空输入框并禁用
             chatInput.value = '';
@@ -1129,7 +1172,7 @@
                 createAIMessage();
                 
                 // 更新思考状态为正在生成回复
-                showThinking('正在生成回复');
+                updateThinkingText('正在生成回复');
                 
                 // 读取流式响应
                 const reader = response.body.getReader();
