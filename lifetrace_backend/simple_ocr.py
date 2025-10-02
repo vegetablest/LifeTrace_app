@@ -10,10 +10,27 @@ import time
 import logging
 from pathlib import Path
 
+def _get_application_path() -> str:
+    """获取应用程序路径，兼容PyInstaller打包"""
+    if getattr(sys, 'frozen', False):
+        # 如果是PyInstaller打包的应用，使用可执行文件所在目录
+        return os.path.dirname(sys.executable)
+    else:
+        # 开发环境，使用项目根目录
+        return str(Path(__file__).parent.parent)
+
+def _setup_rapidocr_config():
+    """设置RapidOCR配置文件路径"""
+    # 不再依赖外部配置文件，直接在代码中处理
+    pass
+
 # 添加项目根目录到Python路径，以便直接运行此文件
 if __name__ == '__main__':
-    project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root))
+    project_root = _get_application_path()
+    sys.path.insert(0, project_root)
+
+# 设置RapidOCR配置
+_setup_rapidocr_config()
 
 try:
     from rapidocr_onnxruntime import RapidOCR
@@ -81,7 +98,24 @@ class SimpleOCRProcessor:
         try:
             # 初始化OCR引擎（如果还没有初始化）
             if self.ocr is None:
-                self.ocr = RapidOCR()
+                # 获取exe同目录下的config文件路径
+                app_path = _get_application_path()
+                config_path = os.path.join(app_path, 'config', 'rapidocr_config.yaml')
+                
+                # 检查配置文件是否存在
+                if os.path.exists(config_path):
+                    print(f"使用RapidOCR配置文件: {config_path}")
+                    self.ocr = RapidOCR(config_path=config_path)
+                else:
+                    print(f"配置文件不存在: {config_path}，使用默认配置")
+                    # 使用config_path=None来避免配置文件路径问题
+                    self.ocr = RapidOCR(
+                        config_path=None,
+                        det_use_cuda=False,
+                        cls_use_cuda=False, 
+                        rec_use_cuda=False,
+                        print_verbose=False
+                    )
                 
             # 记录开始时间
             start_time = time.time()

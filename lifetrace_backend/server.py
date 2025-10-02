@@ -234,16 +234,51 @@ app.add_middleware(
 )
 
 # 静态文件和模板
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+def get_resource_path(relative_path):
+    """获取资源文件路径，兼容PyInstaller打包环境"""
+    try:
+        # PyInstaller创建临时文件夹，并将路径存储在_MEIPASS中
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
-if os.path.exists(static_dir):
+# 尝试多个可能的模板路径
+template_paths = [
+    os.path.join(os.path.dirname(__file__), "templates"),  # 开发环境
+    get_resource_path("lifetrace_backend/templates"),      # PyInstaller环境
+    get_resource_path("templates"),                        # 备用路径
+]
+
+static_paths = [
+    os.path.join(os.path.dirname(__file__), "static"),    # 开发环境
+    get_resource_path("lifetrace_backend/static"),        # PyInstaller环境
+    get_resource_path("static"),                          # 备用路径
+]
+
+# 查找存在的模板目录
+templates_dir = None
+for path in template_paths:
+    if os.path.exists(path):
+        templates_dir = path
+        break
+
+# 查找存在的静态文件目录
+static_dir = None
+for path in static_paths:
+    if os.path.exists(path):
+        static_dir = path
+        break
+
+if static_dir:
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-if os.path.exists(templates_dir):
+if templates_dir:
     templates = Jinja2Templates(directory=templates_dir)
+    print(f"Templates loaded from: {templates_dir}")
 else:
     templates = None
+    print("No template directory found")
 
 # 初始化OCR处理器
 ocr_processor = SimpleOCRProcessor()

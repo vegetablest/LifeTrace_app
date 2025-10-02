@@ -1,0 +1,26 @@
+# RapidOCR 配置文件
+# 用于解决PyInstaller打包后配置文件缺失的问题
+
+Global:
+  use_angle_cls: true
+  print_verbose: false
+  min_height: 30
+  
+Det:
+  use_cuda: false
+  limit_side_len: 736
+  limit_type: min
+  thresh: 0.3
+  box_thresh: 0.5
+  max_candidates: 1000
+  unclip_ratio: 2.0
+  use_dilation: false
+  score_mode: fast
+
+Cls:
+  use_cuda: false
+  cls_thresh: 0.9
+
+Rec:
+  use_cuda: false
+  rec_batch_num: 6
