@@ -41,7 +41,7 @@ processing:
 consistency_check:
   interval: 300
 vector_db:
-  enabled: true
+  enabled: false
   collection_name: lifetrace_ocr
   embedding_model: shibing624/text2vec-base-chinese
   rerank_model: BAAI/bge-reranker-base

@@ -506,11 +506,117 @@
         
 
         
+        /* 改进的思考状态样式 */
+        .thinking-indicator {
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease-out;
+            max-width: 80%;
+        }
+        
+        .thinking-indicator.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .thinking-avatar {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent);
+            color: var(--accent-foreground);
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .thinking-avatar::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 50%;
+            background: var(--accent);
+            opacity: 0.3;
+            animation: pulse-ring 2s ease-out infinite;
+        }
+        
+        .thinking-content {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex: 1;
+        }
+        
+        .thinking-text {
+            color: var(--muted-foreground);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .thinking-dots {
+            display: flex;
+            gap: 0.25rem;
+            align-items: center;
+        }
+        
+        .thinking-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse-dot 1.4s ease-in-out infinite both;
+        }
+        
+        .thinking-dot:nth-child(1) { animation-delay: -0.32s; }
+        .thinking-dot:nth-child(2) { animation-delay: -0.16s; }
+        .thinking-dot:nth-child(3) { animation-delay: 0s; }
+        
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(1);
+                opacity: 0.3;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.1;
+            }
+            100% {
+                transform: scale(1.4);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes pulse-dot {
+            0%, 80%, 100% {
+                transform: scale(0.6);
+                opacity: 0.4;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        /* 保持原有的loading类以兼容性 */
         .loading {
             display: none;
             align-items: center;
             gap: 0.5rem;
-            color: #666;
+            color: var(--muted-foreground);
             font-style: italic;
         }
         
@@ -617,6 +723,21 @@
             <div class="messages-list" id="messagesList" style="display: none;"></div>
         </div>
         
+        <div class="thinking-indicator" id="thinkingIndicator">
+            <div class="thinking-avatar">
+                <i data-lucide="bot"></i>
+            </div>
+            <div class="thinking-content">
+                <div class="thinking-text" id="thinkingText">正在思考</div>
+                <div class="thinking-dots">
+                    <div class="thinking-dot"></div>
+                    <div class="thinking-dot"></div>
+                    <div class="thinking-dot"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 保持原有的loading指示器以兼容性 -->
         <div class="loading" id="loadingIndicator">
             <div class="message-avatar" style="background: var(--accent); color: var(--accent-foreground);">
                 <i data-lucide="bot"></i>
@@ -656,10 +777,37 @@
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
         const loadingIndicator = document.getElementById('loadingIndicator');
+        const thinkingIndicator = document.getElementById('thinkingIndicator');
+        const thinkingText = document.getElementById('thinkingText');
         const welcomeScreen = document.getElementById('welcomeScreen');
         const messagesList = document.getElementById('messagesList');
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
+        
+        // 思考状态控制函数
+        function showThinking(text = '正在思考') {
+            thinkingText.textContent = text;
+            thinkingIndicator.style.display = 'flex';
+            // 使用requestAnimationFrame确保DOM更新后再添加show类
+            requestAnimationFrame(() => {
+                thinkingIndicator.classList.add('show');
+            });
+            
+            // 重新创建图标
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+        
+        function hideThinking() {
+            thinkingIndicator.classList.remove('show');
+            // 等待动画完成后隐藏元素
+            setTimeout(() => {
+                if (!thinkingIndicator.classList.contains('show')) {
+                    thinkingIndicator.style.display = 'none';
+                }
+            }, 300);
+        }
         
         // 轻量级会话上下文：设置与历史存储键
         const SETTINGS_KEY = 'lifetrace_chat_settings';
@@ -923,7 +1071,12 @@
             chatInput.value = '';
             chatInput.style.height = 'auto';
             sendButton.disabled = true;
-            loadingIndicator.style.display = 'flex';
+            
+            // 使用新的思考指示器
+            showThinking('正在分析您的问题');
+            
+            // 保持原有的loading指示器以兼容性（隐藏状态）
+            loadingIndicator.style.display = 'none';
             
             // 组装带有最近K条历史的提示
             const payloadMessage = buildPromptWithHistory(message);
@@ -975,6 +1128,9 @@
                 // 创建AI消息容器
                 createAIMessage();
                 
+                // 更新思考状态为正在生成回复
+                showThinking('正在生成回复');
+                
                 // 读取流式响应
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -982,6 +1138,11 @@
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+                    
+                    // 第一次接收到数据时隐藏思考指示器
+                    if (fullResponse === '') {
+                        hideThinking();
+                    }
                     
                     const chunk = decoder.decode(value, { stream: true });
                     fullResponse += chunk;
@@ -1031,9 +1192,11 @@
                 
             } catch (error) {
                 console.error('Chat error:', error);
+                hideThinking(); // 确保在错误时隐藏思考指示器
                 showError('抱歉，发生了错误：' + error.message);
             } finally {
                 sendButton.disabled = false;
+                hideThinking(); // 确保思考指示器被隐藏
                 loadingIndicator.style.display = 'none';
                 chatInput.focus();
             }
