@@ -88,3 +88,40 @@ class ProcessingQueue(Base):
     
     def __repr__(self):
         return f"<ProcessingQueue(id={self.id}, task={self.task_type}, status={self.status})>"
+
+class UserBehaviorStats(Base):
+    """用户行为统计模型"""
+    __tablename__ = 'user_behavior_stats'
+    
+    id = Column(Integer, primary_key=True)
+    action_type = Column(String(50), nullable=False)  # search, chat, view_screenshot, etc.
+    action_details = Column(Text)  # JSON格式的详细信息
+    session_id = Column(String(100))  # 会话ID
+    user_agent = Column(String(500))  # 用户代理
+    ip_address = Column(String(50))  # IP地址
+    response_time = Column(Float)  # 响应时间（毫秒）
+    success = Column(Boolean, default=True)  # 操作是否成功
+    created_at = Column(DateTime, default=get_local_time)
+    
+    def __repr__(self):
+        return f"<UserBehaviorStats(id={self.id}, action={self.action_type})>"
+
+class DailyStats(Base):
+    """每日统计模型"""
+    __tablename__ = 'daily_stats'
+    
+    id = Column(Integer, primary_key=True)
+    date = Column(String(10), nullable=False, unique=True)  # YYYY-MM-DD格式
+    total_searches = Column(Integer, default=0)
+    total_chats = Column(Integer, default=0)
+    total_screenshots_viewed = Column(Integer, default=0)
+    total_actions = Column(Integer, default=0)  # 添加缺失的字段
+    total_sessions = Column(Integer, default=0)
+    avg_response_time = Column(Float, default=0.0)
+    most_active_hour = Column(Integer)  # 最活跃的小时
+    top_search_keywords = Column(Text)  # JSON格式的热门搜索关键词
+    created_at = Column(DateTime, default=get_local_time)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
+    
+    def __repr__(self):
+        return f"<DailyStats(date={self.date}, searches={self.total_searches})>"

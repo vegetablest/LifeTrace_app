@@ -3,6 +3,7 @@ import logging
 from typing import Optional, Dict, Any, List
 import json
 from datetime import datetime
+from lifetrace_backend.token_usage_logger import setup_token_logger, log_token_usage
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,9 @@ class LLMClient:
         except Exception as e:
             logger.error(f"LLM客户端初始化失败: {e}")
             self.client = None
+        
+        # 初始化token使用量记录器
+        setup_token_logger()
     
     def is_available(self) -> bool:
         """检查LLM客户端是否可用"""
@@ -88,6 +92,17 @@ class LLMClient:
                 temperature=0.1,
                 max_tokens=200
             )
+            
+            # 记录token使用量
+            if hasattr(response, 'usage') and response.usage:
+                log_token_usage(
+                    model=self.model,
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    endpoint="classify_intent",
+                    user_query=user_query,
+                    response_type="intent_classification"
+                )
             
             result_text = response.choices[0].message.content.strip()
             
@@ -184,6 +199,17 @@ class LLMClient:
                 model=self.model,
                 temperature=0.1
             )
+            
+            # 记录token使用量
+            if hasattr(response, 'usage') and response.usage:
+                log_token_usage(
+                    model=self.model,
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    endpoint="parse_query",
+                    user_query=user_query,
+                    response_type="query_parsing"
+                )
             
             result_text = response.choices[0].message.content.strip()
             
@@ -306,6 +332,18 @@ class LLMClient:
                 temperature=0.3,
                 extra_body={"enable_thinking": True}
             )
+            
+            # 记录token使用量
+            if hasattr(response, 'usage') and response.usage:
+                log_token_usage(
+                    model=self.model,
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    endpoint="generate_summary",
+                    user_query=query,
+                    response_type="summary_generation",
+                    additional_info={"context_records": len(context_data)}
+                )
             
             result = response.choices[0].message.content.strip()
             

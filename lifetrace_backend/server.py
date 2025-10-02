@@ -28,6 +28,7 @@ from lifetrace_backend.multimodal_vector_service import create_multimodal_vector
 from lifetrace_backend.logging_config import setup_logging
 from lifetrace_backend.simple_heartbeat import SimpleHeartbeatSender
 from lifetrace_backend.rag_service import RAGService
+from lifetrace_backend.behavior_tracker import behavior_tracker
 
 # 导入系统资源分析模块
 import psutil
@@ -174,6 +175,31 @@ class NewChatResponse(BaseModel):
     session_id: str
     message: str
     timestamp: datetime
+
+class BehaviorStatsResponse(BaseModel):
+    behavior_records: List[Dict[str, Any]]
+    daily_stats: List[Dict[str, Any]]
+    action_distribution: Dict[str, int]
+    hourly_activity: Dict[int, int]
+    total_records: int
+
+class DashboardStatsResponse(BaseModel):
+    today_activity: Dict[str, int]
+    weekly_trend: List[Dict[str, Any]]
+    top_actions: List[Dict[str, Any]]
+    performance_metrics: Dict[str, float]
+
+class AppUsageStatsResponse(BaseModel):
+    app_usage_summary: List[Dict[str, Any]]
+    daily_app_usage: List[Dict[str, Any]]
+    hourly_app_distribution: Dict[int, Dict[str, int]]
+    top_apps_by_time: List[Dict[str, Any]]
+    app_switching_patterns: List[Dict[str, Any]]
+    total_apps_used: int
+    total_usage_time: float
+    
+    class Config:
+        arbitrary_types_allowed = True
 
 
 # 创建FastAPI应用
@@ -536,25 +562,68 @@ async def save_config(settings: Dict[str, Any]):
 
 
 @app.post("/api/chat", response_model=ChatResponse, response_class=UTF8JSONResponse)
-async def chat_with_llm(message: ChatMessage):
+async def chat_with_llm(message: ChatMessage, request: Request):
     """与LLM聊天接口 - 集成RAG功能"""
+    start_time = datetime.now()
+    session_id = None
+    success = False
+    
     try:
         logger.info(f"收到聊天消息: {message.message}")
+        
+        # 获取请求信息
+        user_agent = request.headers.get('user-agent', '')
+        client_ip = request.client.host if request.client else 'unknown'
         
         # 使用RAG服务处理查询
         rag_result = await rag_service.process_query(message.message)
         
+        # 计算响应时间
+        response_time = (datetime.now() - start_time).total_seconds() * 1000
+        
         if rag_result.get('success', False):
-            return ChatResponse(
+            success = True
+            response = ChatResponse(
                 response=rag_result['response'],
                 timestamp=datetime.now(),
                 query_info=rag_result.get('query_info'),
                 retrieval_info=rag_result.get('retrieval_info'),
                 performance=rag_result.get('performance')
             )
+            
+            # 记录用户行为
+            behavior_tracker.track_action(
+                action_type='chat',
+                action_details={
+                    'query': message.message,
+                    'response_length': len(rag_result['response']),
+                    'success': True
+                },
+                session_id=session_id,
+                user_agent=user_agent,
+                ip_address=client_ip,
+                response_time=response_time
+            )
+            
+            return response
         else:
             # 如果RAG处理失败，返回错误信息
             error_msg = rag_result.get('response', '处理您的查询时出现了错误，请稍后重试。')
+            
+            # 记录失败的用户行为
+            behavior_tracker.track_action(
+                action_type='chat',
+                action_details={
+                    'query': message.message,
+                    'error': rag_result.get('error'),
+                    'success': False
+                },
+                session_id=session_id,
+                user_agent=user_agent,
+                ip_address=client_ip,
+                response_time=response_time
+            )
+            
             return ChatResponse(
                 response=error_msg,
                 timestamp=datetime.now(),
@@ -563,6 +632,22 @@ async def chat_with_llm(message: ChatMessage):
             
     except Exception as e:
         logger.error(f"聊天处理失败: {e}")
+        
+        # 记录异常的用户行为
+        response_time = (datetime.now() - start_time).total_seconds() * 1000
+        behavior_tracker.track_action(
+            action_type='chat',
+            action_details={
+                'query': message.message,
+                'error': str(e),
+                'success': False
+            },
+            session_id=session_id,
+            user_agent=request.headers.get('user-agent', '') if request else '',
+            ip_address=request.client.host if request and request.client else 'unknown',
+            response_time=response_time
+        )
+        
         return ChatResponse(
             response="抱歉，系统暂时无法处理您的请求，请稍后重试。",
             timestamp=datetime.now(),
@@ -603,12 +688,44 @@ async def chat_with_llm_stream(message: ChatMessage):
                     model=rag_service.llm_client.model,
                     messages=messages,
                     temperature=temperature,
-                    stream=True
+                    stream=True,
+                    stream_options={"include_usage": True}  # 请求包含usage信息
                 )
                 
+                total_content = ""
+                usage_info = None
+                
                 for chunk in response:
-                    if chunk.choices[0].delta.content:
-                        yield chunk.choices[0].delta.content
+                    # 检查是否有usage信息（通常在最后一个chunk中）
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                        usage_info = chunk.usage
+                    
+                    # 检查choices是否存在且不为空
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        total_content += content
+                        yield content
+                
+                # 流式响应结束后记录token使用量
+                if usage_info:
+                    try:
+                        from lifetrace_backend.token_usage_logger import log_token_usage
+                        log_token_usage(
+                            model=rag_service.llm_client.model,
+                            input_tokens=usage_info.prompt_tokens,
+                            output_tokens=usage_info.completion_tokens,
+                            endpoint="stream_chat",
+                            user_query=message.message,
+                            response_type="stream",
+                            additional_info={
+                                "total_tokens": usage_info.total_tokens,
+                                "temperature": temperature,
+                                "response_length": len(total_content)
+                            }
+                        )
+                        logger.info(f"[stream] Token使用量已记录: input={usage_info.prompt_tokens}, output={usage_info.completion_tokens}")
+                    except Exception as log_error:
+                        logger.error(f"[stream] 记录token使用量失败: {log_error}")
                         
             except Exception as e:
                 logger.error(f"[stream] 生成失败: {e}")
@@ -741,9 +858,15 @@ async def rag_health_check():
 
 
 @app.post("/api/search", response_model=List[ScreenshotResponse])
-async def search_screenshots(search_request: SearchRequest):
+async def search_screenshots(search_request: SearchRequest, request: Request):
     """搜索截图"""
+    start_time = datetime.now()
+    
     try:
+        # 获取请求信息
+        user_agent = request.headers.get('user-agent', '')
+        client_ip = request.client.host if request.client else 'unknown'
+        
         results = db_manager.search_screenshots(
             query=search_request.query,
             start_date=search_request.start_date,
@@ -752,10 +875,44 @@ async def search_screenshots(search_request: SearchRequest):
             limit=search_request.limit
         )
         
+        # 计算响应时间
+        response_time = (datetime.now() - start_time).total_seconds() * 1000
+        
+        # 记录用户行为
+        behavior_tracker.track_action(
+            action_type='search',
+            action_details={
+                'query': search_request.query,
+                'app_name': search_request.app_name,
+                'results_count': len(results),
+                'limit': search_request.limit,
+                'success': True
+            },
+            user_agent=user_agent,
+            ip_address=client_ip,
+            response_time=response_time
+        )
+        
         return [ScreenshotResponse(**result) for result in results]
         
     except Exception as e:
         logging.error(f"搜索截图失败: {e}")
+        
+        # 记录失败的用户行为
+        response_time = (datetime.now() - start_time).total_seconds() * 1000
+        behavior_tracker.track_action(
+            action_type='search',
+            action_details={
+                'query': search_request.query,
+                'app_name': search_request.app_name,
+                'error': str(e),
+                'success': False
+            },
+            user_agent=request.headers.get('user-agent', '') if request else '',
+            ip_address=request.client.host if request and request.client else 'unknown',
+            response_time=response_time
+        )
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -900,22 +1057,81 @@ async def get_screenshot(screenshot_id: int):
 
 
 @app.get("/api/screenshots/{screenshot_id}/image")
-async def get_screenshot_image(screenshot_id: int):
+async def get_screenshot_image(screenshot_id: int, request: Request):
     """获取截图图片文件"""
-    screenshot = db_manager.get_screenshot_by_id(screenshot_id)
+    start_time = time.time()
     
-    if not screenshot:
-        raise HTTPException(status_code=404, detail="截图不存在")
+    try:
+        screenshot = db_manager.get_screenshot_by_id(screenshot_id)
+        
+        if not screenshot:
+            # 记录失败的查看截图行为
+            behavior_tracker.track_action(
+                action_type="view_screenshot",
+                action_details={
+                    "screenshot_id": screenshot_id,
+                    "success": False,
+                    "error": "截图不存在"
+                },
+                user_agent=request.headers.get("user-agent", ""),
+                ip_address=request.client.host if request.client else "",
+                response_time=time.time() - start_time
+            )
+            raise HTTPException(status_code=404, detail="截图不存在")
+        
+        file_path = screenshot['file_path']
+        if not os.path.exists(file_path):
+            # 记录失败的查看截图行为
+            behavior_tracker.track_action(
+                action_type="view_screenshot",
+                action_details={
+                    "screenshot_id": screenshot_id,
+                    "success": False,
+                    "error": "图片文件不存在"
+                },
+                user_agent=request.headers.get("user-agent", ""),
+                ip_address=request.client.host if request.client else "",
+                response_time=time.time() - start_time
+            )
+            raise HTTPException(status_code=404, detail="图片文件不存在")
+        
+        # 记录成功的查看截图行为
+        behavior_tracker.track_action(
+            action_type="view_screenshot",
+            action_details={
+                "screenshot_id": screenshot_id,
+                "app_name": screenshot.get('app_name', ''),
+                "window_title": screenshot.get('window_title', ''),
+                "success": True
+            },
+            user_agent=request.headers.get("user-agent", ""),
+            ip_address=request.client.host if request.client else "",
+            response_time=time.time() - start_time
+        )
+        
+        return FileResponse(
+            file_path,
+            media_type="image/png",
+            filename=f"screenshot_{screenshot_id}.png"
+        )
     
-    file_path = screenshot['file_path']
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="图片文件不存在")
-    
-    return FileResponse(
-        file_path,
-        media_type="image/png",
-        filename=f"screenshot_{screenshot_id}.png"
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # 记录异常的查看截图行为
+        behavior_tracker.track_action(
+            action_type="view_screenshot",
+            action_details={
+                "screenshot_id": screenshot_id,
+                "success": False,
+                "error": str(e)
+            },
+            user_agent=request.headers.get("user-agent", ""),
+            ip_address=request.client.host if request.client else "",
+            response_time=time.time() - start_time
+        )
+        logger.error(f"获取截图图像时发生错误: {e}")
+        raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
 @app.get("/api/screenshots/{screenshot_id}/path")
@@ -1554,7 +1770,255 @@ async def get_log_content(file: str = Query(..., description="日志文件相对
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# 用户行为统计API
+@app.get("/api/behavior-stats", response_model=BehaviorStatsResponse)
+async def get_behavior_stats(
+    days: int = Query(7, description="获取最近多少天的数据"),
+    action_type: Optional[str] = Query(None, description="行为类型过滤"),
+    limit: int = Query(100, description="返回记录数限制")
+):
+    """获取用户行为统计数据"""
+    try:
+        start_date = datetime.now() - timedelta(days=days)
+        
+        # 获取行为记录
+        behavior_records = behavior_tracker.get_behavior_stats(
+            start_date=start_date,
+            action_type=action_type,
+            limit=limit
+        )
+        
+        # 获取每日统计
+        daily_stats = behavior_tracker.get_daily_stats(days=days)
+        
+        # 获取行为类型分布
+        action_distribution = behavior_tracker.get_action_type_distribution(days=days)
+        
+        # 获取小时活动分布
+        hourly_activity = behavior_tracker.get_hourly_activity(days=days)
+        
+        return BehaviorStatsResponse(
+            behavior_records=behavior_records,
+            daily_stats=daily_stats,
+            action_distribution=action_distribution,
+            hourly_activity=hourly_activity,
+            total_records=len(behavior_records)
+        )
+    except Exception as e:
+        logger.error(f"获取行为统计失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取行为统计失败: {str(e)}")
 
+@app.get("/api/dashboard-stats", response_model=DashboardStatsResponse)
+async def get_dashboard_stats():
+    """获取仪表板统计数据"""
+    try:
+        # 今日活动统计
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_records = behavior_tracker.get_behavior_stats(
+            start_date=today,
+            limit=1000
+        )
+        
+        today_activity = {}
+        for record in today_records:
+            action_type = record['action_type']
+            today_activity[action_type] = today_activity.get(action_type, 0) + 1
+        
+        # 一周趋势
+        weekly_trend = []
+        for i in range(7):
+            day_start = today - timedelta(days=i)
+            day_end = day_start + timedelta(days=1)
+            day_records = behavior_tracker.get_behavior_stats(
+                start_date=day_start,
+                end_date=day_end,
+                limit=1000
+            )
+            weekly_trend.append({
+                'date': day_start.strftime('%Y-%m-%d'),
+                'total_actions': len(day_records),
+                'searches': len([r for r in day_records if r['action_type'] == 'search']),
+                'chats': len([r for r in day_records if r['action_type'] == 'chat']),
+                'views': len([r for r in day_records if r['action_type'] == 'view_screenshot'])
+            })
+        
+        # 热门操作
+        action_distribution = behavior_tracker.get_action_type_distribution(days=7)
+        top_actions = [
+            {'action': action, 'count': count}
+            for action, count in sorted(action_distribution.items(), key=lambda x: x[1], reverse=True)[:5]
+        ]
+        
+        # 性能指标
+        performance_metrics = {
+            'avg_response_time': sum([r.get('response_time', 0) for r in today_records if r.get('response_time')]) / max(len([r for r in today_records if r.get('response_time')]), 1),
+            'success_rate': len([r for r in today_records if r.get('success', True)]) / max(len(today_records), 1) * 100,
+            'total_sessions': len(set([r.get('session_id') for r in today_records if r.get('session_id')]))
+        }
+        
+        return DashboardStatsResponse(
+            today_activity=today_activity,
+            weekly_trend=weekly_trend,
+            top_actions=top_actions,
+            performance_metrics=performance_metrics
+        )
+    except Exception as e:
+        logger.error(f"获取仪表板统计失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取仪表板统计失败: {str(e)}")
+
+@app.get("/analytics", response_class=HTMLResponse)
+async def analytics_page(request: Request):
+    """用户行为分析页面"""
+    if not templates:
+        raise HTTPException(status_code=404, detail="模板目录不存在")
+    
+    return templates.TemplateResponse("analytics.html", {"request": request})
+
+@app.get("/app-usage", response_class=HTMLResponse)
+async def app_usage_page(request: Request):
+    """应用使用分析页面"""
+    if not templates:
+        raise HTTPException(status_code=404, detail="模板目录不存在")
+    
+    return templates.TemplateResponse("app_usage.html", {"request": request})
+
+@app.get("/api/app-usage-stats", response_model=AppUsageStatsResponse)
+async def get_app_usage_stats(
+    days: int = Query(7, description="统计天数", ge=1, le=365)
+):
+    """获取应用使用统计数据"""
+    try:
+        # 计算时间范围
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # 从数据库获取事件数据
+        with db_manager.get_session() as session:
+            from lifetrace_backend.models import Event, Screenshot
+            from sqlalchemy import func, and_
+            
+            # 获取应用使用事件
+            events_query = session.query(Event).filter(
+                and_(
+                    Event.start_time >= start_date,
+                    Event.start_time <= end_date,
+                    Event.app_name.isnot(None),
+                    Event.end_time.isnot(None)
+                )
+            ).all()
+            
+            # 应用使用汇总
+            app_usage_summary = {}
+            daily_app_usage = {}
+            hourly_app_distribution = {hour: {} for hour in range(24)}
+            app_switching_patterns = []
+            
+            for event in events_query:
+                app_name = event.app_name or "未知应用"
+                
+                # 计算使用时长（秒）
+                if event.end_time and event.start_time:
+                    duration = (event.end_time - event.start_time).total_seconds()
+                    
+                    # 应用使用汇总
+                    if app_name not in app_usage_summary:
+                        app_usage_summary[app_name] = {
+                            'app_name': app_name,
+                            'total_time': 0,
+                            'session_count': 0,
+                            'avg_session_time': 0,
+                            'first_used': event.start_time,
+                            'last_used': event.end_time
+                        }
+                    
+                    app_usage_summary[app_name]['total_time'] += duration
+                    app_usage_summary[app_name]['session_count'] += 1
+                    
+                    if event.start_time < app_usage_summary[app_name]['first_used']:
+                        app_usage_summary[app_name]['first_used'] = event.start_time
+                    if event.end_time > app_usage_summary[app_name]['last_used']:
+                        app_usage_summary[app_name]['last_used'] = event.end_time
+                    
+                    # 每日应用使用
+                    date_str = event.start_time.strftime('%Y-%m-%d')
+                    if date_str not in daily_app_usage:
+                        daily_app_usage[date_str] = {}
+                    if app_name not in daily_app_usage[date_str]:
+                        daily_app_usage[date_str][app_name] = 0
+                    daily_app_usage[date_str][app_name] += duration
+                    
+                    # 小时分布（转换为整数秒）
+                    hour = event.start_time.hour
+                    if app_name not in hourly_app_distribution[hour]:
+                        hourly_app_distribution[hour][app_name] = 0
+                    hourly_app_distribution[hour][app_name] += int(duration)
+            
+            # 计算平均会话时长
+            for app_data in app_usage_summary.values():
+                if app_data['session_count'] > 0:
+                    app_data['avg_session_time'] = app_data['total_time'] / app_data['session_count']
+            
+            # 转换为列表并排序
+            app_usage_list = list(app_usage_summary.values())
+            app_usage_list.sort(key=lambda x: x['total_time'], reverse=True)
+            
+            # 格式化时间显示
+            for app_data in app_usage_list:
+                app_data['total_time_formatted'] = f"{app_data['total_time'] / 3600:.1f}小时"
+                app_data['avg_session_time_formatted'] = f"{app_data['avg_session_time'] / 60:.1f}分钟"
+                app_data['first_used'] = app_data['first_used'].isoformat()
+                app_data['last_used'] = app_data['last_used'].isoformat()
+            
+            # 按使用时长排序的前10个应用
+            top_apps_by_time = app_usage_list[:10]
+            
+            # 每日应用使用数据格式化
+            daily_app_usage_list = []
+            for date, apps in daily_app_usage.items():
+                daily_data = {'date': date, 'apps': []}
+                for app_name, duration in apps.items():
+                    daily_data['apps'].append({
+                        'app_name': app_name,
+                        'duration': duration,
+                        'duration_formatted': f"{duration / 3600:.1f}小时"
+                    })
+                daily_data['apps'].sort(key=lambda x: x['duration'], reverse=True)
+                daily_app_usage_list.append(daily_data)
+            
+            daily_app_usage_list.sort(key=lambda x: x['date'])
+            
+            # 应用切换模式分析（简化版）
+            if len(events_query) > 1:
+                sorted_events = sorted(events_query, key=lambda x: x.start_time)
+                for i in range(len(sorted_events) - 1):
+                    current_event = sorted_events[i]
+                    next_event = sorted_events[i + 1]
+                    
+                    if current_event.app_name and next_event.app_name:
+                        switch_pattern = {
+                            'from_app': current_event.app_name,
+                            'to_app': next_event.app_name,
+                            'switch_time': next_event.start_time.isoformat(),
+                            'gap_seconds': (next_event.start_time - current_event.end_time).total_seconds() if current_event.end_time else 0
+                        }
+                        app_switching_patterns.append(switch_pattern)
+            
+            # 限制切换模式数量
+            app_switching_patterns = app_switching_patterns[-50:]  # 最近50次切换
+            
+            return AppUsageStatsResponse(
+                app_usage_summary=app_usage_list,
+                daily_app_usage=daily_app_usage_list,
+                hourly_app_distribution=hourly_app_distribution,
+                top_apps_by_time=top_apps_by_time,
+                app_switching_patterns=app_switching_patterns,
+                total_apps_used=len(app_usage_summary),
+                total_usage_time=sum(app['total_time'] for app in app_usage_summary.values())
+            )
+            
+    except Exception as e:
+        logger.error(f"获取应用使用统计失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取应用使用统计失败: {str(e)}")
 
 
 def main():

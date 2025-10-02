@@ -8,7 +8,7 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 from .app_mapping import app_mapper
 
@@ -137,7 +137,7 @@ class QueryParser:
         
         return conditions
     
-    def _extract_time_range(self, query: str) -> tuple[Optional[datetime], Optional[datetime]]:
+    def _extract_time_range(self, query: str) -> Tuple[Optional[datetime], Optional[datetime]]:
         """提取时间范围"""
         now = datetime.now()
         start_date = None

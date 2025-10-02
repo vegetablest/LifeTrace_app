@@ -1,4 +1,5 @@
 import os
+import sys
 import yaml
 from pathlib import Path
 from typing import Optional, List
@@ -10,10 +11,20 @@ class LifeTraceConfig:
         self.config_path = config_path or self._get_default_config_path()
         self._config = self._load_config()
     
+    def _get_application_path(self) -> str:
+        """获取应用程序路径，兼容PyInstaller打包"""
+        if getattr(sys, 'frozen', False):
+            # 如果是PyInstaller打包的应用，使用可执行文件所在目录
+            return os.path.dirname(sys.executable)
+        else:
+            # 开发环境，使用项目根目录
+            return Path(__file__).parent.parent
+    
     def _get_default_config_path(self) -> str:
         """获取默认配置文件路径"""
         # 确保config目录存在
-        config_dir = os.path.join(Path(__file__).parent.parent, 'config')
+        app_path = self._get_application_path()
+        config_dir = os.path.join(app_path, 'config')
         os.makedirs(config_dir, exist_ok=True)
         
         # 使用项目目录下的config/config.yaml作为配置文件
@@ -136,7 +147,7 @@ class LifeTraceConfig:
         配置文件保存在config目录下，而不是~目录
         """
         # 获取默认配置文件路径
-        default_config_path = os.path.join(Path(__file__).parent.parent, 'config', 'default_config.yaml')
+        default_config_path = os.path.join(self._get_application_path(), 'config', 'default_config.yaml')
         
         # 确保配置目录存在
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
@@ -199,7 +210,7 @@ class LifeTraceConfig:
         base_dir = self.get('base_dir')
         # 如果是相对路径，转换为绝对路径
         if not os.path.isabs(base_dir):
-            base_dir = os.path.join(Path(__file__).parent.parent, base_dir)
+            base_dir = os.path.join(self._get_application_path(), base_dir)
         # 确保路径末尾没有多余的斜杠
         return base_dir.rstrip(os.sep)
     
@@ -209,7 +220,7 @@ class LifeTraceConfig:
         db_path = self.get('database_path', 'data/lifetrace.db')
         # 如果是相对路径，转换为绝对路径
         if not os.path.isabs(db_path):
-            db_path = os.path.join(Path(__file__).parent.parent, db_path)
+            db_path = os.path.join(self._get_application_path(), db_path)
         return db_path
     
     @property
@@ -321,7 +332,7 @@ class LifeTraceConfig:
         if not os.path.isabs(log_dir):
             # 如果log_dir以'data/'开头，直接与项目根目录拼接
             if log_dir.startswith('data/'):
-                return os.path.join(Path(__file__).parent.parent, log_dir)
+                return os.path.join(self._get_application_path(), log_dir)
             else:
                 return os.path.join(self.base_dir, log_dir)
         return log_dir
