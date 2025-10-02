@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Python 进程资源监控脚本
-专门监控所有Python进程的CPU和内存使用情况
+LifeTrace 进程资源监控脚本
+专门监控LifeTrace相关进程的CPU和内存使用情况
 """
 
 import psutil
@@ -17,8 +17,8 @@ import signal
 import sys
 
 
-class PythonProcessMonitor:
-    """Python进程资源监控器"""
+class LifeTraceMonitor:
+    """LifeTrace进程资源监控器"""
     
     def __init__(self, interval: float = 1.0, duration: float = 3600):
         """
@@ -34,28 +34,27 @@ class PythonProcessMonitor:
         self.data = []
         self.start_time = None
     
-    def get_python_processes(self) -> List[psutil.Process]:
-        """获取所有Python进程"""
-        python_processes = []
+    def get_lifetrace_processes(self) -> List[psutil.Process]:
+        """获取LifeTrace相关进程"""
+        lifetrace_processes = []
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
                 name = proc.info['name'].lower() if proc.info['name'] else ''
                 cmdline = ' '.join(proc.info['cmdline']).lower() if proc.info['cmdline'] else ''
                 
-                # 检查是否是Python进程
-                is_python = ('python' in name or 'python.exe' in name or 
-                           'python3' in name or 'python3.exe' in name or
-                           'pythonw' in name or 'pythonw.exe' in name)
+                # 检查是否是LifeTrace相关进程
+                is_lifetrace = (
+                    'lifetrace' in name or 'lifetrace' in cmdline or
+                    'LifeTrace' in cmdline or 'LifeTrace_app' in cmdline or
+                    any('D:\\lifetrace\\LifeTrace_app' in part for part in proc.info['cmdline']) or
+                    any('d:\\lifetrace\\lifetrace_app' in part.lower() for part in proc.info['cmdline'])
+                )
                 
-                # 也检查命令行中是否包含python
-                if not is_python and ('python' in cmdline or 'python.exe' in cmdline):
-                    is_python = True
-                
-                if is_python:
-                    python_processes.append(proc)
+                if is_lifetrace:
+                    lifetrace_processes.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-        return python_processes
+        return lifetrace_processes
     
     def get_process_metrics(self, proc: psutil.Process) -> Dict[str, Any]:
         """获取单个进程的指标"""
@@ -83,10 +82,10 @@ class PythonProcessMonitor:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return None
     
-    def get_python_metrics(self) -> Dict[str, Any]:
-        """获取Python进程指标"""
+    def get_lifetrace_metrics(self) -> Dict[str, Any]:
+        """获取LifeTrace进程指标"""
         try:
-            processes = self.get_python_processes()
+            processes = self.get_lifetrace_processes()
             process_metrics = []
             
             for proc in processes:
@@ -107,7 +106,7 @@ class PythonProcessMonitor:
             }
             
         except Exception as e:
-            print(f"获取Python进程指标时出错: {e}")
+            print(f"获取LifeTrace进程指标时出错: {e}")
             return {}
     
     def start_monitoring(self):
@@ -116,7 +115,7 @@ class PythonProcessMonitor:
         self.start_time = datetime.now()
         end_time = self.start_time + timedelta(seconds=self.duration)
         
-        print(f"🚀 开始Python进程资源监控")
+        print(f"🚀 开始LifeTrace进程资源监控")
         print(f"⏰ 监控间隔: {self.interval}秒")
         print(f"⏱️  总时长: {self.duration}秒 ({timedelta(seconds=self.duration)})")
         print(f"⏰ 预计结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -124,7 +123,7 @@ class PythonProcessMonitor:
         
         try:
             while self.running and datetime.now() < end_time:
-                metrics = self.get_python_metrics()
+                metrics = self.get_lifetrace_metrics()
                 if metrics:
                     self.data.append(metrics)
                     
@@ -165,16 +164,16 @@ class PythonProcessMonitor:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # 保存原始数据(JSON)
-        json_file = os.path.join(output_dir, f"python_metrics_{timestamp}.json")
+        json_file = os.path.join(output_dir, f"lifetrace_metrics_{timestamp}.json")
         with open(json_file, 'w', encoding='utf-8') as f:
             json.dump(self.data, f, indent=2, ensure_ascii=False)
         
         # 保存CSV数据
-        csv_file = os.path.join(output_dir, f"python_metrics_{timestamp}.csv")
+        csv_file = os.path.join(output_dir, f"lifetrace_metrics_{timestamp}.csv")
         self._save_csv(csv_file)
         
         # 生成Markdown报告
-        md_file = os.path.join(output_dir, f"python_monitor_report_{timestamp}.md")
+        md_file = os.path.join(output_dir, f"lifetrace_monitor_report_{timestamp}.md")
         self._generate_markdown_report(md_file)
         
         print(f"📊 监控报告已生成:")
@@ -236,7 +235,7 @@ class PythonProcessMonitor:
                 process_stats[proc_name]['memory_values'].append(proc['memory_mb'])
         
         with open(md_file, 'w', encoding='utf-8') as f:
-            f.write(f"# Python 进程资源监控报告\n\n")
+            f.write(f"# LifeTrace 进程资源监控报告\n\n")
             f.write(f"**报告生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             f.write(f"**监控开始时间**: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             f.write(f"**监控时长**: {timedelta(seconds=duration_seconds)}\n\n")
@@ -284,16 +283,16 @@ class PythonProcessMonitor:
                 f.write("❌ **需要注意**: 内存占用 > 2GB (可能需要优化)\n\n")
             
             f.write("## 📋 原始数据文件\n\n")
-            f.write("- `python_metrics_*.json`: 完整的监控数据(JSON格式)\n")
-            f.write("- `python_metrics_*.csv`: 扁平化的监控数据(CSV格式)\n")
-            f.write("- `python_monitor_report_*.md`: 本报告文件\n\n")
+            f.write("- `lifetrace_metrics_*.json`: 完整的监控数据(JSON格式)\n")
+            f.write("- `lifetrace_metrics_*.csv`: 扁平化的监控数据(CSV格式)\n")
+            f.write("- `lifetrace_monitor_report_*.md`: 本报告文件\n\n")
             
             f.write("## 🔧 使用说明\n\n")
             f.write("```bash\n")
-            f.write("# 基本使用\n")
-            f.write("python lifetrace_monitor.py --duration 3600 --interval 1\n\n")
-            f.write("# 监控2小时，每5秒采样一次\n")
-            f.write("python lifetrace_monitor.py --duration 7200 --interval 5\n\n")
+            f.write("# 默认使用：12小时监控，10分钟采样间隔\n")
+            f.write("python lifetrace_monitor.py\n\n")
+            f.write("# 自定义时长和间隔\n")
+            f.write("python lifetrace_monitor.py --duration 86400 --interval 300\n\n")
             f.write("# 指定输出目录\n")
             f.write("python lifetrace_monitor.py --output custom_reports\n")
             f.write("```\n")
@@ -301,18 +300,18 @@ class PythonProcessMonitor:
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description='Python进程资源监控工具')
-    parser.add_argument('--interval', type=float, default=1.0, 
-                       help='监控间隔(秒)，默认1秒')
-    parser.add_argument('--duration', type=float, default=3600,
-                       help='监控总时长(秒)，默认3600秒(1小时)')
-    parser.add_argument('--output', type=str, default='reports',
-                       help='报告输出目录，默认reports')
+    parser = argparse.ArgumentParser(description='LifeTrace进程资源监控工具')
+    parser.add_argument('--interval', type=float, default=600.0, 
+                       help='监控间隔(秒)，默认600秒(10分钟)')
+    parser.add_argument('--duration', type=float, default=43200,
+                       help='监控总时长(秒)，默认43200秒(12小时)')
+    parser.add_argument('--output', type=str, default='tech_report',
+                       help='报告输出目录，默认tech_report')
     
     args = parser.parse_args()
     
     # 创建监控器
-    monitor = PythonProcessMonitor(interval=args.interval, duration=args.duration)
+    monitor = LifeTraceMonitor(interval=args.interval, duration=args.duration)
     
     # 设置信号处理
     def signal_handler(sig, frame):
