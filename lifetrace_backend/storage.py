@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from lifetrace_backend.config import config
-from lifetrace_backend.models import Base, Screenshot, OCRResult, SearchIndex, ProcessingQueue, Event
+from lifetrace_backend.models import Base, Screenshot, OCRResult, SearchIndex, ProcessingQueue, Event, AppUsageLog
 from lifetrace_backend.utils import ensure_dir, get_file_hash
 
 
@@ -674,6 +674,96 @@ class DatabaseManager:
                 
         except SQLAlchemyError as e:
             logging.error(f"清理旧数据失败: {e}")
+
+    def add_app_usage_log(self, app_name: str, window_title: str = None, 
+                         duration_seconds: int = 0, screen_id: int = 0, 
+                         timestamp: datetime = None) -> Optional[int]:
+        """添加应用使用记录"""
+        try:
+            with self.get_session() as session:
+                app_usage_log = AppUsageLog(
+                    app_name=app_name,
+                    window_title=window_title,
+                    duration_seconds=duration_seconds,
+                    screen_id=screen_id,
+                    timestamp=timestamp or datetime.now()
+                )
+                session.add(app_usage_log)
+                session.commit()
+                return app_usage_log.id
+        except SQLAlchemyError as e:
+            logging.error(f"添加应用使用记录失败: {e}")
+            return None
+
+    def get_app_usage_stats(self, days: int = 7) -> Dict[str, Any]:
+        """获取应用使用统计数据"""
+        try:
+            with self.get_session() as session:
+                # 计算时间范围
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=days)
+                
+                # 查询指定时间范围内的应用使用记录
+                logs = session.query(AppUsageLog).filter(
+                    AppUsageLog.timestamp >= start_date,
+                    AppUsageLog.timestamp <= end_date
+                ).all()
+                
+                # 按应用名称聚合数据
+                app_usage_summary = {}
+                daily_usage = {}
+                hourly_usage = {}
+                
+                for log in logs:
+                    app_name = log.app_name
+                    date_str = log.timestamp.strftime('%Y-%m-%d')
+                    hour = log.timestamp.hour
+                    
+                    # 应用使用汇总
+                    if app_name not in app_usage_summary:
+                        app_usage_summary[app_name] = {
+                            'app_name': app_name,
+                            'total_time': 0,
+                            'session_count': 0,
+                            'last_used': log.timestamp
+                        }
+                    
+                    app_usage_summary[app_name]['total_time'] += log.duration_seconds
+                    app_usage_summary[app_name]['session_count'] += 1
+                    if log.timestamp > app_usage_summary[app_name]['last_used']:
+                        app_usage_summary[app_name]['last_used'] = log.timestamp
+                    
+                    # 每日使用统计
+                    if date_str not in daily_usage:
+                        daily_usage[date_str] = {}
+                    if app_name not in daily_usage[date_str]:
+                        daily_usage[date_str][app_name] = 0
+                    daily_usage[date_str][app_name] += log.duration_seconds
+                    
+                    # 小时使用统计
+                    if hour not in hourly_usage:
+                        hourly_usage[hour] = {}
+                    if app_name not in hourly_usage[hour]:
+                        hourly_usage[hour][app_name] = 0
+                    hourly_usage[hour][app_name] += log.duration_seconds
+                
+                return {
+                    'app_usage_summary': app_usage_summary,
+                    'daily_usage': daily_usage,
+                    'hourly_usage': hourly_usage,
+                    'total_apps': len(app_usage_summary),
+                    'total_time': sum(app['total_time'] for app in app_usage_summary.values())
+                }
+                
+        except SQLAlchemyError as e:
+            logging.error(f"获取应用使用统计失败: {e}")
+            return {
+                'app_usage_summary': {},
+                'daily_usage': {},
+                'hourly_usage': {},
+                'total_apps': 0,
+                'total_time': 0
+            }
 
 
 # 全局数据库管理器实例

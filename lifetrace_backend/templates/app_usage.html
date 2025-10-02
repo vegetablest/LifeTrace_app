@@ -397,14 +397,6 @@
                     <option value="30">最近30天</option>
                 </select>
             </div>
-            <div class="filter-group">
-                <label class="filter-label">排序方式</label>
-                <select id="sortFilter" class="filter-select">
-                    <option value="time">按使用时长</option>
-                    <option value="frequency">按使用频率</option>
-                    <option value="name">按应用名称</option>
-                </select>
-            </div>
         </div>
 
         <!-- 统计卡片 -->
@@ -448,13 +440,6 @@
 
         <!-- 图表区域 -->
         <div class="chart-container">
-            <h2 class="chart-title">每日应用使用时长</h2>
-            <div class="chart-wrapper">
-                <canvas id="dailyUsageChart"></canvas>
-            </div>
-        </div>
-
-        <div class="chart-container">
             <h2 class="chart-title">应用使用时长分布</h2>
             <div class="chart-wrapper">
                 <canvas id="appUsageChart"></canvas>
@@ -465,14 +450,6 @@
             <h2 class="chart-title">小时使用分布</h2>
             <div class="chart-wrapper">
                 <canvas id="hourlyUsageChart"></canvas>
-            </div>
-        </div>
-
-        <!-- 应用列表 -->
-        <div class="app-list">
-            <h2 class="chart-title">应用使用详情</h2>
-            <div id="appListContent">
-                <div class="loading">加载中...</div>
             </div>
         </div>
     </div>
@@ -503,7 +480,6 @@
         updateTheme();
 
         // 图表实例
-        let dailyUsageChart = null;
         let appUsageChart = null;
         let hourlyUsageChart = null;
 
@@ -535,7 +511,6 @@
                 const data = await response.json();
                 updateStats(data);
                 updateCharts(data);
-                updateAppList(data);
             } catch (error) {
                 console.error('获取应用使用统计数据失败:', error);
                 showError('获取数据失败，请稍后重试');
@@ -545,7 +520,7 @@
         // 更新统计卡片
         function updateStats(data) {
             document.getElementById('totalUsageTime').textContent = 
-                (data.total_usage_time / 60).toFixed(1);
+                (data.total_usage_time / 3600).toFixed(1);
             document.getElementById('totalAppsUsed').textContent = data.total_apps_used;
             document.getElementById('appSwitches').textContent = 
                 data.app_switching_patterns?.total_switches || 0;
@@ -557,57 +532,8 @@
 
         // 更新图表
         function updateCharts(data) {
-            updateDailyUsageChart(data.daily_app_usage);
             updateAppUsageChart(data.top_apps_by_time);
             updateHourlyUsageChart(data.hourly_app_distribution);
-        }
-
-        // 每日使用时长图表
-        function updateDailyUsageChart(dailyUsage) {
-            const ctx = document.getElementById('dailyUsageChart').getContext('2d');
-            
-            if (dailyUsageChart) {
-                dailyUsageChart.destroy();
-            }
-
-            const labels = Object.keys(dailyUsage).sort();
-            const data = labels.map(date => {
-                const dayData = dailyUsage[date];
-                return Object.values(dayData).reduce((sum, time) => sum + time, 0) / 60; // 转换为小时
-            });
-
-            dailyUsageChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: '使用时长 (小时)',
-                        data: data,
-                        borderColor: 'hsl(var(--primary))',
-                        backgroundColor: 'hsl(var(--primary) / 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: '小时'
-                            }
-                        }
-                    }
-                }
-            });
         }
 
         // 应用使用时长分布图表
@@ -619,7 +545,32 @@
             }
 
             const labels = topApps.slice(0, 10).map(app => app.app_name);
-            const data = topApps.slice(0, 10).map(app => app.total_time / 60); // 转换为小时
+            const data = topApps.slice(0, 10).map(app => app.total_time / 3600); // 转换为小时
+
+            // 现代化渐变色彩方案
+            const gradientColors = [
+                { start: '#667eea', end: '#764ba2' }, // 紫蓝渐变
+                { start: '#f093fb', end: '#f5576c' }, // 粉红渐变
+                { start: '#4facfe', end: '#00f2fe' }, // 蓝青渐变
+                { start: '#43e97b', end: '#38f9d7' }, // 绿青渐变
+                { start: '#fa709a', end: '#fee140' }, // 粉黄渐变
+                { start: '#a8edea', end: '#fed6e3' }, // 青粉渐变
+                { start: '#ff9a9e', end: '#fecfef' }, // 红粉渐变
+                { start: '#ffecd2', end: '#fcb69f' }, // 黄橙渐变
+                { start: '#a18cd1', end: '#fbc2eb' }, // 紫粉渐变
+                { start: '#fad0c4', end: '#ffd1ff' }  // 橙粉渐变
+            ];
+
+            // 创建渐变背景
+            const backgroundColors = gradientColors.slice(0, labels.length).map(color => {
+                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                gradient.addColorStop(0, color.start);
+                gradient.addColorStop(1, color.end);
+                return gradient;
+            });
+
+            // 悬停时的边框颜色
+            const hoverBorderColors = gradientColors.slice(0, labels.length).map(color => color.start);
 
             appUsageChart = new Chart(ctx, {
                 type: 'doughnut',
@@ -627,27 +578,104 @@
                     labels: labels,
                     datasets: [{
                         data: data,
-                        backgroundColor: [
-                            'hsl(var(--primary))',
-                            'hsl(var(--secondary))',
-                            'hsl(var(--accent))',
-                            'hsl(221.2 83.2% 63.3%)',
-                            'hsl(221.2 83.2% 73.3%)',
-                            'hsl(221.2 83.2% 43.3%)',
-                            'hsl(210 40% 86%)',
-                            'hsl(210 40% 76%)',
-                            'hsl(210 40% 66%)',
-                            'hsl(210 40% 56%)'
-                        ]
+                        backgroundColor: backgroundColors,
+                        borderColor: '#ffffff',
+                        borderWidth: 3,
+                        hoverBorderColor: hoverBorderColors,
+                        hoverBorderWidth: 4,
+                        hoverOffset: 8
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    cutout: '65%', // 增大内圆，更现代的外观
                     plugins: {
                         legend: {
-                            position: 'right'
+                            position: 'right',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    family: "'Inter', 'Segoe UI', sans-serif"
+                                },
+                                color: 'hsl(var(--foreground))',
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map((label, i) => {
+                                            const dataset = data.datasets[0];
+                                            const value = dataset.data[i];
+                                            const total = dataset.data.reduce((sum, val) => sum + val, 0);
+                                            const percentage = ((value / total) * 100).toFixed(1);
+                                            
+                                            return {
+                                                text: `${label} (${percentage}%)`,
+                                                fillStyle: gradientColors[i]?.start || '#ccc',
+                                                strokeStyle: gradientColors[i]?.start || '#ccc',
+                                                lineWidth: 0,
+                                                pointStyle: 'circle',
+                                                hidden: false,
+                                                index: i
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            padding: 12,
+                            titleFont: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            callbacks: {
+                                title: function(context) {
+                                    return context[0].label;
+                                },
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    const hours = value.toFixed(1);
+                                    return [`使用时长: ${hours} 小时`, `占比: ${percentage}%`];
+                                }
+                            }
                         }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'point'
+                    },
+                    elements: {
+                        arc: {
+                            borderRadius: 4,
+                            hoverBorderRadius: 6
+                        }
+                    },
+                    onHover: (event, activeElements) => {
+                        event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
                     }
                 }
             });
@@ -663,8 +691,28 @@
 
             const labels = Array.from({length: 24}, (_, i) => `${i}:00`);
             const data = labels.map((_, hour) => {
-                return hourlyData[hour] ? hourlyData[hour] / 60 : 0; // 转换为小时
+                // 修复：正确处理嵌套的小时数据结构
+                if (hourlyData[hour] && typeof hourlyData[hour] === 'object') {
+                    // 计算该小时内所有应用的总使用时长
+                    const totalSeconds = Object.values(hourlyData[hour]).reduce((sum, duration) => sum + duration, 0);
+                    return totalSeconds / 3600; // 转换为小时
+                }
+                return 0;
             });
+
+            console.log('小时使用分布数据:', data); // 调试日志
+
+            // 创建渐变背景
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.8)');   // 蓝色顶部
+            gradient.addColorStop(0.5, 'rgba(147, 51, 234, 0.6)'); // 紫色中部
+            gradient.addColorStop(1, 'rgba(236, 72, 153, 0.4)');   // 粉色底部
+
+            // 创建边框渐变
+            const borderGradient = ctx.createLinearGradient(0, 0, 0, 400);
+            borderGradient.addColorStop(0, 'rgba(59, 130, 246, 1)');
+            borderGradient.addColorStop(0.5, 'rgba(147, 51, 234, 1)');
+            borderGradient.addColorStop(1, 'rgba(236, 72, 153, 1)');
 
             hourlyUsageChart = new Chart(ctx, {
                 type: 'bar',
@@ -673,17 +721,78 @@
                     datasets: [{
                         label: '使用时长 (小时)',
                         data: data,
-                        backgroundColor: 'hsl(var(--primary) / 0.8)',
-                        borderColor: 'hsl(var(--primary))',
-                        borderWidth: 1
+                        backgroundColor: gradient,
+                        borderColor: borderGradient,
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        hoverBackgroundColor: 'rgba(59, 130, 246, 0.9)',
+                        hoverBorderColor: 'rgba(59, 130, 246, 1)',
+                        hoverBorderWidth: 3,
+                        shadowOffsetX: 0,
+                        shadowOffsetY: 4,
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(0, 0, 0, 0.15)'
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 20,
+                            bottom: 10,
+                            left: 10,
+                            right: 10
+                        }
+                    },
                     plugins: {
                         legend: {
                             display: false
+                        },
+                        tooltip: {
+                            enabled: true,
+                            backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                            titleColor: '#f9fafb',
+                            bodyColor: '#f3f4f6',
+                            borderColor: 'rgba(59, 130, 246, 0.5)',
+                            borderWidth: 1,
+                            cornerRadius: 12,
+                            padding: 16,
+                            displayColors: false,
+                            titleFont: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            callbacks: {
+                                title: function(context) {
+                                    const hour = context[0].label;
+                                    return `📊 ${hour} 时段`;
+                                },
+                                label: function(context) {
+                                    const hours = context.parsed.y.toFixed(2);
+                                    const minutes = Math.round(context.parsed.y * 60);
+                                    const seconds = Math.round(context.parsed.y * 3600);
+                                    
+                                    if (hours >= 1) {
+                                        return `⏱️ 使用时长: ${hours} 小时`;
+                                    } else if (minutes >= 1) {
+                                        return `⏱️ 使用时长: ${minutes} 分钟`;
+                                    } else {
+                                        return `⏱️ 使用时长: ${seconds} 秒`;
+                                    }
+                                },
+                                afterLabel: function(context) {
+                                    const percentage = ((context.parsed.y / Math.max(...data)) * 100).toFixed(1);
+                                    return `📈 占比: ${percentage}%`;
+                                }
+                            },
+                            animation: {
+                                duration: 200
+                            }
                         }
                     },
                     scales: {
@@ -691,62 +800,96 @@
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: '小时'
+                                text: '使用时长 (小时)',
+                                color: '#6b7280',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1) + 'h';
+                                },
+                                color: '#9ca3af',
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(156, 163, 175, 0.1)',
+                                lineWidth: 1
+                            },
+                            border: {
+                                display: false
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '时间段',
+                                color: '#6b7280',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                color: '#9ca3af',
+                                font: {
+                                    size: 10
+                                },
+                                maxRotation: 45,
+                                minRotation: 0
+                            },
+                            grid: {
+                                display: false
+                            },
+                            border: {
+                                color: 'rgba(156, 163, 175, 0.2)'
                             }
                         }
+                    },
+                    animation: {
+                        duration: 1200,
+                        easing: 'easeOutCubic',
+                        delay: (context) => {
+                            return context.dataIndex * 50; // 逐个柱状图动画
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    onHover: (event, activeElements) => {
+                        event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+                    },
+                    elements: {
+                        bar: {
+                            borderRadius: 8,
+                            hoverBorderRadius: 10
+                        }
                     }
-                }
+                },
+                plugins: [{
+                    id: 'customShadow',
+                    beforeDraw: (chart) => {
+                        const ctx = chart.ctx;
+                        ctx.save();
+                        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+                        ctx.shadowBlur = 10;
+                        ctx.shadowOffsetX = 0;
+                        ctx.shadowOffsetY = 4;
+                    },
+                    afterDraw: (chart) => {
+                        chart.ctx.restore();
+                    }
+                }]
             });
-        }
-
-        // 更新应用列表
-        function updateAppList(data) {
-            const container = document.getElementById('appListContent');
-            const sortBy = document.getElementById('sortFilter').value;
-            
-            let apps = [...data.top_apps_by_time];
-            
-            // 排序
-            if (sortBy === 'frequency') {
-                apps.sort((a, b) => b.session_count - a.session_count);
-            } else if (sortBy === 'name') {
-                apps.sort((a, b) => a.app_name.localeCompare(b.app_name));
-            }
-            // 默认已按时长排序
-
-            const html = apps.map(app => {
-                const appInitial = app.app_name.charAt(0).toUpperCase();
-                return `
-                    <div class="app-item">
-                        <div class="app-info">
-                            <div class="app-icon">${appInitial}</div>
-                            <div class="app-name">${app.app_name}</div>
-                        </div>
-                        <div class="app-stats">
-                            <div class="app-time">${formatTime(app.total_time)}</div>
-                            <div class="app-sessions">${app.session_count} 次会话</div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            container.innerHTML = html || '<div class="loading">暂无数据</div>';
-        }
-
-        // 显示错误
-        function showError(message) {
-            document.getElementById('appListContent').innerHTML = 
-                `<div class="error">${message}</div>`;
         }
 
         // 事件监听器
         document.getElementById('daysFilter').addEventListener('change', fetchAppUsageStats);
-        document.getElementById('sortFilter').addEventListener('change', () => {
-            // 重新渲染应用列表，不需要重新获取数据
-            if (window.lastAppUsageData) {
-                updateAppList(window.lastAppUsageData);
-            }
-        });
 
         // 初始化图标
         lucide.createIcons();
@@ -755,20 +898,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             fetchAppUsageStats();
         });
-
-        // 保存数据以供排序使用
-        const originalFetchAppUsageStats = fetchAppUsageStats;
-        fetchAppUsageStats = async function() {
-            await originalFetchAppUsageStats();
-            // 这里需要在updateStats等函数中保存数据
-        };
-
-        // 修改updateStats函数以保存数据
-        const originalUpdateStats = updateStats;
-        updateStats = function(data) {
-            window.lastAppUsageData = data;
-            originalUpdateStats(data);
-        };
     </script>
 </body>
 </html>

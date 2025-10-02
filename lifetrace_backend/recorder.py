@@ -434,12 +434,38 @@ class ScreenRecorder:
             print(f"[黑名单] 跳过截图 - 应用: {app_name}, 窗口: {window_title}")
             return captured_files
         
+        # 记录应用使用信息到新表（在截图前记录，避免跳过和去重的影响）
+        self._log_app_usage(app_name, window_title)
+        
         for screen_id in self.screens:
             file_path = self._capture_screen(screen_id, app_name, window_title)
             if file_path:
                 captured_files.append(file_path)
-        
+
         return captured_files
+    
+    def _log_app_usage(self, app_name: str, window_title: str = None):
+        """记录应用使用信息到新表"""
+        try:
+            # 计算持续时间（使用截图间隔作为估算）
+            duration_seconds = self.interval
+            
+            # 记录到数据库
+            log_id = db_manager.add_app_usage_log(
+                app_name=app_name,
+                window_title=window_title,
+                duration_seconds=duration_seconds,
+                screen_id=0,  # 默认屏幕ID，可以根据需要调整
+                timestamp=datetime.now()
+            )
+            
+            if log_id:
+                logger.debug(f"应用使用记录已保存: {app_name} - {window_title} ({duration_seconds}s)")
+            else:
+                logger.warning(f"应用使用记录保存失败: {app_name}")
+                
+        except Exception as e:
+            logger.error(f"记录应用使用信息失败: {e}")
     
     def start_recording(self):
         """开始录制"""

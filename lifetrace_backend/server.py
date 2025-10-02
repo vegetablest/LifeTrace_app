@@ -1923,133 +1923,62 @@ async def get_app_usage_stats(
 ):
     """获取应用使用统计数据"""
     try:
-        # 计算时间范围
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
+        # 使用新的AppUsageLog表获取统计数据
+        stats_data = db_manager.get_app_usage_stats(days=days)
         
-        # 从数据库获取事件数据
-        with db_manager.get_session() as session:
-            from lifetrace_backend.models import Event, Screenshot
-            from sqlalchemy import func, and_
-            
-            # 获取应用使用事件
-            events_query = session.query(Event).filter(
-                and_(
-                    Event.start_time >= start_date,
-                    Event.start_time <= end_date,
-                    Event.app_name.isnot(None),
-                    Event.end_time.isnot(None)
-                )
-            ).all()
-            
-            # 应用使用汇总
-            app_usage_summary = {}
-            daily_app_usage = {}
-            hourly_app_distribution = {hour: {} for hour in range(24)}
-            app_switching_patterns = []
-            
-            for event in events_query:
-                app_name = event.app_name or "未知应用"
-                
-                # 计算使用时长（秒）
-                if event.end_time and event.start_time:
-                    duration = (event.end_time - event.start_time).total_seconds()
-                    
-                    # 应用使用汇总
-                    if app_name not in app_usage_summary:
-                        app_usage_summary[app_name] = {
-                            'app_name': app_name,
-                            'total_time': 0,
-                            'session_count': 0,
-                            'avg_session_time': 0,
-                            'first_used': event.start_time,
-                            'last_used': event.end_time
-                        }
-                    
-                    app_usage_summary[app_name]['total_time'] += duration
-                    app_usage_summary[app_name]['session_count'] += 1
-                    
-                    if event.start_time < app_usage_summary[app_name]['first_used']:
-                        app_usage_summary[app_name]['first_used'] = event.start_time
-                    if event.end_time > app_usage_summary[app_name]['last_used']:
-                        app_usage_summary[app_name]['last_used'] = event.end_time
-                    
-                    # 每日应用使用
-                    date_str = event.start_time.strftime('%Y-%m-%d')
-                    if date_str not in daily_app_usage:
-                        daily_app_usage[date_str] = {}
-                    if app_name not in daily_app_usage[date_str]:
-                        daily_app_usage[date_str][app_name] = 0
-                    daily_app_usage[date_str][app_name] += duration
-                    
-                    # 小时分布（转换为整数秒）
-                    hour = event.start_time.hour
-                    if app_name not in hourly_app_distribution[hour]:
-                        hourly_app_distribution[hour][app_name] = 0
-                    hourly_app_distribution[hour][app_name] += int(duration)
-            
-            # 计算平均会话时长
-            for app_data in app_usage_summary.values():
-                if app_data['session_count'] > 0:
-                    app_data['avg_session_time'] = app_data['total_time'] / app_data['session_count']
-            
-            # 转换为列表并排序
-            app_usage_list = list(app_usage_summary.values())
-            app_usage_list.sort(key=lambda x: x['total_time'], reverse=True)
-            
-            # 格式化时间显示
-            for app_data in app_usage_list:
-                app_data['total_time_formatted'] = f"{app_data['total_time'] / 3600:.1f}小时"
-                app_data['avg_session_time_formatted'] = f"{app_data['avg_session_time'] / 60:.1f}分钟"
-                app_data['first_used'] = app_data['first_used'].isoformat()
-                app_data['last_used'] = app_data['last_used'].isoformat()
-            
-            # 按使用时长排序的前10个应用
-            top_apps_by_time = app_usage_list[:10]
-            
-            # 每日应用使用数据格式化
-            daily_app_usage_list = []
-            for date, apps in daily_app_usage.items():
-                daily_data = {'date': date, 'apps': []}
-                for app_name, duration in apps.items():
-                    daily_data['apps'].append({
-                        'app_name': app_name,
-                        'duration': duration,
-                        'duration_formatted': f"{duration / 3600:.1f}小时"
-                    })
-                daily_data['apps'].sort(key=lambda x: x['duration'], reverse=True)
-                daily_app_usage_list.append(daily_data)
-            
-            daily_app_usage_list.sort(key=lambda x: x['date'])
-            
-            # 应用切换模式分析（简化版）
-            if len(events_query) > 1:
-                sorted_events = sorted(events_query, key=lambda x: x.start_time)
-                for i in range(len(sorted_events) - 1):
-                    current_event = sorted_events[i]
-                    next_event = sorted_events[i + 1]
-                    
-                    if current_event.app_name and next_event.app_name:
-                        switch_pattern = {
-                            'from_app': current_event.app_name,
-                            'to_app': next_event.app_name,
-                            'switch_time': next_event.start_time.isoformat(),
-                            'gap_seconds': (next_event.start_time - current_event.end_time).total_seconds() if current_event.end_time else 0
-                        }
-                        app_switching_patterns.append(switch_pattern)
-            
-            # 限制切换模式数量
-            app_switching_patterns = app_switching_patterns[-50:]  # 最近50次切换
-            
-            return AppUsageStatsResponse(
-                app_usage_summary=app_usage_list,
-                daily_app_usage=daily_app_usage_list,
-                hourly_app_distribution=hourly_app_distribution,
-                top_apps_by_time=top_apps_by_time,
-                app_switching_patterns=app_switching_patterns,
-                total_apps_used=len(app_usage_summary),
-                total_usage_time=sum(app['total_time'] for app in app_usage_summary.values())
-            )
+        # 转换数据格式以匹配前端期望
+        app_usage_list = []
+        for app_name, app_data in stats_data['app_usage_summary'].items():
+            formatted_data = {
+                'app_name': app_data['app_name'],
+                'total_time': app_data['total_time'],
+                'session_count': app_data['session_count'],
+                'avg_session_time': app_data['total_time'] / app_data['session_count'] if app_data['session_count'] > 0 else 0,
+                'first_used': app_data['last_used'].isoformat(),
+                'last_used': app_data['last_used'].isoformat(),
+                'total_time_formatted': f"{app_data['total_time'] / 3600:.1f}小时",
+                'avg_session_time_formatted': f"{(app_data['total_time'] / app_data['session_count'] if app_data['session_count'] > 0 else 0) / 60:.1f}分钟"
+            }
+            app_usage_list.append(formatted_data)
+        
+        # 按使用时长排序
+        app_usage_list.sort(key=lambda x: x['total_time'], reverse=True)
+        
+        # 前10个应用
+        top_apps_by_time = app_usage_list[:10]
+        
+        # 每日应用使用数据格式化
+        daily_app_usage_list = []
+        for date, apps in stats_data['daily_usage'].items():
+            daily_data = {'date': date, 'apps': []}
+            for app_name, duration in apps.items():
+                daily_data['apps'].append({
+                    'app_name': app_name,
+                    'duration': duration,
+                    'duration_formatted': f"{duration / 3600:.1f}小时"
+                })
+            daily_data['apps'].sort(key=lambda x: x['duration'], reverse=True)
+            daily_app_usage_list.append(daily_data)
+        
+        daily_app_usage_list.sort(key=lambda x: x['date'])
+        
+        # 小时分布数据转换
+        hourly_app_distribution = {}
+        for hour in range(24):
+            hourly_app_distribution[hour] = {}
+            if hour in stats_data['hourly_usage']:
+                for app_name, duration in stats_data['hourly_usage'][hour].items():
+                    hourly_app_distribution[hour][app_name] = int(duration)
+        
+        return AppUsageStatsResponse(
+            app_usage_summary=app_usage_list,
+            daily_app_usage=daily_app_usage_list,
+            hourly_app_distribution=hourly_app_distribution,
+            top_apps_by_time=top_apps_by_time,
+            app_switching_patterns=[],  # 暂时为空，可以后续添加
+            total_apps_used=stats_data['total_apps'],
+            total_usage_time=stats_data['total_time']
+        )
             
     except Exception as e:
         logger.error(f"获取应用使用统计失败: {e}")

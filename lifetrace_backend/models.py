@@ -106,6 +106,22 @@ class UserBehaviorStats(Base):
     def __repr__(self):
         return f"<UserBehaviorStats(id={self.id}, action={self.action_type})>"
 
+class AppUsageLog(Base):
+    """应用使用记录模型 - 用于精确的app使用统计"""
+    __tablename__ = 'app_usage_logs'
+    
+    id = Column(Integer, primary_key=True)
+    app_name = Column(String(200), nullable=False)  # 应用名称
+    window_title = Column(String(500))  # 窗口标题
+    timestamp = Column(DateTime, default=get_local_time, nullable=False)  # 记录时间戳
+    duration_seconds = Column(Integer, default=0)  # 持续时间（秒），用于记录从上次记录到现在的时长
+    is_active = Column(Boolean, default=True)  # 是否为活跃状态
+    screen_id = Column(Integer, default=0)  # 屏幕ID
+    created_at = Column(DateTime, default=get_local_time)
+    
+    def __repr__(self):
+        return f"<AppUsageLog(id={self.id}, app={self.app_name}, timestamp={self.timestamp})>"
+
 class DailyStats(Base):
     """每日统计模型"""
     __tablename__ = 'daily_stats'
