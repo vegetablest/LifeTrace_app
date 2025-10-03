@@ -21,8 +21,15 @@ def _get_application_path() -> str:
 
 def _setup_rapidocr_config():
     """设置RapidOCR配置文件路径"""
-    # 不再依赖外部配置文件，直接在代码中处理
-    pass
+    import os
+    # 设置环境变量，指向我们的外部配置文件
+    app_path = _get_application_path()
+    config_path = os.path.join(app_path, 'config', 'rapidocr_config.yaml')
+    if os.path.exists(config_path):
+        os.environ['RAPIDOCR_CONFIG_PATH'] = config_path
+        print(f"设置RapidOCR配置路径: {config_path}")
+    else:
+        print(f"配置文件不存在: {config_path}")
 
 # 添加项目根目录到Python路径，以便直接运行此文件
 if __name__ == '__main__':
@@ -105,7 +112,67 @@ class SimpleOCRProcessor:
                 # 检查配置文件是否存在
                 if os.path.exists(config_path):
                     print(f"使用RapidOCR配置文件: {config_path}")
-                    self.ocr = RapidOCR(config_path=config_path)
+                    
+                    # 读取配置文件以获取外部模型路径
+                    import yaml
+                    try:
+                        with open(config_path, 'r', encoding='utf-8') as f:
+                            config_data = yaml.safe_load(f)
+                        
+                        # 检查是否有外部模型路径配置
+                        if 'Models' in config_data:
+                            models_config = config_data['Models']
+                            det_model_path = os.path.join(app_path, models_config.get('det_model_path', ''))
+                            rec_model_path = os.path.join(app_path, models_config.get('rec_model_path', ''))
+                            cls_model_path = os.path.join(app_path, models_config.get('cls_model_path', ''))
+                            
+                            # 验证外部模型文件是否存在
+                            if (os.path.exists(det_model_path) and 
+                                os.path.exists(rec_model_path) and 
+                                os.path.exists(cls_model_path)):
+                                print(f"使用外部模型文件:")
+                                print(f"  检测模型: {det_model_path}")
+                                print(f"  识别模型: {rec_model_path}")
+                                print(f"  分类模型: {cls_model_path}")
+                                
+                                # 使用外部模型路径初始化RapidOCR
+                                self.ocr = RapidOCR(
+                                    det_model_path=det_model_path,
+                                    rec_model_path=rec_model_path,
+                                    cls_model_path=cls_model_path,
+                                    det_use_cuda=False,
+                                    cls_use_cuda=False,
+                                    rec_use_cuda=False,
+                                    print_verbose=False
+                                )
+                            else:
+                                print("外部模型文件不存在，使用默认配置")
+                                self.ocr = RapidOCR(
+                                    config_path=None,
+                                    det_use_cuda=False,
+                                    cls_use_cuda=False,
+                                    rec_use_cuda=False,
+                                    print_verbose=False
+                                )
+                        else:
+                            # 没有外部模型配置，使用默认方式
+                            self.ocr = RapidOCR(
+                                config_path=None,
+                                det_use_cuda=False,
+                                cls_use_cuda=False,
+                                rec_use_cuda=False,
+                                print_verbose=False
+                            )
+                            
+                    except Exception as e:
+                        print(f"读取配置文件失败: {e}，使用默认配置")
+                        self.ocr = RapidOCR(
+                            config_path=None,
+                            det_use_cuda=False,
+                            cls_use_cuda=False,
+                            rec_use_cuda=False,
+                            print_verbose=False
+                        )
                 else:
                     print(f"配置文件不存在: {config_path}，使用默认配置")
                     # 使用config_path=None来避免配置文件路径问题
@@ -389,7 +456,85 @@ def main():
     print("正在初始化RapidOCR引擎...")
     logger.info("正在初始化RapidOCR引擎...")
     try:
-        ocr = RapidOCR()
+        # 获取exe同目录下的config文件路径
+        app_path = _get_application_path()
+        config_path = os.path.join(app_path, 'config', 'rapidocr_config.yaml')
+        
+        # 检查配置文件是否存在
+        if os.path.exists(config_path):
+            print(f"使用RapidOCR配置文件: {config_path}")
+            
+            # 读取配置文件以获取外部模型路径
+            import yaml
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config_data = yaml.safe_load(f)
+                
+                # 检查是否有外部模型路径配置
+                if 'Models' in config_data:
+                    models_config = config_data['Models']
+                    det_model_path = os.path.join(app_path, models_config.get('det_model_path', ''))
+                    rec_model_path = os.path.join(app_path, models_config.get('rec_model_path', ''))
+                    cls_model_path = os.path.join(app_path, models_config.get('cls_model_path', ''))
+                    
+                    # 验证外部模型文件是否存在
+                    if (os.path.exists(det_model_path) and 
+                        os.path.exists(rec_model_path) and 
+                        os.path.exists(cls_model_path)):
+                        print(f"使用外部模型文件:")
+                        print(f"  检测模型: {det_model_path}")
+                        print(f"  识别模型: {rec_model_path}")
+                        print(f"  分类模型: {cls_model_path}")
+                        
+                        # 使用外部模型路径初始化RapidOCR
+                        ocr = RapidOCR(
+                            det_model_path=det_model_path,
+                            rec_model_path=rec_model_path,
+                            cls_model_path=cls_model_path,
+                            det_use_cuda=False,
+                            cls_use_cuda=False,
+                            rec_use_cuda=False,
+                            print_verbose=False
+                        )
+                    else:
+                        print("外部模型文件不存在，使用默认配置")
+                        ocr = RapidOCR(
+                            config_path=None,
+                            det_use_cuda=False,
+                            cls_use_cuda=False,
+                            rec_use_cuda=False,
+                            print_verbose=False
+                        )
+                else:
+                    # 没有外部模型配置，使用默认方式
+                    ocr = RapidOCR(
+                        config_path=None,
+                        det_use_cuda=False,
+                        cls_use_cuda=False,
+                        rec_use_cuda=False,
+                        print_verbose=False
+                    )
+                    
+            except Exception as e:
+                print(f"读取配置文件失败: {e}，使用默认配置")
+                ocr = RapidOCR(
+                    config_path=None,
+                    det_use_cuda=False,
+                    cls_use_cuda=False,
+                    rec_use_cuda=False,
+                    print_verbose=False
+                )
+        else:
+            print(f"配置文件不存在: {config_path}，使用默认配置")
+            # 使用config_path=None来避免配置文件路径问题
+            ocr = RapidOCR(
+                config_path=None,
+                det_use_cuda=False,
+                cls_use_cuda=False, 
+                rec_use_cuda=False,
+                print_verbose=False
+            )
+        
         print("RapidOCR引擎初始化成功")
         logger.info("RapidOCR引擎初始化成功")
     except Exception as e:

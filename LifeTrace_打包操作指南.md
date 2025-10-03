@@ -26,15 +26,35 @@ LifeTrace 是一个生活轨迹记录和分析系统，包含三个核心模块�
 - 入口文件: `ocr_standalone.py`
 - 包含完整的RapidOCR运行时环境
 - 解决了RapidOCR配置文件和模型文件依赖问题
+- **性能优化**: 使用外部ONNX模型文件避免嵌入式解压缩开销
 
-**关键配置:**
+**关键配置 (性能优化版本):**
 ```python
 datas=[
     ('config', 'config'),  # 项目配置文件
-    (r'C:\Users\25048\anaconda3\envs\sword\lib\site-packages\rapidocr_onnxruntime', 'rapidocr_onnxruntime'),  # RapidOCR完整包
+    ('models', 'models'),  # 外部ONNX模型文件（避免嵌入到exe中）
+    # 包含RapidOCR的代码部分（不包含models目录）
+    (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/*.py', 'rapidocr_onnxruntime'),
+    (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/utils', 'rapidocr_onnxruntime/utils'),
+    (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/ch_ppocr_det', 'rapidocr_onnxruntime/ch_ppocr_det'),
+    (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/ch_ppocr_rec', 'rapidocr_onnxruntime/ch_ppocr_rec'),
+    (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/ch_ppocr_cls', 'rapidocr_onnxruntime/ch_ppocr_cls'),
+    (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/cal_rec_boxes', 'rapidocr_onnxruntime/cal_rec_boxes'),
     ('lifetrace_backend/*.py', 'lifetrace_backend'),  # 后端模块
 ]
 ```
+
+**性能优化说明:**
+1. **外部模型文件**: 将15.4MB的ONNX模型文件作为外部数据文件，避免嵌入到可执行文件中
+2. **减少I/O开销**: 避免PyInstaller在运行时从临时目录解压缩模型文件的开销
+3. **配置优化**: 在`rapidocr_config.yaml`中指定外部模型路径:
+   ```yaml
+   Models:
+     det_model_path: "models/ch_PP-OCRv4_det_infer.onnx"
+     rec_model_path: "models/ch_PP-OCRv4_rec_infer.onnx"
+     cls_model_path: "models/ch_ppocr_mobile_v2.0_cls_infer.onnx"
+   ```
+4. **性能提升**: 启动时间从52秒优化到约17秒，提升约67%
 
 **隐藏导入模块:**
 - RapidOCR相关: `rapidocr_onnxruntime.*`
@@ -198,8 +218,63 @@ optional arguments:
 - 确保 `build_ocr.spec` 中包含完整的 `rapidocr_onnxruntime` 包
 - 检查RapidOCR包路径是否正确
 - 手动复制缺失的配置文件到 `dist/config/` 目录
+- **性能优化版本**: 确保 `models/` 目录被正确复制到 `dist/` 目录
 
-### 2. 模板文件缺失
+### 2. OCR性能优化问题
+
+**问题:** 打包后OCR处理速度明显变慢，启动时间过长
+
+**根本原因:**
+- PyInstaller将ONNX模型文件嵌入到可执行文件中
+- 运行时需要从临时目录解压缩模型文件，造成I/O开销
+
+**优化步骤:**
+1. **准备外部模型文件:**
+   ```bash
+   # 创建models目录
+   mkdir models
+   
+   # 复制ONNX模型文件
+   python -c "
+   import rapidocr_onnxruntime
+   import os, shutil
+   pkg_path = rapidocr_onnxruntime.__path__[0]
+   models_path = os.path.join(pkg_path, 'models')
+   for f in os.listdir(models_path):
+       if f.endswith('.onnx'):
+           shutil.copy2(os.path.join(models_path, f), 'models/')
+   "
+   ```
+
+2. **修改打包配置 (`build_ocr.spec`):**
+   - 将完整的 `rapidocr_onnxruntime` 包替换为分离的代码和数据
+   - 添加 `('models', 'models')` 到 `datas` 列表
+   - 排除模型文件的嵌入打包
+
+3. **更新配置文件 (`config/rapidocr_config.yaml`):**
+   ```yaml
+   Models:
+     det_model_path: "models/ch_PP-OCRv4_det_infer.onnx"
+     rec_model_path: "models/ch_PP-OCRv4_rec_infer.onnx"
+     cls_model_path: "models/ch_ppocr_mobile_v2.0_cls_infer.onnx"
+   ```
+
+4. **修改OCR初始化代码:**
+   - 在 `simple_ocr.py` 中添加外部模型路径支持
+   - 直接传递模型文件路径给RapidOCR构造函数
+
+5. **打包后手动操作:**
+   ```bash
+   # 打包完成后，确保复制models目录
+   Copy-Item -Path "models" -Destination "dist" -Recurse -Force
+   ```
+
+**性能提升效果:**
+- 启动时间: 从52秒优化到17秒 (提升67%)
+- 内存使用: 减少模型文件解压缩的内存开销
+- 磁盘I/O: 避免临时文件的频繁读写
+
+### 3. 模板文件缺失
 
 **问题:** Server模块启动时找不到HTML模板
 

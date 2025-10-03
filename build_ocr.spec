@@ -15,8 +15,19 @@ a = Analysis(
     datas=[
         # 包含配置文件
         ('config', 'config'),
-        # 包含RapidOCR的完整包
-        (r'C:\Users\25048\anaconda3\envs\sword\lib\site-packages\rapidocr_onnxruntime', 'rapidocr_onnxruntime'),
+        # 包含ONNX模型文件作为外部数据文件（避免嵌入到exe中）
+        ('models', 'models'),
+        # 包含RapidOCR的代码部分（不包含models目录）
+        (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/*.py', 'rapidocr_onnxruntime'),
+        (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/utils', 'rapidocr_onnxruntime/utils'),
+        (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/ch_ppocr_det', 'rapidocr_onnxruntime/ch_ppocr_det'),
+        (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/ch_ppocr_rec', 'rapidocr_onnxruntime/ch_ppocr_rec'),
+        (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/ch_ppocr_cls', 'rapidocr_onnxruntime/ch_ppocr_cls'),
+        (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/cal_rec_boxes', 'rapidocr_onnxruntime/cal_rec_boxes'),
+        # 包含RapidOCR库的内部config.yaml文件
+        (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/config.yaml', 'rapidocr_onnxruntime'),
+        # 包含RapidOCR库的内部models目录
+        (r'C:/Users/25048/anaconda3/envs/sword/lib/site-packages/rapidocr_onnxruntime/models', 'rapidocr_onnxruntime/models'),
         # 包含必要的数据目录结构
         ('lifetrace_backend/*.py', 'lifetrace_backend'),
     ],
