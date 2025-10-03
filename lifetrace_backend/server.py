@@ -481,6 +481,23 @@ async def chat_settings_page(request: Request):
         </html>
         """)
 
+@app.get("/events", response_class=HTMLResponse)
+async def events_page(request: Request):
+    """事件管理页面"""
+    if templates:
+        return templates.TemplateResponse("events.html", {"request": request})
+    else:
+        return HTMLResponse("""
+        <html>
+            <head><title>LifeTrace Events</title></head>
+            <body>
+                <h1>事件管理页面暂不可用</h1>
+                <p>模板文件未找到</p>
+                <p><a href="/">返回首页</a></p>
+            </body>
+        </html>
+        """)
+
 
 @app.get("/health")
 async def health_check():
