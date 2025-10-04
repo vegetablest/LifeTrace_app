@@ -8,6 +8,8 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         :root {
             /* Updated color tokens to match v0 chat design */
@@ -68,9 +70,34 @@
             color: var(--foreground);
             height: 100vh;
             display: flex;
-            flex-direction: column;
             overflow: hidden;
             transition: background-color 0.2s, color 0.2s;
+        }
+        
+        /* 主容器布局 */
+        .main-layout {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        /* 左侧空白区域 */
+        .left-area {
+            flex: 2;
+            background-color: var(--background);
+            border-right: 1px solid var(--border);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* 右侧聊天区域 */
+        .right-chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--card);
+            border-left: 1px solid var(--border);
         }
         
         /* Header */
@@ -179,6 +206,7 @@
             display: flex;
             flex-direction: column;
             height: calc(100vh - 3.5rem);
+            overflow: hidden;
         }
         
         .chat-messages {
@@ -190,7 +218,7 @@
         }
         
         .chat-messages > * {
-            max-width: 64rem;
+            max-width: 100%;
             margin: 0 auto;
             padding: 0 1rem;
         }
@@ -206,12 +234,12 @@
         
         .welcome-content {
             text-align: center;
-            max-width: 32rem;
+            max-width: 100%;
             margin-bottom: 1.5rem;
         }
         
         .welcome-title {
-            font-size: 2.5rem;
+            font-size: 1.8rem;
             font-weight: 700;
             color: var(--foreground);
             margin-bottom: 1.5rem;
@@ -434,7 +462,7 @@
         }
         
         .input-wrapper {
-            max-width: 64rem;
+            max-width: 100%;
             margin: 0 auto;
         }
         
@@ -674,36 +702,896 @@
                 max-width: 85%;
             }
         }
+
+        /* Events 样式 */
+        .events-container {
+            padding: 1rem;
+            height: 100%;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .events-header {
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #667eea;
+            flex-shrink: 0;
+        }
+
+        .events-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #4a5568;
+            margin: 0;
+        }
+
+        /* 搜索表单样式 */
+        .events-search-section {
+            background: transparent;
+            border-radius: 0;
+            padding: 0;
+            margin-bottom: 1rem;
+            box-shadow: none;
+            flex-shrink: 0;
+        }
+
+        .events-search-form {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            background: #ffffff;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 0.75rem;
+        }
+
+        .events-form-group {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .events-form-group:last-child {
+            flex: 0 0 auto;
+        }
+
+        .events-form-group label {
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #64748b;
+            font-size: 0.875rem;
+            letter-spacing: 0.025em;
+        }
+
+        .events-form-group input {
+            padding: 0.75rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            background: white;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 2.5rem;
+            box-sizing: border-box;
+        }
+
+        .events-form-group input:focus {
+            outline: none;
+            border-color: #6b7280;
+            box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.1);
+        }
+
+        .events-form-group input:hover {
+            border-color: #9ca3af;
+        }
+
+        /* 日期输入框特殊样式 */
+        .events-form-group input[type="date"] {
+            position: relative;
+            color: #475569;
+            cursor: pointer;
+        }
+
+        .events-form-group input[type="date"]::-webkit-calendar-picker-indicator {
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%236b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>') no-repeat center;
+            background-size: 16px 16px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+
+        .events-form-group input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+        }
+
+        /* 文本输入框图标 */
+        .events-form-group input[type="text"] {
+            padding-left: 2.5rem;
+        }
+
+        .events-form-group input[type="text"] + .input-icon {
+            position: absolute;
+            left: 0.875rem;
+            bottom: 0.75rem;
+            color: #94a3b8;
+            pointer-events: none;
+            transition: color 0.2s ease;
+        }
+
+        .events-form-group:focus-within input[type="text"] + .input-icon {
+            color: #6b7280;
+        }
+
+        .events-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .events-btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .events-btn-primary:hover {
+            background: #5a6fd8;
+        }
+
+        /* 搜索图标按钮样式 */
+        .events-search-icon-btn {
+            width: 2.5rem;
+            height: 2.5rem;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            background: #6b7280;
+            border: none;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .events-search-icon-btn i {
+            width: 1rem;
+            height: 1rem;
+            color: #fff !important;
+        }
+
+        .events-search-icon-btn:hover {
+            background: #4b5563;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .events-search-icon-btn:active {
+            transform: translateY(1px);
+        }
+
+        /* 时间轴样式 */
+        .events-timeline-section {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            /* 应用与右侧聊天区域相同的滚动条样式 */
+            scrollbar-width: thin;
+            scrollbar-color: rgba(107, 114, 128, 0.3) rgba(243, 244, 246, 0.5);
+        }
+
+        .events-timeline-section::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .events-timeline-section::-webkit-scrollbar-track {
+            background: rgba(243, 244, 246, 0.5);
+            border-radius: 4px;
+        }
+
+        .events-timeline-section::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.3);
+            border-radius: 4px;
+            opacity: 0.3;
+        }
+
+        .events-timeline-section::-webkit-scrollbar-thumb:hover {
+            background: rgba(107, 114, 128, 0.5);
+            opacity: 0.5;
+        }
+
+        .events-timeline-header {
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .events-timeline-stats {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .events-timeline {
+            position: relative;
+            padding-left: 1.5rem;
+        }
+
+        .events-timeline::before {
+            content: '';
+            position: absolute;
+            left: 0.75rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #4a5568, #718096);
+        }
+
+        .events-timeline-item {
+            position: relative;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+            border-radius: 12px;
+            padding: 1.25rem;
+            border-left: 4px solid #4a5568;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .events-timeline-item:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+            transform: translateX(5px) translateY(-2px);
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        }
+
+        .events-timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -1.9rem;
+            top: 1.25rem;
+            width: 10px;
+            height: 10px;
+            background: linear-gradient(135deg, #4a5568 0%, #718096 100%);
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #4a5568, 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .events-event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .events-event-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .events-event-time {
+            font-size: 0.85rem;
+            color: #666;
+            text-align: right;
+            font-weight: 500;
+        }
+
+        .events-event-duration {
+            font-size: 0.8rem;
+            color: #28a745;
+            margin-top: 0.25rem;
+            font-weight: 600;
+        }
+
+        .events-screenshots-preview {
+            margin-top: 0.5rem;
+        }
+
+        .events-screenshots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+        }
+
+        .events-screenshot-thumb {
+            width: 100%;
+            height: 45px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .events-screenshot-thumb:hover {
+            transform: scale(1.05);
+            border-color: #4a5568;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .events-screenshot-thumb:hover {
+            transform: scale(1.05);
+        }
+
+        .events-loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .events-loading::after {
+            content: '';
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ddd;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 0.5rem;
+        }
+
+        .events-empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .events-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+
+        .events-pagination button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .events-pagination button:hover {
+            background: #f8f9fa;
+        }
+
+        .events-pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 标签导航样式 */
+        .tab-navigation {
+            background: var(--background);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .events-title-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .tab-buttons {
+            display: flex;
+            background: var(--muted);
+            border-radius: var(--radius);
+            padding: 0.125rem;
+            margin: 0.5rem;
+            height: 2.5rem;
+            align-items: center;
+        }
+
+        .tab-button {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            border: none;
+            background: transparent;
+            color: var(--muted-foreground);
+            border-radius: calc(var(--radius) - 0.125rem);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .tab-button:hover {
+            background: var(--background);
+            color: var(--foreground);
+        }
+
+        .tab-button.active {
+            background: var(--background);
+            color: var(--foreground);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-button i {
+            width: 0.875rem;
+            height: 0.875rem;
+        }
+
+        /* 标签内容区域 */
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            /* 应用与右侧聊天区域相同的滚动条样式 */
+            scrollbar-width: thin;
+            scrollbar-color: var(--muted-foreground) var(--muted);
+        }
+
+        .tab-content::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .tab-content::-webkit-scrollbar-track {
+            background: var(--muted);
+            border-radius: 4px;
+        }
+
+        .tab-content::-webkit-scrollbar-thumb {
+            background: var(--muted-foreground);
+            border-radius: 4px;
+            opacity: 0.5;
+        }
+
+        .tab-content::-webkit-scrollbar-thumb:hover {
+            background: var(--foreground);
+            opacity: 0.7;
+        }
+
+        .tab-panel {
+            display: none;
+            height: 100%;
+            overflow-y: auto;
+            min-height: 0;
+            /* 应用与右侧聊天区域相同的滚动条样式 */
+            scrollbar-width: thin;
+            scrollbar-color: var(--muted-foreground) var(--muted);
+        }
+
+        .tab-panel::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .tab-panel::-webkit-scrollbar-track {
+            background: var(--muted);
+            border-radius: 4px;
+        }
+
+        .tab-panel::-webkit-scrollbar-thumb {
+            background: var(--muted-foreground);
+            border-radius: 4px;
+            opacity: 0.5;
+        }
+
+        .tab-panel::-webkit-scrollbar-thumb:hover {
+            background: var(--foreground);
+            opacity: 0.7;
+        }
+
+        .tab-panel.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .search-content {
+            padding: 2rem;
+            text-align: center;
+            color: var(--muted-foreground);
+        }
+
+        .search-content h3 {
+            margin-bottom: 1rem;
+            color: var(--foreground);
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        /* 数据分析标签页样式 */
+        .analytics-content {
+            padding: 1rem;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .analytics-content h3 {
+            margin-bottom: 1rem;
+            color: var(--foreground);
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        /* App Usage 样式 */
+        .app-usage-container {
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .app-usage-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--foreground);
+        }
+
+        .app-usage-description {
+            color: var(--muted-foreground);
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+        }
+
+        .app-usage-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .app-usage-filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .app-usage-filter-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--foreground);
+        }
+
+        .app-usage-filter-select {
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            background: var(--background);
+            color: var(--foreground);
+            font-size: 0.875rem;
+        }
+
+        .app-usage-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .app-usage-stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            padding: 1rem;
+        }
+
+        .app-usage-stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+
+        .app-usage-stat-title {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--muted-foreground);
+        }
+
+        .app-usage-stat-icon {
+            width: 0.875rem;
+            height: 0.875rem;
+            color: var(--muted-foreground);
+        }
+
+        .app-usage-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            color: var(--foreground);
+        }
+
+        .app-usage-stat-change {
+            font-size: 0.75rem;
+            color: var(--muted-foreground);
+        }
+
+        .app-usage-chart-container {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .app-usage-chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--foreground);
+        }
+
+        .app-usage-chart-wrapper {
+            position: relative;
+            height: 250px;
+        }
+
+        /* 优化统计卡片样式，使其高度与饼图匹配 */
+        .app-usage-stats-vertical .app-usage-stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            padding: 1.5rem 1rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 0;
+        }
+
+        .app-usage-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 150px;
+            color: var(--muted-foreground);
+            font-size: 0.875rem;
+        }
+
+        .app-usage-error {
+            color: var(--destructive);
+            text-align: center;
+            padding: 1rem;
+            font-size: 0.875rem;
+        }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <div class="header-left">
-                <div class="header-logo">
-                    <i data-lucide="bot"></i>
+    <div class="main-layout">
+        <!-- 左侧区域 -->
+        <div class="left-area">
+            <!-- 标签导航栏 -->
+            <div class="tab-navigation">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="events">
+                        <i data-lucide="history"></i>
+                        <span>忆往昔</span>
+                    </button>
+                    <button class="tab-button" data-tab="search">
+                        <i data-lucide="search-check"></i>
+                        <span>省吾身</span>
+                    </button>
+                    <button class="tab-button" data-tab="analytics">
+                        <i data-lucide="target"></i>
+                        <span>预则立</span>
+                    </button>
                 </div>
-                <span class="header-title">LifeTrace Chat</span>
             </div>
-            <div class="header-right">
-                <button class="btn btn-ghost btn-icon" id="newChatBtn" title="开始新对话">
-                    <i data-lucide="plus"></i>
-                </button>
-                <button class="btn btn-ghost btn-icon" id="themeToggle">
-                    <i data-lucide="moon" id="themeIcon"></i>
-                </button>
-                <a href="/analytics" class="btn btn-ghost btn-icon" title="用户行为分析">
-                    <i data-lucide="bar-chart-3"></i>
-                </a>
-                <a href="/chat/settings" class="btn btn-ghost btn-icon" title="设置">
-                    <i data-lucide="settings"></i>
-                </a>
-                <a href="/" class="btn btn-outline">首页</a>
-                <a href="/api/docs" class="btn btn-primary">API文档</a>
+
+            <!-- 标签内容区域 -->
+            <div class="tab-content">
+                <!-- 事件时间轴标签页 -->
+                <div class="tab-panel active" id="events-panel">
+                    <!-- Events 事件管理区域 -->
+                    <div class="events-container">
+                        <!-- 搜索表单 -->
+                        <div class="events-search-section">
+                    <form id="eventsSearchForm" class="events-search-form">
+                        <div class="events-form-group">
+                            <label for="eventsStartDate">开始日期</label>
+                            <input type="date" id="eventsStartDate" name="startDate">
+                        </div>
+                        <div class="events-form-group">
+                            <label for="eventsEndDate">结束日期</label>
+                            <input type="date" id="eventsEndDate" name="endDate">
+                        </div>
+                        <div class="events-form-group">
+                            <label for="eventsAppName">应用名称</label>
+                            <input type="text" id="eventsAppName" name="appName" placeholder="过滤应用名称...">
+                            <i data-lucide="search" class="input-icon"></i>
+                        </div>
+                        <div class="events-form-group">
+                            <button type="submit" class="events-btn events-btn-primary events-search-icon-btn">
+                                <i data-lucide="search"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 时间轴区域 -->
+                <div class="events-timeline-section">
+                    <div class="events-timeline-header">
+                        <div class="events-timeline-stats" id="eventsTimelineStats">
+                            加载中...
+                        </div>
+                    </div>
+                    
+                    <div id="eventsTimelineContainer">
+                        <div class="events-loading">正在加载事件数据</div>
+                    </div>
+
+                    <!-- 分页 -->
+                    <div class="events-pagination" id="eventsPagination" style="display: none;">
+                        <button id="eventsPrevPage">上一页</button>
+                        <span id="eventsPageInfo">第 1 页</span>
+                        <button id="eventsNextPage">下一页</button>
+                    </div>
+                </div>
+                    </div>
+                </div>
+
+                <!-- 搜索记录标签页 -->
+                <div class="tab-panel" id="search-panel">
+                    <div class="analytics-content">
+                        <div class="app-usage-container">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <div>
+                                    <h1 class="app-usage-title">今日行为总结</h1>
+                                    <p class="app-usage-description">回顾今天的工作和应用使用情况</p>
+                                </div>
+                                <button id="generateSummaryBtn" class="summary-btn" style="
+                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    color: white;
+                                    border: none;
+                                    border-radius: 8px;
+                                    padding: 10px 20px;
+                                    font-size: 14px;
+                                    cursor: pointer;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    transition: all 0.3s ease;
+                                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(102, 126, 234, 0.3)'">
+                                    <i data-lucide="sparkles" style="width: 16px; height: 16px;"></i>
+                                    生成今日总结
+                                </button>
+                            </div>
+
+                            <!-- 总结内容区域 -->
+                            <div id="summaryContent" style="
+                                background: #f8fafc;
+                                border-radius: 12px;
+                                padding: 20px;
+                                margin-bottom: 20px;
+                                border: 1px solid #e2e8f0;
+                                min-height: 120px;
+                                display: none;
+                            ">
+                                <div id="summaryText" style="
+                                    line-height: 1.6;
+                                    color: #334155;
+                                    font-size: 14px;
+                                "></div>
+                                <div id="summaryLoading" style="
+                                    display: none;
+                                    text-align: center;
+                                    color: #64748b;
+                                    padding: 40px;
+                                ">
+                                    <i data-lucide="loader-2" style="width: 24px; height: 24px; margin-right: 8px; vertical-align: middle; animation: spin 1s linear infinite;"></i>
+                                    正在生成今日总结...
+                                </div>
+                            </div>
+
+                            <!-- 统计卡片和饼图的组合布局 -->
+                            <div class="app-usage-main-layout" style="display: flex; gap: 1.5rem; margin-bottom: 1.5rem; align-items: stretch;">
+                                <!-- 饼图区域 -->
+                                <div class="app-usage-chart-container" style="flex: 1; margin-bottom: 0; display: flex; flex-direction: column;">
+                                    <h2 class="app-usage-chart-title">应用使用时长分布</h2>
+                                    <div class="app-usage-chart-wrapper" style="flex: 1; display: flex; align-items: center; justify-content: center;">
+                                        <canvas id="appUsageChart"></canvas>
+                                    </div>
+                                </div>
+                                
+                                <!-- 统计卡片区域 -->
+                                <div class="app-usage-stats-vertical" style="display: flex; flex-direction: column; gap: 1rem; flex: 0 0 300px; justify-content: center;">
+                                    <div class="app-usage-stat-card">
+                                        <div class="app-usage-stat-header">
+                                            <span class="app-usage-stat-title">总使用时长</span>
+                                            <i data-lucide="clock" class="app-usage-stat-icon"></i>
+                                        </div>
+                                        <div class="app-usage-stat-value" id="appUsageTotalTime">-</div>
+                                        <div class="app-usage-stat-change">小时</div>
+                                    </div>
+                                    
+                                    <div class="app-usage-stat-card">
+                                        <div class="app-usage-stat-header">
+                                            <span class="app-usage-stat-title">使用应用数</span>
+                                            <i data-lucide="grid-3x3" class="app-usage-stat-icon"></i>
+                                        </div>
+                                        <div class="app-usage-stat-value" id="appUsageTotalApps">-</div>
+                                        <div class="app-usage-stat-change">个应用</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="app-usage-chart-container">
+                                <h2 class="app-usage-chart-title">小时使用分布</h2>
+                                <div class="app-usage-chart-wrapper">
+                                    <canvas id="hourlyUsageChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据分析标签页 -->
+                <div class="tab-panel" id="analytics-panel">
+                    <div class="analytics-content">
+                        <h3>数据分析</h3>
+                        <p>这里将显示数据分析和相关功能</p>
+                    </div>
+                </div>
             </div>
         </div>
-    </header>
+        
+        <!-- 右侧聊天区域 -->
+        <div class="right-chat-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-content">
+                    <div class="header-left">
+                        <div class="header-logo">
+                            <i data-lucide="bot"></i>
+                        </div>
+                        <span class="header-title">LifeTrace Chat</span>
+                    </div>
+                    <div class="header-right">
+                        <button class="btn btn-ghost btn-icon" id="newChatBtn" title="开始新对话">
+                            <i data-lucide="plus"></i>
+                        </button>
+                        <button class="btn btn-ghost btn-icon" id="themeToggle">
+                            <i data-lucide="moon" id="themeIcon"></i>
+                        </button>
+                        <a href="/analytics" class="btn btn-ghost btn-icon" title="用户行为分析">
+                            <i data-lucide="bar-chart-3"></i>
+                        </a>
+                        <a href="/chat/settings" class="btn btn-ghost btn-icon" title="设置">
+                            <i data-lucide="settings"></i>
+                        </a>
+                    </div>
+                </div>
+            </header>
     
     <!-- Main Chat Area -->
     <main class="chat-container">
@@ -925,13 +1813,13 @@
                     ids.push(i);
                 }
                 const thumbnails = ids.map(id => 
-                    `<div class="screenshot-thumbnail" style="display: inline-block; margin: 2px; padding: 4px 8px; background: #f0f8ff; border: 1px solid #0066cc; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 50px; max-width: 80px; text-align: center;" onclick="openScreenshotModal(${id})" onmouseover="this.style.background='#e6f3ff'" onmouseout="this.style.background='#f0f8ff'">
+                    `<div class="screenshot-thumbnail" style="display: inline-block; margin: 2px; padding: 4px 8px; background: #f8f9fa; border: 1px solid #4a5568; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 50px; max-width: 80px; text-align: center;" onclick="openScreenshotModal(${id})" onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
                         <i data-lucide="image" style="width: 12px; height: 12px; margin-right: 3px; vertical-align: middle;"></i>
-                        <span style="color: #0066cc; font-size: 12px; vertical-align: middle;">${id}</span>
+                        <span style="color: #4a5568; font-size: 12px; vertical-align: middle;">${id}</span>
                     </div>`
                 ).join('');
                 return `<div class="screenshot-gallery" style="margin: 8px 0; padding: 8px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa;">
-                    <div style="margin-bottom: 6px; font-size: 14px; font-weight: 500; color: #333;">截图范围 ${startId}-${endId}:</div>
+                    <div style="margin-bottom: 6px; font-size: 14px; font-weight: 500; color: #4a5568;">截图范围 ${startId}-${endId}:</div>
                     ${thumbnails}
                 </div>`;
             });
@@ -939,9 +1827,9 @@
             // 匹配 [截图ID: 数字] 格式（单个）
             const singlePattern = /\[截图ID:\s*(\d+)\]/g;
             content = content.replace(singlePattern, function(match, screenshotId) {
-                return `<div class="screenshot-thumbnail" style="display: inline-block; margin: 3px; padding: 5px 10px; background: #f0f8ff; border: 1px solid #0066cc; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 60px; max-width: 100px; text-align: center;" onclick="openScreenshotModal(${screenshotId})" onmouseover="this.style.background='#e6f3ff'" onmouseout="this.style.background='#f0f8ff'">
+                return `<div class="screenshot-thumbnail" style="display: inline-block; margin: 3px; padding: 5px 10px; background: #f8f9fa; border: 1px solid #4a5568; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 60px; max-width: 100px; text-align: center;" onclick="openScreenshotModal(${screenshotId})" onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
                     <i data-lucide="image" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;"></i>
-                    <span style="color: #0066cc; font-size: 13px; vertical-align: middle;">截图 ${screenshotId}</span>
+                    <span style="color: #4a5568; font-size: 13px; vertical-align: middle;">截图 ${screenshotId}</span>
                 </div>`;
             });
             
@@ -950,13 +1838,13 @@
             content = content.replace(multiplePattern, function(match, screenshotIds) {
                 const ids = screenshotIds.split(',').map(id => id.trim()).filter(id => id);
                 const thumbnails = ids.map(id => 
-                    `<div class="screenshot-thumbnail" style="display: inline-block; margin: 2px; padding: 4px 8px; background: #f0f8ff; border: 1px solid #0066cc; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 50px; max-width: 80px; text-align: center;" onclick="openScreenshotModal(${id})" onmouseover="this.style.background='#e6f3ff'" onmouseout="this.style.background='#f0f8ff'">
+                    `<div class="screenshot-thumbnail" style="display: inline-block; margin: 2px; padding: 4px 8px; background: #f8f9fa; border: 1px solid #4a5568; border-radius: 4px; cursor: pointer; transition: all 0.2s; min-width: 50px; max-width: 80px; text-align: center;" onclick="openScreenshotModal(${id})" onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
                         <i data-lucide="image" style="width: 12px; height: 12px; margin-right: 3px; vertical-align: middle;"></i>
-                        <span style="color: #0066cc; font-size: 12px; vertical-align: middle;">${id}</span>
+                        <span style="color: #4a5568; font-size: 12px; vertical-align: middle;">${id}</span>
                     </div>`
                 ).join('');
                 return `<div class="screenshot-gallery" style="margin: 8px 0; padding: 8px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa;">
-                    <div style="margin-bottom: 6px; font-size: 14px; font-weight: 500; color: #333;">相关截图:</div>
+                    <div style="margin-bottom: 6px; font-size: 14px; font-weight: 500; color: #4a5568;">相关截图:</div>
                     ${thumbnails}
                 </div>`;
             });
@@ -981,7 +1869,40 @@
                     if (typeof lucide !== 'undefined') lucide.createIcons();
                 }
             }
+
+            // 初始化标签切换功能
+            initTabSwitching();
         });
+
+        // 标签切换功能
+        function initTabSwitching() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabPanels = document.querySelectorAll('.tab-panel');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+                    
+                    // 移除所有活动状态
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabPanels.forEach(panel => panel.classList.remove('active'));
+                    
+                    // 激活当前标签
+                    this.classList.add('active');
+                    const targetPanel = document.getElementById(targetTab + '-panel');
+                    if (targetPanel) {
+                        targetPanel.classList.add('active');
+                    }
+
+                    // 如果切换到事件标签页，重新加载事件数据
+                    if (targetTab === 'events') {
+                        setTimeout(() => {
+                            loadEvents();
+                        }, 100);
+                    }
+                });
+            });
+        }
         
         // 主题切换
         let isDark = false;
@@ -1101,12 +2022,22 @@
             addMessage(message, true);
             pushHistory('user', message);
             
-            // 滚动到最后一条用户消息，让其显示在可见区域的最上方
+            // 滚动到最后一条用户消息，让其显示在可见区域的最上方，但留出10px空隙
             setTimeout(() => {
                 const userMessages = messagesList.querySelectorAll('.message.user');
                 if (userMessages.length > 0) {
                     const lastUserMessage = userMessages[userMessages.length - 1];
-                    lastUserMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    const chatMessagesContainer = document.querySelector('.chat-messages');
+                    const messageRect = lastUserMessage.getBoundingClientRect();
+                    const containerRect = chatMessagesContainer.getBoundingClientRect();
+                    
+                    // 计算需要滚动的距离，留出10px空隙
+                    const targetScrollTop = chatMessagesContainer.scrollTop + messageRect.top - containerRect.top - 10;
+                    
+                    chatMessagesContainer.scrollTo({
+                        top: targetScrollTop,
+                        behavior: 'smooth'
+                    });
                 }
             }, 100);
             
@@ -1502,6 +2433,266 @@
                 navigateScreenshot('next');
             }
         });
+
+        // Events 相关JavaScript代码
+        let eventsCurrentPage = 1;
+        let eventsTotalPages = 1;
+        let eventsCurrentEvents = [];
+        const eventsPageSize = 10;
+
+        // 初始化Events页面
+        document.addEventListener('DOMContentLoaded', function() {
+            loadEvents();
+            setupEventsListeners();
+        });
+
+        // 设置Events事件监听器
+        function setupEventsListeners() {
+            // 搜索表单提交
+            document.getElementById('eventsSearchForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                eventsCurrentPage = 1;
+                loadEvents();
+            });
+
+            // 分页按钮
+            document.getElementById('eventsPrevPage').addEventListener('click', function() {
+                if (eventsCurrentPage > 1) {
+                    eventsCurrentPage--;
+                    loadEvents();
+                }
+            });
+
+            document.getElementById('eventsNextPage').addEventListener('click', function() {
+                if (eventsCurrentPage < eventsTotalPages) {
+                    eventsCurrentPage++;
+                    loadEvents();
+                }
+            });
+        }
+
+        // 加载事件数据
+        async function loadEvents() {
+            console.log('开始加载事件数据...');
+            const container = document.getElementById('eventsTimelineContainer');
+            const stats = document.getElementById('eventsTimelineStats');
+            
+            // 显示加载状态
+            container.innerHTML = '<div class="events-loading">正在加载事件数据</div>';
+            stats.textContent = '加载中...';
+
+            try {
+                // 获取搜索参数
+                const startDate = document.getElementById('eventsStartDate').value;
+                const endDate = document.getElementById('eventsEndDate').value;
+                const appName = document.getElementById('eventsAppName').value;
+
+                // 构建查询参数
+                const params = new URLSearchParams({
+                    limit: eventsPageSize,
+                    offset: (eventsCurrentPage - 1) * eventsPageSize
+                });
+
+                if (startDate) params.append('start_date', startDate);
+                if (endDate) params.append('end_date', endDate);
+                if (appName) params.append('app_name', appName);
+
+                console.log('请求参数:', params.toString());
+
+                const response = await fetch(`/api/events?${params}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('获取到事件数据:', data);
+
+                // API直接返回事件数组，不是包装对象
+                eventsCurrentEvents = Array.isArray(data) ? data : [];
+                
+                // 计算总页数（简单估算，因为API没有返回总数）
+                eventsTotalPages = Math.max(1, Math.ceil(eventsCurrentEvents.length / eventsPageSize));
+
+                // 更新统计信息
+                const totalEvents = eventsCurrentEvents.length;
+                stats.textContent = `共 ${totalEvents} 个事件，第 ${eventsCurrentPage}/${eventsTotalPages} 页`;
+
+                // 渲染时间轴
+                renderEventsTimeline(eventsCurrentEvents);
+
+                // 更新分页
+                updateEventsPagination();
+
+            } catch (error) {
+                console.error('加载事件数据失败:', error);
+                container.innerHTML = `
+                    <div class="events-empty-state">
+                        <p>加载事件数据失败</p>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">${error.message}</p>
+                    </div>
+                `;
+                stats.textContent = '加载失败';
+            }
+        }
+
+        // 渲染时间轴
+        function renderEventsTimeline(events) {
+            console.log('renderEventsTimeline被调用，事件数量:', events.length);
+            const container = document.getElementById('eventsTimelineContainer');
+            
+            if (events.length === 0) {
+                console.log('没有事件数据，显示空状态');
+                container.innerHTML = `
+                    <div class="events-empty-state">
+                        <p>暂无事件数据</p>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">尝试调整搜索条件或检查录制服务是否正常运行</p>
+                    </div>
+                `;
+                return;
+            }
+
+            console.log('开始创建时间轴元素');
+            const timeline = document.createElement('div');
+            timeline.className = 'events-timeline';
+
+            events.forEach((event, index) => {
+                console.log(`创建事件项 ${index + 1}/${events.length}:`, event);
+                const item = createEventsTimelineItem(event);
+                timeline.appendChild(item);
+            });
+
+            console.log('清空容器并添加时间轴');
+            container.innerHTML = '';
+            container.appendChild(timeline);
+            console.log('时间轴渲染完成');
+        }
+
+        // 创建时间轴项目
+        function createEventsTimelineItem(event) {
+            const item = document.createElement('div');
+            item.className = 'events-timeline-item';
+
+            const startTime = new Date(event.start_time);
+            const endTime = event.end_time ? new Date(event.end_time) : null;
+            const duration = endTime ? Math.round((endTime - startTime) / 1000 / 60) : null;
+
+            item.innerHTML = `
+                <div class="events-event-header">
+                    <div>
+                        <div class="events-event-title">${event.window_title || '未知窗口'}</div>
+                    </div>
+                    <div class="events-event-time">
+                        <div>${formatEventsTime(startTime)}</div>
+                        ${endTime ? `<div class="events-event-duration">持续 ${duration} 分钟</div>` : '<div style="color: #28a745;">进行中</div>'}
+                    </div>
+                </div>
+                <div class="events-screenshots-preview" id="events-screenshots-${event.id}">
+                    <div class="events-loading">正在加载截图...</div>
+                </div>
+            `;
+
+            // 异步加载截图
+            setTimeout(() => {
+                loadEventsScreenshots(event.id);
+            }, 10);
+
+            return item;
+        }
+
+        // 加载事件截图
+        async function loadEventsScreenshots(eventId) {
+            const container = document.getElementById(`events-screenshots-${eventId}`);
+            
+            if (!container) {
+                console.error(`找不到截图容器: events-screenshots-${eventId}`);
+                return;
+            }
+            
+            try {
+                console.log(`开始加载事件 ${eventId} 的截图`);
+                const response = await fetch(`/api/events/${eventId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const eventDetail = await response.json();
+                console.log(`事件 ${eventId} 详情:`, eventDetail);
+                const screenshots = eventDetail.screenshots || [];
+                
+                if (screenshots.length === 0) {
+                    if (container) {
+                        container.innerHTML = '<div class="events-empty-state" style="padding: 1rem; font-size: 0.8rem;">暂无截图</div>';
+                    }
+                    return;
+                }
+
+                // 创建截图网格
+                const grid = document.createElement('div');
+                grid.className = 'events-screenshots-grid';
+
+                screenshots.slice(0, 6).forEach((screenshot, index) => {
+                    const img = document.createElement('img');
+                    img.src = `/api/screenshots/${screenshot.id}/image`;
+                    img.className = 'events-screenshot-thumb';
+                    img.alt = `截图 ${index + 1}`;
+                    img.onclick = () => openScreenshotModal(screenshot.id, screenshots, index);
+                    
+                    img.onerror = function() {
+                        this.style.display = 'none';
+                    };
+                    
+                    grid.appendChild(img);
+                });
+
+                if (screenshots.length > 6) {
+                    const moreDiv = document.createElement('div');
+                    moreDiv.style.cssText = 'display: flex; align-items: center; justify-content: center; background: #f0f0f0; border-radius: 4px; font-size: 0.7rem; color: #666; cursor: pointer;';
+                    moreDiv.textContent = `+${screenshots.length - 6}`;
+                    moreDiv.onclick = () => openScreenshotModal(screenshots[6].id, screenshots, 6);
+                    grid.appendChild(moreDiv);
+                }
+
+                if (container) {
+                    container.innerHTML = '';
+                    container.appendChild(grid);
+                }
+
+            } catch (error) {
+                console.error(`加载事件 ${eventId} 截图失败:`, error);
+                if (container) {
+                    container.innerHTML = '<div class="events-empty-state" style="padding: 1rem; font-size: 0.8rem; color: #e74c3c;">截图加载失败</div>';
+                }
+            }
+        }
+
+        // 更新分页
+        function updateEventsPagination() {
+            const pagination = document.getElementById('eventsPagination');
+            const pageInfo = document.getElementById('eventsPageInfo');
+            const prevBtn = document.getElementById('eventsPrevPage');
+            const nextBtn = document.getElementById('eventsNextPage');
+
+            if (eventsTotalPages <= 1) {
+                pagination.style.display = 'none';
+                return;
+            }
+
+            pagination.style.display = 'flex';
+            pageInfo.textContent = `第 ${eventsCurrentPage} 页，共 ${eventsTotalPages} 页`;
+            
+            prevBtn.disabled = eventsCurrentPage <= 1;
+            nextBtn.disabled = eventsCurrentPage >= eventsTotalPages;
+        }
+
+        // 格式化时间
+        function formatEventsTime(date) {
+            return date.toLocaleString('zh-CN', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
     </script>
 
     <!-- 截图预览弹窗 -->
@@ -1509,10 +2700,10 @@
         <div class="modal-content" style="position: relative; margin: 2% auto; padding: 0; width: 95%; max-width: 1200px; background-color: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
             <div class="modal-header" style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <h3 id="modalTitle" style="margin: 0; color: #333; font-size: 18px;">截图预览</h3>
+                    <h3 id="modalTitle" style="margin: 0; color: #4a5568; font-size: 18px;">截图预览</h3>
                     <span id="modalTime" style="color: #666; font-size: 14px; font-weight: normal;"></span>
                 </div>
-                <span class="close" onclick="closeScreenshotModal()" style="font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; line-height: 1;" onmouseover="this.style.color='#000'" onmouseout="this.style.color='#aaa'">&times;</span>
+                <span class="close" onclick="closeScreenshotModal()" style="font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; line-height: 1;" onmouseover="this.style.color='#4a5568'" onmouseout="this.style.color='#aaa'">&times;</span>
             </div>
             <div class="modal-body" style="position: relative; padding: 20px; text-align: center;">
                 <!-- 左侧导航按钮 -->
@@ -1563,5 +2754,460 @@
         }
     </style>
 
+        </div> <!-- 关闭 right-chat-area -->
+    </div> <!-- 关闭 main-layout -->
+
+    <script>
+        // App Usage Analytics JavaScript
+        let appUsageChart = null;
+        let hourlyUsageChart = null;
+
+        // 格式化时间
+        function formatTime(minutes) {
+            if (minutes < 60) {
+                return `${Math.round(minutes)}分钟`;
+            } else {
+                const hours = Math.floor(minutes / 60);
+                const mins = Math.round(minutes % 60);
+                return mins > 0 ? `${hours}小时${mins}分钟` : `${hours}小时`;
+            }
+        }
+
+        // 获取应用使用统计数据
+        async function fetchAppUsageStats() {
+            try {
+                // 由于已经移除了时间范围过滤器，使用默认值
+                const days = 7;
+                
+                const params = new URLSearchParams({
+                    days: days
+                });
+
+                const response = await fetch(`/api/app-usage-stats?${params}`);
+                if (!response.ok) {
+                    throw new Error('获取数据失败');
+                }
+                
+                const data = await response.json();
+                updateAppUsageStats(data);
+                updateAppUsageCharts(data);
+            } catch (error) {
+                console.error('获取应用使用统计数据失败:', error);
+                showAppUsageError('获取数据失败，请稍后重试');
+            }
+        }
+
+        // 更新统计卡片
+        function updateAppUsageStats(data) {
+            document.getElementById('appUsageTotalTime').textContent = 
+                (data.total_usage_time / 3600).toFixed(1);
+            document.getElementById('appUsageTotalApps').textContent = data.total_apps_used;
+        }
+
+        // 更新图表
+        function updateAppUsageCharts(data) {
+            updateAppUsageChart(data.top_apps_by_time);
+            updateHourlyUsageChart(data.hourly_app_distribution);
+        }
+
+        // 应用使用时长分布图表
+        function updateAppUsageChart(topApps) {
+            const ctx = document.getElementById('appUsageChart').getContext('2d');
+            
+            if (appUsageChart) {
+                appUsageChart.destroy();
+            }
+
+            const labels = topApps.slice(0, 10).map(app => app.app_name);
+            const data = topApps.slice(0, 10).map(app => app.total_time / 3600); // 转换为小时
+
+            // 现代化渐变色彩方案
+            const gradientColors = [
+                { start: '#667eea', end: '#764ba2' }, // 紫蓝渐变
+                { start: '#f093fb', end: '#f5576c' }, // 粉红渐变
+                { start: '#4facfe', end: '#00f2fe' }, // 蓝青渐变
+                { start: '#43e97b', end: '#38f9d7' }, // 绿青渐变
+                { start: '#fa709a', end: '#fee140' }, // 粉黄渐变
+                { start: '#a8edea', end: '#fed6e3' }, // 青粉渐变
+                { start: '#ff9a9e', end: '#fecfef' }, // 红粉渐变
+                { start: '#ffecd2', end: '#fcb69f' }, // 黄橙渐变
+                { start: '#a18cd1', end: '#fbc2eb' }, // 紫粉渐变
+                { start: '#fad0c4', end: '#ffd1ff' }  // 橙粉渐变
+            ];
+
+            // 创建渐变背景
+            const backgroundColors = gradientColors.slice(0, labels.length).map(color => {
+                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                gradient.addColorStop(0, color.start);
+                gradient.addColorStop(1, color.end);
+                return gradient;
+            });
+
+            // 悬停时的边框颜色
+            const hoverBorderColors = gradientColors.slice(0, labels.length).map(color => color.start);
+
+            appUsageChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                        hoverBorderColor: hoverBorderColors,
+                        hoverBorderWidth: 3,
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 15,
+                                font: {
+                                    size: 11,
+                                    family: "'Inter', 'Segoe UI', sans-serif"
+                                },
+                                color: 'var(--foreground)',
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map((label, i) => {
+                                            const dataset = data.datasets[0];
+                                            const value = dataset.data[i];
+                                            const total = dataset.data.reduce((sum, val) => sum + val, 0);
+                                            const percentage = ((value / total) * 100).toFixed(1);
+                                            
+                                            return {
+                                                text: `${label} (${percentage}%)`,
+                                                fillStyle: gradientColors[i]?.start || '#ccc',
+                                                strokeStyle: gradientColors[i]?.start || '#ccc',
+                                                lineWidth: 0,
+                                                pointStyle: 'circle',
+                                                hidden: false,
+                                                index: i
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 6,
+                            displayColors: true,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            padding: 10,
+                            titleFont: {
+                                size: 12,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 11
+                            },
+                            callbacks: {
+                                title: function(context) {
+                                    return context[0].label;
+                                },
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    const hours = value.toFixed(1);
+                                    return [`使用时长: ${hours} 小时`, `占比: ${percentage}%`];
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 800,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        }
+
+        // 小时使用分布图表
+        function updateHourlyUsageChart(hourlyData) {
+            const ctx = document.getElementById('hourlyUsageChart').getContext('2d');
+            
+            if (hourlyUsageChart) {
+                hourlyUsageChart.destroy();
+            }
+
+            const labels = Array.from({length: 24}, (_, i) => `${i}:00`);
+            const data = labels.map((_, hour) => {
+                if (hourlyData[hour] && typeof hourlyData[hour] === 'object') {
+                    const totalSeconds = Object.values(hourlyData[hour]).reduce((sum, duration) => sum + duration, 0);
+                    return totalSeconds / 3600;
+                }
+                return 0;
+            });
+
+            // 创建渐变背景
+            const gradient = ctx.createLinearGradient(0, 0, 0, 250);
+            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.8)');
+            gradient.addColorStop(0.5, 'rgba(147, 51, 234, 0.6)');
+            gradient.addColorStop(1, 'rgba(236, 72, 153, 0.4)');
+
+            hourlyUsageChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '使用时长 (小时)',
+                        data: data,
+                        backgroundColor: gradient,
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                            titleColor: '#f9fafb',
+                            bodyColor: '#f3f4f6',
+                            borderColor: 'rgba(59, 130, 246, 0.5)',
+                            borderWidth: 1,
+                            cornerRadius: 6,
+                            padding: 12,
+                            displayColors: false,
+                            titleFont: {
+                                size: 12,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 11
+                            },
+                            callbacks: {
+                                title: function(context) {
+                                    const hour = context[0].label;
+                                    return `${hour} 时段`;
+                                },
+                                label: function(context) {
+                                    const hours = context.parsed.y.toFixed(2);
+                                    const minutes = Math.round(context.parsed.y * 60);
+                                    
+                                    if (hours >= 1) {
+                                        return `使用时长: ${hours} 小时`;
+                                    } else if (minutes >= 1) {
+                                        return `使用时长: ${minutes} 分钟`;
+                                    } else {
+                                        return `使用时长: ${Math.round(context.parsed.y * 3600)} 秒`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '使用时长 (小时)',
+                                color: 'var(--muted-foreground)',
+                                font: {
+                                    size: 10,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1) + 'h';
+                                },
+                                color: 'var(--muted-foreground)',
+                                font: {
+                                    size: 9
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(148, 163, 184, 0.2)',
+                                lineWidth: 1,
+                                drawBorder: false,
+                                drawTicks: false,
+                                borderDash: [3, 3],
+                                borderDashOffset: 0
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '时间段',
+                                color: 'var(--muted-foreground)',
+                                font: {
+                                    size: 10,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                color: 'var(--muted-foreground)',
+                                font: {
+                                    size: 8
+                                },
+                                maxRotation: 45,
+                                minRotation: 0
+                            },
+                            grid: {
+                                display: true,
+                                color: 'rgba(148, 163, 184, 0.15)',
+                                lineWidth: 1,
+                                drawBorder: false,
+                                drawTicks: false,
+                                borderDash: [2, 4],
+                                borderDashOffset: 0
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 800,
+                        easing: 'easeOutCubic'
+                    }
+                }
+            });
+        }
+
+        // 显示错误信息
+        function showAppUsageError(message) {
+            // 可以在这里添加错误显示逻辑
+            console.error('App Usage Error:', message);
+        }
+
+        // 生成今日总结
+        async function generateDailySummary() {
+            const summaryContent = document.getElementById('summaryContent');
+            const summaryText = document.getElementById('summaryText');
+            const summaryLoading = document.getElementById('summaryLoading');
+            const generateBtn = document.getElementById('generateSummaryBtn');
+
+            try {
+                // 显示加载状态
+                summaryContent.style.display = 'block';
+                summaryLoading.style.display = 'block';
+                summaryText.style.display = 'none';
+                generateBtn.disabled = true;
+                generateBtn.style.opacity = '0.6';
+
+                // 调用聊天API，模拟用户发送消息
+                const response = await fetch('/api/chat/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: '帮我总结一下今天的工作',
+                        conversation_id: null
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('生成总结失败');
+                }
+
+                // 处理流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let summaryResult = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // 第一次接收到数据时隐藏加载状态
+                    if (summaryResult === '') {
+                        summaryLoading.style.display = 'none';
+                        summaryText.style.display = 'block';
+                    }
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    console.log('收到数据块:', chunk); // 调试信息
+                    summaryResult += chunk;
+                    
+                    // 实时更新显示内容
+                    summaryText.innerHTML = formatSummaryText(summaryResult);
+                }
+
+                console.log('最终结果:', summaryResult); // 调试信息
+                // 显示结果
+                summaryLoading.style.display = 'none';
+                summaryText.style.display = 'block';
+                summaryText.innerHTML = formatSummaryText(summaryResult);
+
+            } catch (error) {
+                console.error('生成总结失败:', error);
+                summaryLoading.style.display = 'none';
+                summaryText.style.display = 'block';
+                summaryText.innerHTML = '<div style="color: #ef4444; text-align: center;">生成总结失败，请稍后重试</div>';
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.style.opacity = '1';
+            }
+        }
+
+        // 格式化总结文本
+        function formatSummaryText(text) {
+            if (!text || text.trim() === '') {
+                return '<p style="color: #64748b; text-align: center;">暂无内容</p>';
+            }
+            
+            // 简单的富文本格式化
+            let formatted = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>');
+            
+            // 确保内容被包裹在段落标签中
+            if (!formatted.startsWith('<p>')) {
+                formatted = '<p>' + formatted + '</p>';
+            }
+            
+            return formatted;
+        }
+
+        // 事件监听器
+        document.addEventListener('DOMContentLoaded', function() {
+            // 添加总结按钮事件监听
+            const generateSummaryBtn = document.getElementById('generateSummaryBtn');
+            if (generateSummaryBtn) {
+                generateSummaryBtn.addEventListener('click', generateDailySummary);
+            }
+
+            // 监听标签页切换，当切换到省吾身标签页时加载数据
+            const searchTab = document.querySelector('[data-tab="search"]');
+            if (searchTab) {
+                searchTab.addEventListener('click', function() {
+                    // 延迟加载数据，确保DOM已渲染
+                    setTimeout(() => {
+                        if (document.getElementById('appUsageChart')) {
+                            fetchAppUsageStats();
+                        }
+                    }, 100);
+                });
+            }
+        });
+    </script>
 </body>
 </html>
