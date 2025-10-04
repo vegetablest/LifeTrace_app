@@ -356,11 +356,12 @@ def get_unprocessed_screenshots(logger=None, limit=50):
         with db_manager.get_session() as session:
             # 优化查询：使用NOT EXISTS子查询替代LEFT JOIN
             # 这种方式在大数据量时性能更好
+            # 按创建时间降序排列，优先处理最新的截图
             unprocessed = session.query(Screenshot).filter(
                 ~session.query(OCRResult).filter(
                     OCRResult.screenshot_id == Screenshot.id
                 ).exists()
-            ).order_by(Screenshot.created_at.asc()).limit(limit).all()
+            ).order_by(Screenshot.created_at.desc()).limit(limit).all()
             
             logger.info(f"查询到 {len(unprocessed)} 条未处理的截图记录")
             
@@ -582,8 +583,8 @@ def main():
             if unprocessed_screenshots:
                 logger.info(f"发现 {len(unprocessed_screenshots)} 个未处理的截图")
                 
-                # 按创建时间排序，优先处理最新的
-                unprocessed_screenshots.sort(key=lambda x: x['created_at'], reverse=True)
+                # 数据库查询已经按创建时间降序排列，无需再次排序
+                # 直接处理，优先处理最新的截图
                 
                 # 处理每个未处理的截图
                 for screenshot_info in unprocessed_screenshots:
