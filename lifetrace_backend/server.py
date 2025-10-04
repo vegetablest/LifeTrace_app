@@ -227,7 +227,7 @@ class UTF8JSONResponse(JSONResponse):
 # 添加CORS中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8840", "http://127.0.0.1:8840"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8840", "http://127.0.0.1:8840"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -22,3 +22,15 @@ lifetrace_backend/__pycache__/config.cpython-313.pyc
 /reports
 /dist
 /build_server
+lifetrace_backend/__pycache__/vector_service.cpython-313.pyc
+lifetrace_backend/__pycache__/vector_db.cpython-313.pyc
+lifetrace_backend/__pycache__/utils.cpython-313.pyc
+lifetrace_backend/__pycache__/storage.cpython-313.pyc
+lifetrace_backend/__pycache__/simple_ocr.cpython-313.pyc
+lifetrace_backend/__pycache__/server.cpython-313.pyc
+lifetrace_backend/__pycache__/multimodal_vector_service.cpython-313.pyc
+lifetrace_backend/__pycache__/multimodal_embedding.cpython-313.pyc
+lifetrace_backend/__pycache__/models.cpython-313.pyc
+lifetrace_backend/__pycache__/logging_config.cpython-313.pyc
+lifetrace_backend/__pycache__/config.cpython-313.pyc
+lifetrace_backend/__pycache__/__init__.cpython-313.pyc
