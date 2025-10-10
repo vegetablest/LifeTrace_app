@@ -1,0 +1,425 @@
+# LifeTrace 事件机制说明
+
+## 概述
+
+**事件（Event）** 是 LifeTrace 中的核心概念，用于将属于同一个用户行为主题的多张截图整合为一个逻辑单元。事件机制基于前台应用的连续使用区间来自动聚合截图，使得用户可以更高效地回顾和检索历史记录。
+
+## 设计理念
+
+### 问题背景
+
+在传统的截图管理中，截图是以时间序列独立存储的。但实际使用场景中，用户往往是在一个应用内持续工作一段时间（例如在 Chrome 浏览器中浏览网页、在 VS Code 中编写代码），这段时间内产生的多张截图实际上属于同一个**工作会话**或**行为主题**。
+
+### 解决方案
+
+LifeTrace 通过**事件机制**自动识别和聚合这些连续的截图：
+- 当用户持续使用同一个前台应用时，所有截图归属于同一个事件
+- 当用户切换到不同应用时，自动结束当前事件并创建新事件
+- 每个事件记录了应用名称、窗口标题、开始时间、结束时间等信息
+
+## 数据模型
+
+### Event 表结构
+
+```python
+class Event(Base):
+    """事件模型（按前台应用连续使用区间聚合截图）"""
+    __tablename__ = 'events'
+
+    id = Column(Integer, primary_key=True)
+    app_name = Column(String(200))                    # 应用名称
+    window_title = Column(String(500))                # 首个或最近的窗口标题
+    start_time = Column(DateTime)                     # 事件开始时间
+    end_time = Column(DateTime)                       # 事件结束时间（应用切换时填充）
+    created_at = Column(DateTime)                     # 创建时间
+```
+
+**字段说明：**
+- `app_name`: 前台应用程序名称（如 "chrome.exe", "code.exe"）
+- `window_title`: 窗口标题，可能在事件过程中更新为最新值
+- `start_time`: 事件开始时间（创建事件时的时间戳）
+- `end_time`: 事件结束时间（切换应用或程序退出时填充，为空表示事件正在进行）
+- `created_at`: 数据库记录创建时间
+
+### Screenshot 与 Event 的关联
+
+```python
+class Screenshot(Base):
+    """截图记录模型"""
+    __tablename__ = 'screenshots'
+    
+    id = Column(Integer, primary_key=True)
+    file_path = Column(String(500), nullable=False, unique=True)
+    # ... 其他字段
+    event_id = Column(Integer)                        # 关联的事件ID
+    app_name = Column(String(200))                    # 前台应用名称
+    window_title = Column(String(500))                # 窗口标题
+    created_at = Column(DateTime)                     # 截图时间
+```
+
+每个截图通过 `event_id` 字段关联到所属的事件。
+
+## 核心实现
+
+### 1. 事件创建与维护逻辑
+
+**核心方法：** `DatabaseManager.get_or_create_event()`
+
+位置：`lifetrace_backend/storage.py`
+
+```python
+def get_or_create_event(self, app_name: Optional[str], 
+                       window_title: Optional[str], 
+                       timestamp: Optional[datetime] = None) -> Optional[int]:
+    """按当前前台应用维护事件。
+    若存在未结束事件且应用名一致，则复用并可更新窗口标题；
+    若应用变更，则关闭上一个事件并创建新事件。
+    返回事件ID。
+    """
+```
+
+**工作流程：**
+
+1. **查找当前未结束的事件**
+   ```python
+   last_event = self._get_last_open_event(session)
+   ```
+   - 查询 `end_time` 为 `NULL` 的最新事件
+
+2. **应用未变更 - 复用事件**
+   ```python
+   if last_event and (last_event.app_name or "") == (app_name or ""):
+       # 可选：更新窗口标题
+       if window_title and window_title != last_event.window_title:
+           last_event.window_title = window_title
+       return last_event.id
+   ```
+   - 如果当前应用与上一个事件的应用相同，继续使用该事件
+   - 窗口标题可能在事件进行中更新（例如浏览器切换标签页）
+
+3. **应用变更 - 关闭旧事件并创建新事件**
+   ```python
+   # 关闭旧事件
+   if last_event and last_event.end_time is None:
+       last_event.end_time = now_ts
+   
+   # 创建新事件
+   new_event = Event(
+       app_name=app_name,
+       window_title=window_title,
+       start_time=now_ts
+   )
+   session.add(new_event)
+   return new_event.id
+   ```
+   - 如果应用名称不同，将上一个事件的 `end_time` 设置为当前时间
+   - 创建新事件，`end_time` 保持为 `NULL`（表示正在进行）
+
+### 2. 截图录制集成
+
+**位置：** `lifetrace_backend/recorder.py`
+
+在保存截图到数据库时，自动调用事件管理逻辑：
+
+```python
+def _save_to_database(self, file_path: str, file_hash: str, width: int, height: int, 
+                     screen_id: int, app_name: str, window_title: str, timestamp):
+    # 获取或创建事件（基于当前前台应用）
+    event_id = db_manager.get_or_create_event(
+        app_name or "未知应用", 
+        window_title or "未知窗口", 
+        timestamp
+    )
+    
+    # 保存截图并关联事件
+    screenshot_id = db_manager.add_screenshot(
+        file_path=file_path,
+        file_hash=file_hash,
+        width=width,
+        height=height,
+        screen_id=screen_id,
+        app_name=app_name or "未知应用",
+        window_title=window_title or "未知窗口",
+        event_id=event_id  # 关联到事件
+    )
+```
+
+**工作流程：**
+1. 录制器每次截图时获取当前前台窗口信息（应用名称、窗口标题）
+2. 调用 `get_or_create_event()` 获取当前事件ID
+3. 将截图记录与事件ID关联存储
+
+### 3. 主动关闭事件
+
+**位置：** `lifetrace_backend/storage.py`
+
+```python
+def close_active_event(self, end_time: Optional[datetime] = None) -> bool:
+    """主动结束当前事件（可在程序退出时调用）"""
+    last_event = self._get_last_open_event(session)
+    if last_event and last_event.end_time is None:
+        last_event.end_time = end_time or datetime.now()
+        return True
+    return False
+```
+
+**使用场景：**
+- 程序正常退出时，关闭最后一个未结束的事件
+- 确保数据完整性，避免遗留"永远未结束"的事件
+
+## API 接口
+
+### 1. 获取事件列表
+
+**端点：** `GET /api/events`
+
+**参数：**
+- `limit`: 返回数量限制（1-200，默认50）
+- `offset`: 分页偏移量
+- `start_date`: 开始日期过滤（ISO格式）
+- `end_date`: 结束日期过滤（ISO格式）
+- `app_name`: 应用名称模糊搜索
+
+**响应：**
+```json
+[
+  {
+    "id": 123,
+    "app_name": "chrome.exe",
+    "window_title": "LifeTrace - 事件机制说明",
+    "start_time": "2025-10-10T14:30:00",
+    "end_time": "2025-10-10T15:45:00",
+    "screenshot_count": 45,
+    "first_screenshot_id": 5678
+  }
+]
+```
+
+**实现位置：** `lifetrace_backend/server.py:list_events()`
+
+### 2. 获取事件详情
+
+**端点：** `GET /api/events/{event_id}`
+
+**响应：**
+```json
+{
+  "id": 123,
+  "app_name": "chrome.exe",
+  "window_title": "LifeTrace - 事件机制说明",
+  "start_time": "2025-10-10T14:30:00",
+  "end_time": "2025-10-10T15:45:00",
+  "screenshots": [
+    {
+      "id": 5678,
+      "file_path": "data/screenshots/20251010_143001.png",
+      "app_name": "chrome.exe",
+      "window_title": "LifeTrace - 首页",
+      "created_at": "2025-10-10T14:30:01",
+      "width": 1920,
+      "height": 1080
+    }
+    // ... 更多截图
+  ]
+}
+```
+
+**实现位置：** `lifetrace_backend/server.py:get_event_detail()`
+
+### 3. 搜索事件
+
+**端点：** `POST /api/event-search`
+
+**请求体：**
+```json
+{
+  "query": "编写代码",
+  "limit": 20
+}
+```
+
+**功能：**
+- 基于OCR文本内容搜索相关事件
+- 返回包含搜索关键词的事件摘要列表
+
+**实现位置：** `lifetrace_backend/server.py:search_events()`
+
+## 使用场景
+
+### 1. 工作回顾
+
+用户可以按事件查看历史记录，而不是逐张浏览截图：
+- "今天上午我在 VS Code 里做了什么？"
+- "昨天下午在 Chrome 浏览器里看了哪些网页？"
+
+### 2. 行为统计
+
+基于事件可以统计：
+- 每天在各个应用上的使用时长（`end_time - start_time`）
+- 应用切换频率
+- 工作效率分析（专注时长）
+
+### 3. 智能检索
+
+结合OCR文本内容和事件元数据：
+- "搜索我在看 LifeTrace 文档时的截图"
+- "查找我在编写 Python 代码时的所有记录"
+
+### 4. 时间线展示
+
+前端可以按事件组织时间线视图：
+- 每个事件显示为一个卡片（应用图标、标题、时长、截图数量）
+- 点击展开查看该事件内的所有截图
+- 提供更清晰的视觉层次结构
+
+## 数据查询示例
+
+### 1. 查询某个事件的所有截图
+
+```python
+screenshots = db_manager.get_event_screenshots(event_id=123)
+```
+
+### 2. 按日期查询事件列表
+
+```python
+events = db_manager.list_events(
+    start_date=datetime(2025, 10, 10, 0, 0, 0),
+    end_date=datetime(2025, 10, 10, 23, 59, 59),
+    limit=100
+)
+```
+
+### 3. 查询某个应用的所有事件
+
+```python
+events = db_manager.list_events(
+    app_name="chrome.exe",
+    limit=50
+)
+```
+
+### 4. 获取事件统计信息
+
+```sql
+-- 每个事件的截图数量
+SELECT event_id, COUNT(*) as screenshot_count
+FROM screenshots
+WHERE event_id IS NOT NULL
+GROUP BY event_id;
+
+-- 每个应用的使用时长（秒）
+SELECT app_name, 
+       SUM(JULIANDAY(end_time) - JULIANDAY(start_time)) * 86400 as total_seconds
+FROM events
+WHERE end_time IS NOT NULL
+GROUP BY app_name;
+```
+
+## 优势与特点
+
+### 1. 自动化
+
+- **无需用户干预**：系统自动根据前台应用切换来创建和管理事件
+- **实时更新**：每次截图时自动关联到正确的事件
+
+### 2. 智能聚合
+
+- **语义化分组**：按工作会话自动分组，而不是简单的时间切片
+- **动态边界**：事件边界由实际的应用切换行为决定
+
+### 3. 高效检索
+
+- **减少检索粒度**：从"查找某张截图"变为"查找某个工作会话"
+- **提升浏览效率**：一次性查看某个会话的所有相关截图
+
+### 4. 数据分析
+
+- **行为洞察**：分析应用使用模式、工作效率
+- **时间统计**：精确计算各应用的使用时长
+- **活动重建**：完整还原某个时间段的工作流程
+
+## 技术细节
+
+### 1. 并发处理
+
+由于截图是周期性进行的，多个截图请求可能同时访问事件表：
+- 使用数据库事务确保一致性
+- `get_or_create_event()` 在单个事务中完成查询和更新
+
+### 2. 窗口标题更新
+
+在同一个应用内，窗口标题可能频繁变化（如浏览器切换标签页）：
+- 当前实现：保留最新的窗口标题
+- 未来扩展：可以记录窗口标题变化历史
+
+### 3. 事件边界判断
+
+**当前策略：** 仅基于应用名称判断
+- 优点：简单、稳定
+- 缺点：无法区分同一应用内的不同任务
+
+**可选优化方向：**
+- 结合窗口标题变化（需要更复杂的启发式规则）
+- 加入时间间隔判断（超过N分钟自动分割事件）
+- 使用机器学习识别任务边界
+
+### 4. 旧数据兼容
+
+`event_id` 字段允许为空，兼容旧版本数据：
+- 旧截图的 `event_id` 为 `NULL`
+- 新截图都会关联到事件
+- 可以后续通过脚本迁移旧数据
+
+## 未来扩展方向
+
+### 1. 事件标签
+
+允许用户为事件添加自定义标签：
+- "工作"、"学习"、"娱乐"等
+- 支持标签过滤和统计
+
+### 2. 自动事件分类
+
+基于窗口内容（OCR文本、应用类型）自动分类事件：
+- 编程（VS Code + GitHub）
+- 写作（Word + 浏览器）
+- 研究（Chrome + PDF阅读器）
+
+### 3. 跨应用事件
+
+识别相关的跨应用任务流：
+- "编写代码" = VS Code + Chrome（查文档）+ Terminal
+- 通过时间关系和内容关联自动聚合
+
+### 4. 事件摘要
+
+为每个事件自动生成摘要：
+- 提取关键词（从OCR文本）
+- 识别主要活动（从应用类型）
+- 生成自然语言描述
+
+### 5. 智能时间间隔
+
+动态调整事件分割逻辑：
+- 短暂切换应用（<1分钟）不分割事件
+- 长时间空闲后重新开始新事件
+- 根据用户习惯学习最佳分割策略
+
+## 总结
+
+事件机制是 LifeTrace 的核心创新之一，它将离散的截图转化为有意义的工作会话单元。通过自动化的事件创建和管理，系统能够：
+
+1. **提升用户体验**：按工作会话组织视图，更符合用户认知
+2. **增强检索能力**：从截图级检索提升到会话级检索
+3. **支持数据分析**：为行为统计和工作效率分析提供基础
+4. **保持简单高效**：自动化运行，无需用户手动管理
+
+这一机制为 LifeTrace 从"截图记录工具"向"个人工作流追踪系统"的演进奠定了重要基础。
+
+---
+
+**文档版本：** 1.0  
+**最后更新：** 2025-10-10  
+**维护者：** LifeTrace Team
+

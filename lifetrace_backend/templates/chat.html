@@ -70,34 +70,138 @@
             color: var(--foreground);
             height: 100vh;
             display: flex;
+            flex-direction: column;
             overflow: hidden;
             transition: background-color 0.2s, color 0.2s;
         }
         
-        /* 主容器布局 */
-        .main-layout {
-            display: flex;
+        /* 全局顶部标题栏 */
+        .global-header {
+            flex-shrink: 0;
             width: 100%;
-            height: 100vh;
+            z-index: 50;
         }
         
-        /* 左侧空白区域 */
-        .left-area {
-            flex: 2;
-            background-color: var(--background);
+        /* 主容器布局 - 三列结构 */
+        .main-layout {
+            display: flex;
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+        }
+        
+        /* 左侧图标导航栏 */
+        .sidebar-nav {
+            width: 60px;
+            flex-shrink: 0;
+            background-color: var(--card);
             border-right: 1px solid var(--border);
-            height: 100vh;
             display: flex;
             flex-direction: column;
+            align-items: center;
+            padding: 1rem 0;
+            gap: 0.5rem;
+            overflow-y: auto;
+        }
+        
+        /* 图标按钮样式 */
+        .nav-icon-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: transparent;
+            border: none;
+            color: var(--muted-foreground);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .nav-icon-btn:hover {
+            background: var(--muted);
+            color: var(--foreground);
+            transform: scale(1.05);
+        }
+        
+        .nav-icon-btn.active {
+            background: var(--primary);
+            color: var(--primary-foreground);
+        }
+        
+        .nav-icon-btn.active::after {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 0 2px 2px 0;
+        }
+        
+        /* 中间内容区域 */
+        .middle-content-area {
+            flex: 0;
+            background-color: var(--background);
+            border-right: 1px solid var(--border);
+            overflow: hidden;
+            transition: flex 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            min-width: 0;
+        }
+        
+        .middle-content-area.expanded {
+            flex: 7;
+        }
+        
+        /* 关闭面板按钮 - 已禁用 */
+        .close-panel-btn {
+            display: none;
+        }
+        
+        /* 内容面板 */
+        .content-panel {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .content-panel.active {
+            display: flex;
+            flex-direction: column;
+            opacity: 1;
         }
         
         /* 右侧聊天区域 */
-        .right-chat-area {
-            flex: 1;
+        .chat-area {
+            flex: 3;
             display: flex;
             flex-direction: column;
             background-color: var(--card);
-            border-left: 1px solid var(--border);
+            min-width: 0;
+            transition: flex 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 当中间内容区展开时，聊天区域占30% */
+        .middle-content-area.expanded ~ .chat-area {
+            flex: 3;
+        }
+        
+        /* 保留原有的left-area和right-chat-area类作为兼容（已废弃） */
+        .left-area {
+            display: none;
+        }
+        
+        .right-chat-area {
+            display: none;
         }
         
         /* Header */
@@ -168,8 +272,9 @@
         }
         
         .btn-ghost:hover {
-            background: var(--accent);
-            color: var(--accent-foreground);
+            background: var(--muted);
+            color: var(--foreground);
+            transform: translateY(-1px);
         }
         
         .btn-outline {
@@ -180,8 +285,10 @@
         }
         
         .btn-outline:hover {
-            background: var(--accent);
-            color: var(--accent-foreground);
+            background: var(--muted);
+            border-color: var(--muted-foreground);
+            color: var(--foreground);
+            transform: translateY(-1px);
         }
         
         .btn-primary {
@@ -205,7 +312,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 3.5rem);
+            height: 100%;
             overflow: hidden;
         }
         
@@ -1531,31 +1638,47 @@
     </style>
 </head>
 <body>
-    <div class="main-layout">
-        <!-- 左侧区域 -->
-        <div class="left-area">
-            <!-- 标签导航栏 -->
-            <div class="tab-navigation">
-                <div class="tab-buttons">
-                    <button class="tab-button active" data-tab="events">
-                        <i data-lucide="history"></i>
-                        <span>忆往昔</span>
-                    </button>
-                    <button class="tab-button" data-tab="search">
-                        <i data-lucide="search-check"></i>
-                        <span>省吾身</span>
-                    </button>
-                    <button class="tab-button" data-tab="analytics">
-                        <i data-lucide="target"></i>
-                        <span>预则立</span>
-                    </button>
+    <!-- 全局顶部标题栏 -->
+    <header class="header global-header">
+        <div class="header-content">
+            <div class="header-left">
+                <div class="header-logo">
+                    <i data-lucide="bot"></i>
                 </div>
+                <span class="header-title">LifeTrace Chat</span>
             </div>
-
-            <!-- 标签内容区域 -->
-            <div class="tab-content">
-                <!-- 事件时间轴标签页 -->
-                <div class="tab-panel active" id="events-panel">
+            <div class="header-right">
+                <button class="btn btn-ghost btn-icon" id="newChatBtn" title="开始新对话">
+                    <i data-lucide="plus"></i>
+                </button>
+                <a href="/chat/settings" class="btn btn-ghost btn-icon" title="设置">
+                    <i data-lucide="settings"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+    
+    <!-- 三列主布局 -->
+    <div class="main-layout">
+        <!-- 左侧图标导航栏 -->
+        <aside class="sidebar-nav">
+            <button class="nav-icon-btn" data-panel="events" title="忆往昔">
+                <i data-lucide="history"></i>
+            </button>
+            <button class="nav-icon-btn" data-panel="search" title="省吾身">
+                <i data-lucide="search-check"></i>
+            </button>
+            <button class="nav-icon-btn" data-panel="analytics" title="预则立">
+                <i data-lucide="target"></i>
+            </button>
+        </aside>
+        
+        <!-- 中间内容区域 -->
+        <div class="middle-content-area" id="middleContent">
+            <!-- 面板内容容器 -->
+            <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                <!-- 事件时间轴面板 -->
+                <div class="content-panel" id="events-content">
                     <!-- Events 事件管理区域 -->
                     <div class="events-container">
                         <!-- 搜索表单 -->
@@ -1611,8 +1734,8 @@
                     </div>
                 </div>
 
-                <!-- 搜索记录标签页 -->
-                <div class="tab-panel" id="search-panel">
+                <!-- 今日总结面板 -->
+                <div class="content-panel" id="search-content">
                     <div class="analytics-content">
                         <div class="app-usage-container">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -1707,8 +1830,8 @@
                     </div>
                 </div>
 
-                <!-- 数据分析标签页 -->
-                <div class="tab-panel" id="analytics-panel">
+                <!-- 数据分析面板 -->
+                <div class="content-panel" id="analytics-content">
                     <div class="analytics-content">
                         <h3>数据分析</h3>
                         <p>这里将显示数据分析和相关功能</p>
@@ -1717,35 +1840,9 @@
             </div>
         </div>
         
-        <!-- 右侧聊天区域 -->
-        <div class="right-chat-area">
-            <!-- Header -->
-            <header class="header">
-                <div class="header-content">
-                    <div class="header-left">
-                        <div class="header-logo">
-                            <i data-lucide="bot"></i>
-                        </div>
-                        <span class="header-title">LifeTrace Chat</span>
-                    </div>
-                    <div class="header-right">
-                        <button class="btn btn-ghost btn-icon" id="newChatBtn" title="开始新对话">
-                            <i data-lucide="plus"></i>
-                        </button>
-                        <button class="btn btn-ghost btn-icon" id="themeToggle">
-                            <i data-lucide="moon" id="themeIcon"></i>
-                        </button>
-                        <a href="/analytics" class="btn btn-ghost btn-icon" title="用户行为分析">
-                            <i data-lucide="bar-chart-3"></i>
-                        </a>
-                        <a href="/chat/settings" class="btn btn-ghost btn-icon" title="设置">
-                            <i data-lucide="settings"></i>
-                        </a>
-                    </div>
-                </div>
-            </header>
-    
-    <!-- Main Chat Area -->
+        <!-- 右侧AI聊天区域 -->
+        <div class="chat-area">
+            <!-- Main Chat Area -->
     <main class="chat-container">
         <div class="chat-messages" id="chatMessages">
             <!-- Welcome Screen -->
@@ -2022,52 +2119,96 @@
                 }
             }
 
-            // 初始化标签切换功能
-            initTabSwitching();
+            // 初始化面板切换功能
+            initPanelSwitching();
         });
 
-        // 标签切换功能
-        function initTabSwitching() {
-            const tabButtons = document.querySelectorAll('.tab-button');
-            const tabPanels = document.querySelectorAll('.tab-panel');
+        // 面板切换功能 - 新的三列布局
+        let currentPanel = null;
+        
+        function initPanelSwitching() {
+            const navIconBtns = document.querySelectorAll('.nav-icon-btn');
+            const contentPanels = document.querySelectorAll('.content-panel');
+            const middleContentArea = document.getElementById('middleContent');
 
-            tabButtons.forEach(button => {
+            // 图标按钮点击事件
+            navIconBtns.forEach(button => {
                 button.addEventListener('click', function() {
-                    const targetTab = this.getAttribute('data-tab');
+                    const panelId = this.getAttribute('data-panel');
                     
-                    // 移除所有活动状态
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    tabPanels.forEach(panel => panel.classList.remove('active'));
-                    
-                    // 激活当前标签
-                    this.classList.add('active');
-                    const targetPanel = document.getElementById(targetTab + '-panel');
-                    if (targetPanel) {
-                        targetPanel.classList.add('active');
-                    }
-
-                    // 如果切换到事件标签页，重新加载事件数据
-                    if (targetTab === 'events') {
-                        setTimeout(() => {
-                            loadEvents();
-                        }, 100);
+                    // 如果点击的是当前已打开的面板，则关闭
+                    if (currentPanel === panelId && middleContentArea.classList.contains('expanded')) {
+                        closePanel();
+                    } else {
+                        openPanel(panelId);
                     }
                 });
             });
         }
         
+        function openPanel(panelId) {
+            const navIconBtns = document.querySelectorAll('.nav-icon-btn');
+            const contentPanels = document.querySelectorAll('.content-panel');
+            const middleContentArea = document.getElementById('middleContent');
+            
+            // 移除所有激活状态
+            navIconBtns.forEach(btn => btn.classList.remove('active'));
+            contentPanels.forEach(panel => panel.classList.remove('active'));
+            
+            // 激活当前图标
+            const activeBtn = document.querySelector(`.nav-icon-btn[data-panel="${panelId}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+            
+            // 显示目标面板
+            const targetPanel = document.getElementById(panelId + '-content');
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+            
+            // 展开中间区域
+            middleContentArea.classList.add('expanded');
+            currentPanel = panelId;
+            
+            // 如果是事件面板，重新加载数据
+            if (panelId === 'events') {
+                setTimeout(() => {
+                    loadEvents();
+                }, 100);
+            }
+        }
+        
+        function closePanel() {
+            const navIconBtns = document.querySelectorAll('.nav-icon-btn');
+            const contentPanels = document.querySelectorAll('.content-panel');
+            const middleContentArea = document.getElementById('middleContent');
+            
+            // 移除所有激活状态
+            navIconBtns.forEach(btn => btn.classList.remove('active'));
+            contentPanels.forEach(panel => panel.classList.remove('active'));
+            
+            // 收起中间区域
+            middleContentArea.classList.remove('expanded');
+            currentPanel = null;
+        }
+        
         // 主题切换
         let isDark = false;
-        themeToggle.addEventListener('click', function() {
-            isDark = !isDark;
-            document.documentElement.classList.toggle('dark', isDark);
-            
-            // 更新图标
-            themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        });
+        if (themeToggle) {
+            themeToggle.addEventListener('click', function() {
+                isDark = !isDark;
+                document.documentElement.classList.toggle('dark', isDark);
+                
+                // 更新图标
+                if (themeIcon) {
+                    themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }
+            });
+        }
         
         // 快速查询功能
         function insertQuickQuery(query) {

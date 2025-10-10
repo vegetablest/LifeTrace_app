@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+执行py之前需要使用conda首先激活laptop_showcase环境
