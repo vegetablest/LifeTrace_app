@@ -273,6 +273,22 @@ for path in static_paths:
 if static_dir:
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# 添加assets目录的静态文件访问
+assets_paths = [
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets"),  # 开发环境
+    get_resource_path("assets"),                                          # PyInstaller环境
+]
+
+assets_dir = None
+for path in assets_paths:
+    if os.path.exists(path):
+        assets_dir = path
+        break
+
+if assets_dir:
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    print(f"Assets loaded from: {assets_dir}")
+
 if templates_dir:
     templates = Jinja2Templates(directory=templates_dir)
     print(f"Templates loaded from: {templates_dir}")

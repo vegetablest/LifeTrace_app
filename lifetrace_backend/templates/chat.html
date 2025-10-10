@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LifeTrace Chat - 智能对话助手</title>
+    <title>LifeTrace Chat</title>
+    <link rel="icon" type="image/png" href="/assets/logo.png">
     <!-- Markdown解析库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
     <!-- Lucide Icons -->
@@ -124,6 +125,8 @@
             background: var(--muted);
             color: var(--foreground);
             transform: scale(1.05);
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         
         .nav-icon-btn.active {
@@ -172,6 +175,28 @@
             overflow-y: auto;
             opacity: 0;
             transition: opacity 0.2s ease;
+            /* 应用与忆往昔相同的滚动条样式 */
+            scrollbar-width: thin;
+            scrollbar-color: rgba(107, 114, 128, 0.3) rgba(243, 244, 246, 0.5);
+        }
+        
+        /* 中间内容区滚动条样式 - Webkit浏览器 */
+        .content-panel::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        
+        .content-panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .content-panel::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.2);
+            border-radius: 3px;
+        }
+        
+        .content-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(107, 114, 128, 0.4);
         }
         
         .content-panel.active {
@@ -275,6 +300,8 @@
             background: var(--muted);
             color: var(--foreground);
             transform: translateY(-1px);
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         
         .btn-outline {
@@ -286,9 +313,10 @@
         
         .btn-outline:hover {
             background: var(--muted);
-            border-color: var(--muted-foreground);
+            border-color: var(--foreground);
             color: var(--foreground);
             transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         
         .btn-primary {
