@@ -2018,6 +2018,114 @@ async def get_app_usage_stats(
         raise HTTPException(status_code=500, detail=f"获取应用使用统计失败: {str(e)}")
 
 
+# ======================================
+# 计划编辑器API
+# ======================================
+
+# 数据模型
+class TodoItem(BaseModel):
+    id: str
+    title: str
+    checked: bool
+    content: Optional[str] = None
+
+class PlanContent(BaseModel):
+    title: str
+    description: str
+    todos: List[TodoItem]
+
+# 创建plans目录
+PLANS_DIR = Path(config.base_dir) / "plans"
+PLANS_DIR.mkdir(exist_ok=True)
+
+# 创建plan_images目录
+PLAN_IMAGES_DIR = Path(config.base_dir) / "plan_images"
+PLAN_IMAGES_DIR.mkdir(exist_ok=True)
+
+@app.post("/api/plan/save")
+async def save_plan(plan: PlanContent):
+    """保存计划到文件"""
+    try:
+        plan_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_path = PLANS_DIR / f"{plan_id}.json"
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(plan.dict(), f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"计划已保存: {plan_id}")
+        return {"plan_id": plan_id, "message": "保存成功"}
+    except Exception as e:
+        logger.error(f"保存计划失败: {e}")
+        raise HTTPException(status_code=500, detail=f"保存计划失败: {str(e)}")
+
+@app.get("/api/plan/load")
+async def load_plan(plan_id: str):
+    """加载指定计划"""
+    try:
+        file_path = PLANS_DIR / f"{plan_id}.json"
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="计划不存在")
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"加载计划失败: {e}")
+        raise HTTPException(status_code=500, detail=f"加载计划失败: {str(e)}")
+
+@app.get("/api/plan/list")
+async def list_plans():
+    """列出所有计划"""
+    try:
+        plans = []
+        for file_path in PLANS_DIR.glob("*.json"):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                plans.append({
+                    "plan_id": file_path.stem,
+                    "title": data.get("title", "未命名计划"),
+                    "created_at": file_path.stem  # 从文件名提取时间
+                })
+        
+        plans.sort(key=lambda x: x['created_at'], reverse=True)
+        return {"plans": plans}
+    except Exception as e:
+        logger.error(f"列出计划失败: {e}")
+        raise HTTPException(status_code=500, detail=f"列出计划失败: {str(e)}")
+
+@app.post("/api/plan/upload-image")
+async def upload_plan_image(image: UploadFile = File(...)):
+    """上传计划中的图片"""
+    try:
+        # 生成唯一文件名
+        file_ext = image.filename.split('.')[-1] if '.' in image.filename else 'png'
+        file_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+        filename = f"{file_id}.{file_ext}"
+        file_path = PLAN_IMAGES_DIR / filename
+        
+        # 保存文件
+        content = await image.read()
+        with open(file_path, 'wb') as f:
+            f.write(content)
+        
+        logger.info(f"图片已上传: {filename}")
+        return {"url": f"/api/plan/images/{filename}"}
+    except Exception as e:
+        logger.error(f"上传图片失败: {e}")
+        raise HTTPException(status_code=500, detail=f"上传图片失败: {str(e)}")
+
+@app.get("/api/plan/images/{filename}")
+async def get_plan_image(filename: str):
+    """获取计划图片"""
+    file_path = PLAN_IMAGES_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="图片不存在")
+    return FileResponse(file_path)
+
+
 def main():
     """主函数 - 命令行入口"""
     import argparse

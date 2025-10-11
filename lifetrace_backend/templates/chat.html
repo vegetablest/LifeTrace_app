@@ -11,6 +11,11 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <!-- Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <!-- Quill富文本编辑器 -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <!-- Turndown (HTML to Markdown) -->
+    <script src="https://unpkg.com/turndown/dist/turndown.js"></script>
     <style>
         :root {
             /* Updated color tokens to match v0 chat design */
@@ -1591,6 +1596,417 @@
             font-weight: 600;
         }
 
+        /* 计划编辑器样式 */
+        .plan-editor-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        /* 工具栏样式 */
+        .plan-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .plan-toolbar-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border: 1px solid #e5e7eb;
+            background: white;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            color: #374151;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .plan-toolbar-btn:hover {
+            background: #f9fafb;
+            border-color: #d1d5db;
+        }
+
+        .plan-toolbar-btn i {
+            width: 16px;
+            height: 16px;
+        }
+
+        .plan-toolbar-btn-ai {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .plan-toolbar-btn-ai:hover {
+            background: linear-gradient(135deg, #5568d3 0%, #63408b 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        /* 标题输入框 */
+        .plan-title-input {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.75rem;
+            font-weight: 700;
+            border: none;
+            border-bottom: 2px solid #e5e7eb;
+            background: transparent;
+            color: #1f2937;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .plan-title-input:focus {
+            outline: none;
+            border-bottom-color: #667eea;
+        }
+
+        .plan-title-input::placeholder {
+            color: #9ca3af;
+        }
+
+        /* Quill编辑器包装器 */
+        .plan-editor-wrapper {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .plan-editor-wrapper .ql-container {
+            border: none;
+            font-size: 1rem;
+            min-height: 300px;
+        }
+
+        .plan-editor-wrapper .ql-editor {
+            padding: 1.5rem;
+            line-height: 1.75;
+            min-height: 300px;
+        }
+
+        .plan-editor-wrapper .ql-editor.ql-blank::before {
+            color: #9ca3af;
+            font-style: normal;
+        }
+
+        .plan-editor-wrapper .ql-toolbar {
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        /* Todo块容器 */
+        .plan-todos-container {
+            margin-bottom: 1.5rem;
+        }
+
+        /* Todo块样式 */
+        .todo-block {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .todo-block:hover {
+            border-color: #d1d5db;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .todo-block-header {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            cursor: pointer;
+            gap: 0.75rem;
+            user-select: none;
+        }
+
+        .todo-checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .todo-checkbox:checked {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+        }
+
+        .todo-checkbox:checked::after {
+            content: '';
+            position: absolute;
+            left: 5px;
+            top: 2px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .todo-title-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-size: 1rem;
+            color: #1f2937;
+            font-weight: 500;
+            padding: 0.25rem 0;
+        }
+
+        .todo-title-input:focus {
+            outline: none;
+        }
+
+        .todo-title-input.completed {
+            text-decoration: line-through;
+            color: #9ca3af;
+        }
+
+        .todo-expand-btn {
+            padding: 0.25rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            color: #6b7280;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .todo-expand-btn:hover {
+            color: #374151;
+        }
+
+        .todo-expand-btn i {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.2s ease;
+        }
+
+        .todo-block.expanded .todo-expand-btn i {
+            transform: rotate(180deg);
+        }
+
+        .todo-content {
+            display: none;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .todo-block.expanded .todo-content {
+            display: block;
+        }
+
+        .todo-content-editor {
+            min-height: 200px;
+        }
+
+        .todo-content-editor .ql-container {
+            border: none;
+            font-size: 0.875rem;
+        }
+
+        .todo-content-editor .ql-editor {
+            padding: 1rem;
+            line-height: 1.6;
+            min-height: 150px;
+        }
+
+        .todo-content-editor .ql-toolbar {
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            background: #fafafa;
+            padding: 0.5rem;
+        }
+
+        /* 添加Todo按钮 */
+        .add-todo-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 1rem;
+            border: 2px dashed #d1d5db;
+            background: white;
+            border-radius: 12px;
+            color: #6b7280;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .add-todo-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: #f9fafb;
+        }
+
+        .add-todo-btn i {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* 欢迎界面样式 */
+        .summary-welcome-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100%;
+            padding: 2rem;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .summary-welcome-card {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem 2.5rem;
+            max-width: 560px;
+            width: 100%;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e5e7eb;
+            text-align: center;
+        }
+
+        .summary-welcome-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 1rem;
+            margin-top: 0;
+        }
+
+        .summary-welcome-description {
+            font-size: 1rem;
+            color: #6b7280;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .summary-welcome-btn-primary {
+            width: 100%;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-welcome-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+        }
+
+        .summary-welcome-btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .summary-welcome-btn-primary i {
+            width: 20px;
+            height: 20px;
+        }
+
+        .summary-welcome-quick-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .summary-welcome-quick-actions-label {
+            font-size: 0.875rem;
+            color: #9ca3af;
+            margin-bottom: 0.75rem;
+        }
+
+        .summary-welcome-btn-secondary {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: white;
+            color: #4b5563;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .summary-welcome-btn-secondary:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+        }
+
+        .summary-welcome-btn-secondary i {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* 内容容器 - 默认隐藏 */
+        .summary-content-wrapper {
+            display: none;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .summary-content-wrapper.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         /* App Usage 样式 */
         .app-usage-container {
             max-width: 100%;
@@ -1785,7 +2201,7 @@
                             <input type="date" id="eventsStartDate" name="startDate" placeholder="开始时间">
                             <div class="input-icon">
                                 <i data-lucide="calendar"></i>
-                            </div>
+                        </div>
                         </div>
                         <div class="events-form-group">
                             <input type="date" id="eventsEndDate" name="endDate" placeholder="结束时间">
@@ -1803,7 +2219,7 @@
                             <input type="text" id="eventsKeyword" name="keyword" placeholder="关键词">
                             <div class="input-icon">
                                 <i data-lucide="search"></i>
-                            </div>
+                        </div>
                         </div>
                         <button type="submit" class="events-search-btn" title="搜索">
                             <i data-lucide="search"></i>
@@ -1836,6 +2252,34 @@
                 <!-- 今日总结面板 -->
                 <div class="content-panel" id="search-content">
                     <div class="analytics-content">
+                        <!-- 欢迎界面 -->
+                        <div class="summary-welcome-container" id="summaryWelcome">
+                            <div class="summary-welcome-card">
+                                <h2 class="summary-welcome-title">今日行为分析与总结</h2>
+                                <p class="summary-welcome-description">
+                                    了解你今天的时间分配、应用使用和工作效率<br>
+                                    获取AI智能洞察，发现行为模式
+                                </p>
+                                <button class="summary-welcome-btn-primary" id="startSummaryBtn">
+                                    <i data-lucide="sparkles"></i>
+                                    生成今日总结
+                                </button>
+                                <div class="summary-welcome-quick-actions-label">快速操作</div>
+                                <div class="summary-welcome-quick-actions">
+                                    <button class="summary-welcome-btn-secondary" onclick="alert('查看本周功能开发中')">
+                                        <i data-lucide="calendar-days"></i>
+                                        查看本周
+                                    </button>
+                                    <button class="summary-welcome-btn-secondary" onclick="alert('查看本月功能开发中')">
+                                        <i data-lucide="calendar-range"></i>
+                                        查看本月
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 内容容器 - 默认隐藏 -->
+                        <div class="summary-content-wrapper" id="summaryContentWrapper">
                         <div class="app-usage-container">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                                 <div>
@@ -1926,14 +2370,56 @@
                                 </div>
                             </div>
                         </div>
+                        </div>
+                        <!-- 结束 summary-content-wrapper -->
                     </div>
                 </div>
 
                 <!-- 数据分析面板 -->
                 <div class="content-panel" id="analytics-content">
                     <div class="analytics-content">
-                        <h3>数据分析</h3>
-                        <p>这里将显示数据分析和相关功能</p>
+                        <div class="plan-editor-container">
+                            <!-- 工具栏 -->
+                            <div class="plan-toolbar">
+                                <div class="toolbar-group">
+                                    <button class="plan-toolbar-btn" id="newPlanBtn" title="新建计划">
+                                        <i data-lucide="file-plus"></i>
+                                        <span>新建</span>
+                                    </button>
+                                    <button class="plan-toolbar-btn plan-toolbar-btn-ai" id="aiGenerateBtn" title="AI生成">
+                                        <i data-lucide="sparkles"></i>
+                                        <span>AI生成</span>
+                                    </button>
+                                </div>
+                                <div class="toolbar-group">
+                                    <button class="plan-toolbar-btn" id="savePlanBtn" title="保存">
+                                        <i data-lucide="save"></i>
+                                        <span>保存</span>
+                                    </button>
+                                    <button class="plan-toolbar-btn" id="exportPlanBtn" title="导出Markdown">
+                                        <i data-lucide="download"></i>
+                                        <span>导出MD</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- 标题输入 -->
+                            <input type="text" class="plan-title-input" id="planTitle" placeholder="计划标题..." value="我的工作计划">
+                            
+                            <!-- 富文本编辑器 -->
+                            <div class="plan-editor-wrapper">
+                                <div id="planEditor"></div>
+                            </div>
+                            
+                            <!-- Todo块容器 -->
+                            <div class="plan-todos-container" id="planTodosContainer"></div>
+                            
+                            <!-- 添加Todo按钮 -->
+                            <button class="add-todo-btn" id="addTodoBtn">
+                                <i data-lucide="plus-circle"></i>
+                                <span>添加新任务</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3048,7 +3534,7 @@
             item.innerHTML = `
                 <div class="events-item-checkbox">
                     <input type="checkbox" data-event-id="${event.id}" class="event-checkbox" title="选择此事件">
-                </div>
+                        </div>
                 <div class="events-item-left">
                     <div class="events-app-icon">${appInitial}</div>
                     <div class="events-item-info">
@@ -3057,7 +3543,7 @@
                         <div class="events-description">
                             <div class="events-description-line">应用: ${appName}</div>
                             <div class="events-description-line">正在进行的活动记录和截图捕捉</div>
-                        </div>
+                    </div>
                     </div>
                 </div>
                 <div class="events-screenshots-stack" id="events-screenshots-${event.id}">
@@ -3719,26 +4205,540 @@
             return formatted;
         }
 
+        // 显示总结内容区域
+        function showSummaryContent() {
+            const welcomeContainer = document.getElementById('summaryWelcome');
+            const contentWrapper = document.getElementById('summaryContentWrapper');
+            
+            if (welcomeContainer && contentWrapper) {
+                welcomeContainer.style.display = 'none';
+                contentWrapper.classList.add('active');
+                
+                // 初始化图标
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+                
+                // 加载数据
+                loadAppUsageData();
+            }
+        }
+
+        // ======================================
+        // 计划编辑器功能
+        // ======================================
+        
+        let planEditor = null;
+        let todoBlocks = [];
+        let todoIdCounter = 0;
+
+        // TodoBlock类
+        class TodoBlock {
+            constructor(data = {}) {
+                this.id = data.id || `todo-${++todoIdCounter}`;
+                this.checked = data.checked || false;
+                this.title = data.title || '';
+                this.content = data.content || '';
+                this.editor = null;
+                this.element = null;
+            }
+
+            render() {
+                const block = document.createElement('div');
+                block.className = 'todo-block';
+                block.dataset.todoId = this.id;
+                
+                block.innerHTML = `
+                    <div class="todo-block-header">
+                        <input type="checkbox" class="todo-checkbox" ${this.checked ? 'checked' : ''}>
+                        <input type="text" class="todo-title-input ${this.checked ? 'completed' : ''}" 
+                               value="${this.title}" placeholder="输入任务标题...">
+                        <button class="todo-expand-btn">
+                            <i data-lucide="chevron-down"></i>
+                        </button>
+                    </div>
+                    <div class="todo-content">
+                        <div class="todo-content-editor" id="todo-editor-${this.id}"></div>
+                    </div>
+                `;
+                
+                this.element = block;
+                this.attachEventListeners();
+                
+                return block;
+            }
+
+            attachEventListeners() {
+                const checkbox = this.element.querySelector('.todo-checkbox');
+                const titleInput = this.element.querySelector('.todo-title-input');
+                const expandBtn = this.element.querySelector('.todo-expand-btn');
+                
+                // Checkbox事件
+                checkbox.addEventListener('change', () => {
+                    this.checked = checkbox.checked;
+                    titleInput.classList.toggle('completed', this.checked);
+                    this.savePlan();
+                });
+                
+                // 标题输入事件
+                titleInput.addEventListener('input', () => {
+                    this.title = titleInput.value;
+                });
+                
+                titleInput.addEventListener('blur', () => {
+                    this.savePlan();
+                });
+                
+                // 展开/折叠事件
+                expandBtn.addEventListener('click', () => {
+                    this.toggle();
+                });
+            }
+
+            toggle() {
+                this.element.classList.toggle('expanded');
+                
+                // 初始化Quill编辑器（懒加载）
+                if (!this.editor && this.element.classList.contains('expanded')) {
+                    setTimeout(() => {
+                        this.initEditor();
+                    }, 50);
+                }
+                
+                // 刷新图标
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+
+            initEditor() {
+                const editorId = `todo-editor-${this.id}`;
+                const container = document.getElementById(editorId);
+                
+                if (!container || this.editor) return;
+                
+                this.editor = new Quill(`#${editorId}`, {
+                    theme: 'snow',
+                    placeholder: '添加任务详情，支持Ctrl+V粘贴图片...',
+                    modules: {
+                        toolbar: [
+                            ['bold', 'italic', 'underline'],
+                            ['blockquote', 'code-block'],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            ['link', 'image']
+                        ]
+                    }
+                });
+                
+                // 设置内容
+                if (this.content) {
+                    this.editor.root.innerHTML = this.content;
+                }
+                
+                // 监听内容变化
+                this.editor.on('text-change', () => {
+                    this.content = this.editor.root.innerHTML;
+                });
+                
+                // 图片粘贴处理
+                this.editor.root.addEventListener('paste', (e) => {
+                    handleImagePaste(e, this.editor);
+                });
+            }
+
+            getData() {
+                return {
+                    id: this.id,
+                    checked: this.checked,
+                    title: this.title,
+                    content: this.content
+                };
+            }
+
+            savePlan() {
+                // 触发自动保存
+                if (window.planAutoSaveTimeout) {
+                    clearTimeout(window.planAutoSaveTimeout);
+                }
+                window.planAutoSaveTimeout = setTimeout(() => {
+                    savePlanToLocalStorage();
+                }, 1000);
+            }
+        }
+
+        // 初始化Quill主编辑器
+        function initPlanEditor() {
+            if (planEditor) return;
+            
+            const editorElement = document.getElementById('planEditor');
+            if (!editorElement) return;
+            
+            planEditor = new Quill('#planEditor', {
+                theme: 'snow',
+                placeholder: '开始编写你的计划描述，或点击"AI生成"按钮让AI帮你起草...',
+                modules: {
+                    toolbar: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        ['blockquote', 'code-block'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['link', 'image'],
+                        ['clean']
+                    ]
+                }
+            });
+            
+            // 设置默认内容
+            planEditor.root.innerHTML = '<p>开始编写你的计划，或点击"AI生成"按钮让AI帮你起草...</p>';
+            
+            // 监听内容变化
+            planEditor.on('text-change', () => {
+                savePlanToLocalStorage();
+            });
+            
+            // 图片粘贴处理
+            planEditor.root.addEventListener('paste', (e) => {
+                handleImagePaste(e, planEditor);
+            });
+        }
+
+        // 图片粘贴处理
+        async function handleImagePaste(e, editor) {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            
+            for (let item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    
+                    // 显示加载提示
+                    const range = editor.getSelection(true);
+                    editor.insertText(range.index, '图片上传中...');
+                    
+                    try {
+                        const imageUrl = await uploadPlanImage(file);
+                        // 删除加载提示
+                        editor.deleteText(range.index, '图片上传中...'.length);
+                        // 插入图片
+                        editor.insertEmbed(range.index, 'image', imageUrl);
+                    } catch (error) {
+                        console.error('图片上传失败:', error);
+                        editor.deleteText(range.index, '图片上传中...'.length);
+                        alert('图片上传失败，请重试');
+                    }
+                    
+                    break;
+                }
+            }
+        }
+
+        // 上传图片
+        async function uploadPlanImage(file) {
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const response = await fetch('/api/plan/upload-image', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error('上传失败');
+            }
+            
+            const data = await response.json();
+            return data.url;
+        }
+
+        // 添加新Todo
+        function addTodoBlock(data = {}) {
+            const todo = new TodoBlock(data);
+            todoBlocks.push(todo);
+            
+            const container = document.getElementById('planTodosContainer');
+            const element = todo.render();
+            container.appendChild(element);
+            
+            // 刷新图标
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            
+            return todo;
+        }
+
+        // 保存到LocalStorage
+        function savePlanToLocalStorage() {
+            const planData = {
+                title: document.getElementById('planTitle')?.value || '',
+                description: planEditor?.root.innerHTML || '',
+                todos: todoBlocks.map(todo => todo.getData())
+            };
+            
+            localStorage.setItem('lifetrace_current_plan', JSON.stringify(planData));
+        }
+
+        // 从LocalStorage加载
+        function loadPlanFromLocalStorage() {
+            const data = localStorage.getItem('lifetrace_current_plan');
+            if (!data) return;
+            
+            try {
+                const planData = JSON.parse(data);
+                
+                // 加载标题
+                if (planData.title) {
+                    document.getElementById('planTitle').value = planData.title;
+                }
+                
+                // 加载描述
+                if (planData.description && planEditor) {
+                    planEditor.root.innerHTML = planData.description;
+                }
+                
+                // 加载Todos
+                if (planData.todos && planData.todos.length > 0) {
+                    planData.todos.forEach(todoData => {
+                        addTodoBlock(todoData);
+                    });
+                }
+            } catch (error) {
+                console.error('加载计划失败:', error);
+            }
+        }
+
+        // 新建计划
+        function newPlan() {
+            if (!confirm('确定要新建计划吗？当前内容将被清空。')) {
+                return;
+            }
+            
+            // 清空标题
+            document.getElementById('planTitle').value = '我的工作计划';
+            
+            // 清空编辑器
+            if (planEditor) {
+                planEditor.root.innerHTML = '<p>开始编写你的计划...</p>';
+            }
+            
+            // 清空Todos
+            todoBlocks = [];
+            document.getElementById('planTodosContainer').innerHTML = '';
+            
+            // 清空LocalStorage
+            localStorage.removeItem('lifetrace_current_plan');
+        }
+
+        // AI生成计划
+        async function aiGeneratePlan() {
+            const aiBtn = document.getElementById('aiGenerateBtn');
+            aiBtn.disabled = true;
+            aiBtn.innerHTML = '<i data-lucide="loader"></i><span>生成中...</span>';
+            
+            try {
+                const response = await fetch('/api/chat/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '根据我今天的活动记录，帮我生成一个明天的工作计划，包含3-5个具体任务',
+                        conversation_id: null
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('AI生成失败');
+                }
+                
+                // 处理流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let result = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    result += chunk;
+                }
+                
+                // 将AI生成的内容填入编辑器
+                if (planEditor && result) {
+                    // 简单处理：将文本转为HTML
+                    const htmlContent = result
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n\n/g, '</p><p>')
+                        .replace(/\n/g, '<br>');
+                    planEditor.root.innerHTML = '<p>' + htmlContent + '</p>';
+                    
+                    // 提取可能的任务项（以数字或-开头的行）
+                    const lines = result.split('\n');
+                    lines.forEach(line => {
+                        const taskMatch = line.match(/^[\d\-\.]+\s*(.+)/);
+                        if (taskMatch) {
+                            addTodoBlock({ title: taskMatch[1].trim() });
+                        }
+                    });
+                }
+                
+            } catch (error) {
+                console.error('AI生成失败:', error);
+                alert('AI生成失败，请稍后重试');
+            } finally {
+                aiBtn.disabled = false;
+                aiBtn.innerHTML = '<i data-lucide="sparkles"></i><span>AI生成</span>';
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        // 保存计划
+        async function savePlan() {
+            const saveBtn = document.getElementById('savePlanBtn');
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i data-lucide="loader"></i><span>保存中...</span>';
+            
+            try {
+                const planData = {
+                    title: document.getElementById('planTitle')?.value || '',
+                    description: planEditor?.root.innerHTML || '',
+                    todos: todoBlocks.map(todo => todo.getData())
+                };
+                
+                const response = await fetch('/api/plan/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(planData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('保存失败');
+                }
+                
+                const data = await response.json();
+                alert(`保存成功！计划ID: ${data.plan_id}`);
+                
+            } catch (error) {
+                console.error('保存失败:', error);
+                alert('保存失败，已保存到本地缓存');
+                savePlanToLocalStorage();
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i data-lucide="save"></i><span>保存</span>';
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        // 导出为Markdown
+        function exportToMarkdown() {
+            const title = document.getElementById('planTitle')?.value || '未命名计划';
+            const editorContent = planEditor?.root.innerHTML || '';
+            
+            // 使用turndown转换
+            const turndownService = new TurndownService({
+                headingStyle: 'atx',
+                codeBlockStyle: 'fenced'
+            });
+            
+            let markdown = `# ${title}\n\n`;
+            markdown += `## 计划描述\n\n`;
+            markdown += turndownService.turndown(editorContent);
+            markdown += '\n\n## 任务清单\n\n';
+            
+            todoBlocks.forEach(todo => {
+                const checked = todo.checked ? 'x' : ' ';
+                markdown += `- [${checked}] ${todo.title}\n`;
+                if (todo.content) {
+                    const content = turndownService.turndown(todo.content);
+                    markdown += `  ${content.split('\n').join('\n  ')}\n`;
+                }
+                markdown += '\n';
+            });
+            
+            // 下载文件
+            const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
         // 事件监听器
         document.addEventListener('DOMContentLoaded', function() {
-            // 添加总结按钮事件监听
+            // 添加欢迎界面的"生成今日总结"按钮事件监听
+            const startSummaryBtn = document.getElementById('startSummaryBtn');
+            if (startSummaryBtn) {
+                startSummaryBtn.addEventListener('click', function() {
+                    showSummaryContent();
+                    // 可选：自动触发AI总结
+                    // setTimeout(() => generateDailySummary(), 500);
+                });
+            }
+            
+            // 添加总结按钮事件监听（内容区域的按钮）
             const generateSummaryBtn = document.getElementById('generateSummaryBtn');
             if (generateSummaryBtn) {
                 generateSummaryBtn.addEventListener('click', generateDailySummary);
             }
 
-            // 监听标签页切换，当切换到省吾身标签页时加载数据
+            // 监听标签页切换
             const searchTab = document.querySelector('[data-tab="search"]');
             if (searchTab) {
                 searchTab.addEventListener('click', function() {
-                    // 延迟加载数据，确保DOM已渲染
+                    // 确保欢迎界面的图标正确显示
                     setTimeout(() => {
-                        if (document.getElementById('appUsageChart')) {
-                            fetchAppUsageStats();
+                        if (typeof lucide !== 'undefined') {
+                            lucide.createIcons();
                         }
                     }, 100);
                 });
             }
+
+            // ======================================
+            // 计划编辑器事件监听
+            // ======================================
+            
+            // 监听预则立标签页切换
+            const analyticsTab = document.querySelector('[data-tab="analytics"]');
+            if (analyticsTab) {
+                analyticsTab.addEventListener('click', function() {
+                    // 延迟初始化编辑器，确保DOM已渲染
+                    setTimeout(() => {
+                        initPlanEditor();
+                        loadPlanFromLocalStorage();
+                        
+                        // 刷新图标
+                        if (typeof lucide !== 'undefined') {
+                            lucide.createIcons();
+                        }
+                    }, 100);
+                });
+            }
+            
+            // 工具栏按钮事件
+            document.getElementById('newPlanBtn')?.addEventListener('click', newPlan);
+            document.getElementById('aiGenerateBtn')?.addEventListener('click', aiGeneratePlan);
+            document.getElementById('savePlanBtn')?.addEventListener('click', savePlan);
+            document.getElementById('exportPlanBtn')?.addEventListener('click', exportToMarkdown);
+            document.getElementById('addTodoBtn')?.addEventListener('click', () => {
+                addTodoBlock({ title: '新任务' });
+            });
+            
+            // 监听标题输入变化（自动保存）
+            document.getElementById('planTitle')?.addEventListener('input', () => {
+                if (window.planAutoSaveTimeout) {
+                    clearTimeout(window.planAutoSaveTimeout);
+                }
+                window.planAutoSaveTimeout = setTimeout(() => {
+                    savePlanToLocalStorage();
+                }, 1000);
+            });
         });
     </script>
 </body>
