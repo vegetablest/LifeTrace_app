@@ -68,6 +68,8 @@ class EventResponse(BaseModel):
     end_time: Optional[datetime]
     screenshot_count: int
     first_screenshot_id: Optional[int]
+    ai_title: Optional[str] = None
+    ai_summary: Optional[str] = None
 
 class EventDetailResponse(BaseModel):
     id: int
@@ -76,6 +78,8 @@ class EventDetailResponse(BaseModel):
     start_time: datetime
     end_time: Optional[datetime]
     screenshots: List[ScreenshotResponse]
+    ai_title: Optional[str] = None
+    ai_summary: Optional[str] = None
 
 class StatisticsResponse(BaseModel):
     total_screenshots: int
@@ -159,6 +163,11 @@ class SystemResourcesResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     message: str
+
+class ChatMessageWithContext(BaseModel):
+    message: str
+    conversation_id: Optional[str] = None
+    event_context: Optional[List[Dict[str, Any]]] = None  # 新增事件上下文
 
 class ChatResponse(BaseModel):
     response: str
@@ -810,6 +819,116 @@ async def chat_with_llm_stream(message: ChatMessage):
         raise HTTPException(status_code=500, detail="流式聊天处理失败")
 
 
+@app.post("/api/chat/stream-with-context")
+async def chat_with_context_stream(message: ChatMessageWithContext):
+    """带事件上下文的流式聊天接口"""
+    try:
+        logger.info(f"[stream-with-context] 收到消息: {message.message}, 上下文事件数: {len(message.event_context or [])}")
+        
+        # 构建上下文文本
+        context_text = ""
+        if message.event_context:
+            context_parts = []
+            for ctx in message.event_context:
+                event_text = f"事件ID: {ctx['event_id']}\n{ctx['text']}\n"
+                context_parts.append(event_text)
+            context_text = "\n---\n".join(context_parts)
+        
+        # 构建带上下文的prompt
+        if context_text:
+            enhanced_message = f"""用户提供了以下事件上下文（来自屏幕记录的OCR文本）：
+
+===== 事件上下文开始 =====
+{context_text}
+===== 事件上下文结束 =====
+
+用户问题：{message.message}
+
+请基于上述事件上下文回答用户问题。"""
+        else:
+            enhanced_message = message.message
+        
+        # 使用RAG服务的流式处理方法
+        rag_result = await rag_service.process_query_stream(enhanced_message)
+        
+        if not rag_result.get('success', False):
+            # 如果RAG处理失败，返回错误信息
+            error_msg = rag_result.get('response', '处理您的查询时出现了错误，请稍后重试。')
+            async def error_generator():
+                yield error_msg
+            return StreamingResponse(error_generator(), media_type="text/plain; charset=utf-8")
+        
+        # 获取构建好的messages和temperature
+        messages = rag_result.get('messages', [])
+        temperature = rag_result.get('temperature', 0.7)
+
+        # 调用LLM流式API并逐块返回
+        def token_generator():
+            try:
+                if not rag_service.llm_client.is_available():
+                    yield "抱歉，LLM服务当前不可用，请稍后重试。"
+                    return
+                
+                # 使用LLM客户端进行流式生成
+                response = rag_service.llm_client.client.chat.completions.create(
+                    model=rag_service.llm_client.model,
+                    messages=messages,
+                    temperature=temperature,
+                    stream=True,
+                    stream_options={"include_usage": True}  # 请求包含usage信息
+                )
+                
+                total_content = ""
+                usage_info = None
+                
+                for chunk in response:
+                    # 检查是否有usage信息（通常在最后一个chunk中）
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                        usage_info = chunk.usage
+                    
+                    # 检查choices是否存在且不为空
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        total_content += content
+                        yield content
+                
+                # 流式响应结束后记录token使用量
+                if usage_info:
+                    try:
+                        from lifetrace_backend.token_usage_logger import log_token_usage
+                        log_token_usage(
+                            model=rag_service.llm_client.model,
+                            input_tokens=usage_info.prompt_tokens,
+                            output_tokens=usage_info.completion_tokens,
+                            endpoint="stream_chat_with_context",
+                            user_query=message.message,
+                            response_type="stream",
+                            additional_info={
+                                "total_tokens": usage_info.total_tokens,
+                                "temperature": temperature,
+                                "response_length": len(total_content),
+                                "context_events_count": len(message.event_context or [])
+                            }
+                        )
+                        logger.info(f"[stream-with-context] Token使用量已记录: input={usage_info.prompt_tokens}, output={usage_info.completion_tokens}")
+                    except Exception as log_error:
+                        logger.error(f"[stream-with-context] 记录token使用量失败: {log_error}")
+                        
+            except Exception as e:
+                logger.error(f"[stream-with-context] 生成失败: {e}")
+                yield "\n[提示] 流式生成出现异常，已结束。"
+
+        headers = {
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+        return StreamingResponse(token_generator(), media_type="text/plain; charset=utf-8", headers=headers)
+
+    except Exception as e:
+        logger.error(f"[stream-with-context] 聊天处理失败: {e}")
+        raise HTTPException(status_code=500, detail="带上下文的流式聊天处理失败")
+
+
 @app.post("/api/chat/new", response_model=NewChatResponse, response_class=UTF8JSONResponse)
 async def create_new_chat(request: NewChatRequest = None):
     """创建新对话会话"""
@@ -1066,12 +1185,86 @@ async def get_event_detail(event_id: int):
             window_title=event_summary['window_title'],
             start_time=event_summary['start_time'],
             end_time=event_summary['end_time'],
-            screenshots=screenshots_resp
+            screenshots=screenshots_resp,
+            ai_title=event_summary.get('ai_title'),
+            ai_summary=event_summary.get('ai_summary')
         )
     except HTTPException:
         raise
     except Exception as e:
         logging.error(f"获取事件详情失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/events/{event_id}/context")
+async def get_event_context(event_id: int):
+    """获取事件的OCR文本上下文"""
+    try:
+        # 获取事件信息
+        event_summary = db_manager.get_event_summary(event_id)
+        if not event_summary:
+            raise HTTPException(status_code=404, detail="事件不存在")
+        
+        # 获取事件下所有截图
+        screenshots = db_manager.get_event_screenshots(event_id)
+        
+        # 聚合OCR文本
+        ocr_texts = []
+        for screenshot in screenshots:
+            ocr_results = db_manager.get_ocr_results_by_screenshot(screenshot['id'])
+            if ocr_results:
+                # 取第一个OCR结果的文本内容（通常一个截图只有一个OCR结果）
+                for ocr in ocr_results:
+                    if ocr.get('text_content'):
+                        ocr_texts.append(ocr['text_content'])
+                        break  # 只取第一个有内容的结果
+        
+        return {
+            "event_id": event_id,
+            "app_name": event_summary.get('app_name'),
+            "window_title": event_summary.get('window_title'),
+            "start_time": event_summary.get('start_time'),
+            "end_time": event_summary.get('end_time'),
+            "ocr_texts": ocr_texts,
+            "screenshot_count": len(screenshots)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"获取事件上下文失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/events/{event_id}/generate-summary")
+async def generate_event_summary(event_id: int):
+    """手动触发单个事件的摘要生成"""
+    try:
+        from lifetrace_backend.event_summary_service import event_summary_service
+        
+        # 检查事件是否存在
+        event_info = db_manager.get_event_summary(event_id)
+        if not event_info:
+            raise HTTPException(status_code=404, detail="事件不存在")
+        
+        # 生成摘要
+        success = event_summary_service.generate_event_summary(event_id)
+        
+        if success:
+            # 获取更新后的事件信息
+            updated_event = db_manager.get_event_summary(event_id)
+            return {
+                "success": True,
+                "event_id": event_id,
+                "ai_title": updated_event.get('ai_title'),
+                "ai_summary": updated_event.get('ai_summary')
+            }
+        else:
+            raise HTTPException(status_code=500, detail="摘要生成失败")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"生成事件摘要失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

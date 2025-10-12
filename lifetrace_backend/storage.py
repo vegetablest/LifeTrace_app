@@ -170,6 +170,8 @@ class DatabaseManager:
         返回事件ID。
         """
         try:
+            closed_event_id = None  # 记录被关闭的事件ID
+            
             with self.get_session() as session:
                 now_ts = timestamp or datetime.now()
                 last_event = self._get_last_open_event(session)
@@ -184,6 +186,7 @@ class DatabaseManager:
                 # 应用变更或没有正在进行的事件：关闭旧事件
                 if last_event and last_event.end_time is None:
                     last_event.end_time = now_ts
+                    closed_event_id = last_event.id  # 记录被关闭的事件ID
                     session.flush()
 
                 # 创建新事件
@@ -194,7 +197,17 @@ class DatabaseManager:
                 )
                 session.add(new_event)
                 session.flush()
-                return new_event.id
+                new_event_id = new_event.id
+            
+            # 在session关闭后，异步生成已关闭事件的摘要
+            if closed_event_id:
+                try:
+                    from lifetrace_backend.event_summary_service import generate_event_summary_async
+                    generate_event_summary_async(closed_event_id)
+                except Exception as e:
+                    logging.error(f"触发事件摘要生成失败: {e}")
+            
+            return new_event_id
         except SQLAlchemyError as e:
             logging.error(f"获取或创建事件失败: {e}")
             return None
@@ -202,14 +215,53 @@ class DatabaseManager:
     def close_active_event(self, end_time: Optional[datetime] = None) -> bool:
         """主动结束当前事件（可在程序退出时调用）"""
         try:
+            closed_event_id = None
             with self.get_session() as session:
                 last_event = self._get_last_open_event(session)
                 if last_event and last_event.end_time is None:
                     last_event.end_time = end_time or datetime.now()
-                    return True
-                return False
+                    closed_event_id = last_event.id
+                    session.flush()
+            
+            # 在session关闭后，异步生成已关闭事件的摘要
+            if closed_event_id:
+                try:
+                    from lifetrace_backend.event_summary_service import generate_event_summary_async
+                    generate_event_summary_async(closed_event_id)
+                except Exception as e:
+                    logging.error(f"触发事件摘要生成失败: {e}")
+            
+            return closed_event_id is not None
         except SQLAlchemyError as e:
             logging.error(f"结束事件失败: {e}")
+            return False
+
+    def update_event_summary(self, event_id: int, ai_title: str, ai_summary: str) -> bool:
+        """
+        更新事件的AI生成标题和摘要
+        
+        Args:
+            event_id: 事件ID
+            ai_title: AI生成的标题
+            ai_summary: AI生成的摘要
+            
+        Returns:
+            更新是否成功
+        """
+        try:
+            with self.get_session() as session:
+                event = session.query(Event).filter(Event.id == event_id).first()
+                if event:
+                    event.ai_title = ai_title
+                    event.ai_summary = ai_summary
+                    session.commit()
+                    logging.info(f"事件 {event_id} AI摘要更新成功")
+                    return True
+                else:
+                    logging.warning(f"事件 {event_id} 不存在")
+                    return False
+        except SQLAlchemyError as e:
+            logging.error(f"更新事件AI摘要失败: {e}")
             return False
 
     def list_events(self, limit: int = 50, offset: int = 0,
@@ -241,7 +293,9 @@ class DatabaseManager:
                         'start_time': ev.start_time,
                         'end_time': ev.end_time,
                         'screenshot_count': shot_count,
-                        'first_screenshot_id': first_shot.id if first_shot else None
+                        'first_screenshot_id': first_shot.id if first_shot else None,
+                        'ai_title': ev.ai_title,
+                        'ai_summary': ev.ai_summary
                     })
                 return results
         except SQLAlchemyError as e:
@@ -327,7 +381,9 @@ class DatabaseManager:
                     'start_time': ev.start_time,
                     'end_time': ev.end_time,
                     'screenshot_count': shot_count,
-                    'first_screenshot_id': first_shot.id if first_shot else None
+                    'first_screenshot_id': first_shot.id if first_shot else None,
+                    'ai_title': ev.ai_title,
+                    'ai_summary': ev.ai_summary
                 }
         except SQLAlchemyError as e:
             logging.error(f"获取事件摘要失败: {e}")

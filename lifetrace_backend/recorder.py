@@ -432,6 +432,15 @@ class ScreenRecorder:
         if self._is_app_blacklisted(app_name, window_title):
             logger.debug(f"当前应用 '{app_name}' 或窗口 '{window_title}' 在黑名单中，跳过所有屏幕截图")
             print(f"[黑名单] 跳过截图 - 应用: {app_name}, 窗口: {window_title}")
+            
+            # 关闭上一个未结束的事件（如果存在）
+            # 这样可以确保从白名单应用切换到黑名单应用时，白名单应用的事件能正确结束
+            try:
+                db_manager.close_active_event()
+                logger.debug("已关闭上一个活跃事件")
+            except Exception as e:
+                logger.error(f"关闭活跃事件失败: {e}")
+            
             return captured_files
         
         # 记录应用使用信息到新表（在截图前记录，避免跳过和去重的影响）

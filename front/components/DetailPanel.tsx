@@ -37,43 +37,103 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
   // 时光机图片轮播状态（事件截图）
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [eventScreenshotIds, setEventScreenshotIds] = useState<number[]>([]);
+  const [totalScreenshots, setTotalScreenshots] = useState(0); // 总截图数
+  const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [currentShotDesc, setCurrentShotDesc] = useState("");
   
   // 图片轮播控制函数
   const nextImage = () => {
-    setCurrentImageIndex((prev) => eventScreenshotIds.length ? (prev + 1) % eventScreenshotIds.length : 0);
+    const nextIndex = (currentImageIndex + 1) % totalScreenshots;
+    setCurrentImageIndex(nextIndex);
+    
+    // 如果下一张图片还没加载，则加载它
+    if (nextIndex >= eventScreenshotIds.length && !isLoadingMore) {
+      loadMoreScreenshots();
+    }
   };
   
   const prevImage = () => {
-    setCurrentImageIndex((prev) => eventScreenshotIds.length ? (prev - 1 + eventScreenshotIds.length) % eventScreenshotIds.length : 0);
+    const prevIndex = (currentImageIndex - 1 + totalScreenshots) % totalScreenshots;
+    setCurrentImageIndex(prevIndex);
+    
+    // 如果上一张图片还没加载，则加载它
+    if (prevIndex >= eventScreenshotIds.length && !isLoadingMore) {
+      loadMoreScreenshots();
+    }
   };
 
-  // 当选择了事件项（id 形如 event-123）时，加载该事件的截图列表
+  // 加载更多截图（懒加载）
+  const loadMoreScreenshots = async () => {
+    if (!selectedResultData || !selectedResultData.id.startsWith('event-') || isLoadingMore) {
+      return;
+    }
+    
+    setIsLoadingMore(true);
+    const eventId = parseInt(selectedResultData.id.replace('event-', ''));
+    
+    try {
+      const detail = await apiClient.getEventDetail(eventId);
+      const ids = (detail.screenshots || []).map(s => s.id);
+      setEventScreenshotIds(ids);
+      setTotalScreenshots(ids.length);
+    } catch (e) {
+      console.error('加载更多截图失败:', e);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // 当选择了事件项（id 形如 event-123）时，只加载第一张截图
   useEffect(() => {
-    const loadEventScreenshots = async () => {
+    const loadFirstScreenshot = async () => {
       if (!selectedResultData || !selectedResultData.id.startsWith('event-')) {
         setEventScreenshotIds([]);
+        setTotalScreenshots(0);
         setCurrentImageIndex(0);
         setCurrentShotDesc(selectedResultData?.description || "");
         return;
       }
+      
       const eventId = parseInt(selectedResultData.id.replace('event-', ''));
       try {
         const detail = await apiClient.getEventDetail(eventId);
-        const ids = (detail.screenshots || []).map(s => s.id);
-        setEventScreenshotIds(ids);
+        const allIds = (detail.screenshots || []).map(s => s.id);
+        
+        // 只保存第一张截图ID，节省内存
+        setEventScreenshotIds(allIds.length > 0 ? [allIds[0]] : []);
+        setTotalScreenshots(allIds.length);
         setCurrentImageIndex(0);
       } catch (e) {
         setEventScreenshotIds([]);
+        setTotalScreenshots(0);
       }
     };
-    loadEventScreenshots();
+    
+    loadFirstScreenshot();
+    
+    // 清理函数：组件卸载或选择项变化时释放内存
+    return () => {
+      setEventScreenshotIds([]);
+      setTotalScreenshots(0);
+      setCurrentImageIndex(0);
+      setCurrentShotDesc("");
+    };
   }, [selectedResultData?.id]);
 
   // 当前图片变化时，加载对应截图的OCR文本作为描述
   useEffect(() => {
     const loadCurrentShotDesc = async () => {
-      if (!eventScreenshotIds.length) return;
+      if (!eventScreenshotIds.length || currentImageIndex >= totalScreenshots) {
+        setCurrentShotDesc("");
+        return;
+      }
+      
+      // 如果当前索引的截图ID还没加载，先触发加载
+      if (currentImageIndex >= eventScreenshotIds.length) {
+        setCurrentShotDesc("加载中...");
+        return;
+      }
+      
       const sid = eventScreenshotIds[currentImageIndex];
       try {
         const detail = await apiClient.getScreenshotDetail(sid);
@@ -84,7 +144,7 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
       }
     };
     loadCurrentShotDesc();
-  }, [currentImageIndex, eventScreenshotIds]);
+  }, [currentImageIndex, eventScreenshotIds, totalScreenshots]);
   
   const getColors = () => {
     if (isDark) {
@@ -256,23 +316,39 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
             {/* Full carousel container */}
             <div className="w-full max-w-5xl h-56 relative flex items-center gap-6">
               
-              {/* Left thumbnail */}
+              {/* Left thumbnail - 不预加载，避免内存占用 */}
               <div className="w-28 h-20 md:w-32 md:h-24 rounded-lg overflow-hidden opacity-50 hover:opacity-70 transition-all duration-300 cursor-pointer flex-shrink-0 shadow-lg ring-1 ring-white/10"
                    onClick={prevImage}>
-                <ImageWithFallback 
-                  src={eventScreenshotIds.length ? `http://localhost:8840/api/screenshots/${eventScreenshotIds[(currentImageIndex - 1 + eventScreenshotIds.length) % eventScreenshotIds.length]}/image` : timeMachineImages[(currentImageIndex - 1 + timeMachineImages.length) % timeMachineImages.length]} 
-                  alt="上一张图片"
-                  className="w-full h-full object-cover"
-                />
+                {eventScreenshotIds.length > 0 && currentImageIndex < eventScreenshotIds.length ? (
+                  <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </div>
+                ) : (
+                  <ImageWithFallback 
+                    src={timeMachineImages[(currentImageIndex - 1 + timeMachineImages.length) % timeMachineImages.length]} 
+                    alt="上一张图片"
+                    className="w-full h-full object-cover"
+                  />
+                )}
               </div>
               
               {/* Main Image Display */}
               <div className="flex-1 h-52 rounded-xl overflow-hidden shadow-2xl relative group ring-1 ring-white/20">
-                <ImageWithFallback 
-                  src={eventScreenshotIds.length ? `http://localhost:8840/api/screenshots/${eventScreenshotIds[currentImageIndex]}/image` : timeMachineImages[currentImageIndex]} 
-                  alt={`贾维斯AI助手图片 ${currentImageIndex + 1}`}
-                  className="w-full h-full object-cover transition-all duration-500"
-                />
+                {eventScreenshotIds.length > 0 && currentImageIndex < eventScreenshotIds.length ? (
+                  <ImageWithFallback 
+                    src={`http://localhost:8840/api/screenshots/${eventScreenshotIds[currentImageIndex]}/image`} 
+                    alt={`截图 ${currentImageIndex + 1} / ${totalScreenshots}`}
+                    className="w-full h-full object-cover transition-all duration-500"
+                  />
+                ) : (
+                  <ImageWithFallback 
+                    src={timeMachineImages[currentImageIndex % timeMachineImages.length]} 
+                    alt={`贾维斯AI助手图片 ${currentImageIndex + 1}`}
+                    className="w-full h-full object-cover transition-all duration-500"
+                  />
+                )}
                 
                 {/* Navigation Buttons */}
                 <button 
@@ -304,32 +380,78 @@ export function DetailPanel({ selectedResult, selectedResultData, focused, detai
                 </button>
               </div>
               
-              {/* Right thumbnail */}
+              {/* Right thumbnail - 不预加载，避免内存占用 */}
               <div className="w-28 h-20 md:w-32 md:h-24 rounded-lg overflow-hidden opacity-50 hover:opacity-70 transition-all duration-300 cursor-pointer flex-shrink-0 shadow-lg ring-1 ring-white/10"
                    onClick={nextImage}>
-                <ImageWithFallback 
-                  src={eventScreenshotIds.length ? `http://localhost:8840/api/screenshots/${eventScreenshotIds[(currentImageIndex + 1) % (eventScreenshotIds.length || 1)]}/image` : timeMachineImages[(currentImageIndex + 1) % timeMachineImages.length]} 
-                  alt="下一张图片"
-                  className="w-full h-full object-cover"
-                />
+                {eventScreenshotIds.length > 0 && currentImageIndex < eventScreenshotIds.length ? (
+                  <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                ) : (
+                  <ImageWithFallback 
+                    src={timeMachineImages[(currentImageIndex + 1) % timeMachineImages.length]} 
+                    alt="下一张图片"
+                    className="w-full h-full object-cover"
+                  />
+                )}
               </div>
             </div>
             
-            {/* Image Indicators - Positioned lower */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-3">
-              {(eventScreenshotIds.length ? eventScreenshotIds : timeMachineImages).map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentImageIndex(index)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${ 
-                    currentImageIndex === index 
-                      ? 'bg-white scale-125 shadow-lg' 
-                      : isDark 
-                        ? 'bg-white/40 hover:bg-white/60 hover:scale-110' 
-                        : 'bg-black/40 hover:bg-black/60 hover:scale-110'
-                  }`}
-                />
-              ))}
+            {/* Image Indicators - 显示总数而不是已加载的ID数 */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-3 items-center">
+              {totalScreenshots > 0 ? (
+                // 事件截图：使用总截图数
+                Array.from({ length: Math.min(totalScreenshots, 10) }, (_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setCurrentImageIndex(index);
+                      // 如果点击的截图还没加载，触发加载
+                      if (index >= eventScreenshotIds.length && !isLoadingMore) {
+                        loadMoreScreenshots();
+                      }
+                    }}
+                    className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${ 
+                      currentImageIndex === index 
+                        ? 'bg-white scale-125 shadow-lg' 
+                        : isDark 
+                          ? 'bg-white/40 hover:bg-white/60 hover:scale-110' 
+                          : 'bg-black/40 hover:bg-black/60 hover:scale-110'
+                    }`}
+                  />
+                ))
+              ) : (
+                // 默认图片轮播
+                timeMachineImages.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${ 
+                      currentImageIndex === index 
+                        ? 'bg-white scale-125 shadow-lg' 
+                        : isDark 
+                          ? 'bg-white/40 hover:bg-white/60 hover:scale-110' 
+                          : 'bg-black/40 hover:bg-black/60 hover:scale-110'
+                    }`}
+                  />
+                ))
+              )}
+              {totalScreenshots > 10 && (
+                <div className={`text-xs ${isDark ? 'text-white/60' : 'text-black/60'} ml-1`}>
+                  +{totalScreenshots - 10}
+                </div>
+              )}
+              {isLoadingMore && (
+                <div className={`text-xs ${isDark ? 'text-white/60' : 'text-black/60'} ml-2 flex items-center gap-1`}>
+                  <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>加载中...</span>
+                </div>
+              )}
             </div>
           </div>
         ) : (

@@ -165,7 +165,41 @@ def close_active_event(self, end_time: Optional[datetime] = None) -> bool:
 
 **使用场景：**
 - 程序正常退出时，关闭最后一个未结束的事件
+- **黑名单应用切换时**：当用户从白名单应用切换到黑名单应用时，自动关闭白名单应用的事件
 - 确保数据完整性，避免遗留"永远未结束"的事件
+
+### 4. 黑名单场景下的事件处理
+
+**位置：** `lifetrace_backend/recorder.py`
+
+当检测到黑名单应用时，系统会：
+
+1. **跳过截图**：不保存任何截图文件（保护隐私）
+2. **关闭上一个事件**：调用 `close_active_event()` 确保白名单应用的事件正确结束
+3. **不创建新事件**：黑名单应用不会在事件表中留下记录
+
+```python
+if self._is_app_blacklisted(app_name, window_title):
+    # 关闭上一个未结束的事件（如果存在）
+    # 这样可以确保从白名单应用切换到黑名单应用时，白名单应用的事件能正确结束
+    db_manager.close_active_event()
+    return captured_files  # 跳过截图
+```
+
+**示例场景：**
+
+| 时间 | 应用 | 操作 | Event 状态 |
+|------|------|------|-----------|
+| 10:00 | Chrome | 正常截图 | Event #1: start_time=10:00, end_time=NULL |
+| 10:30 | 微信（黑名单）| 检测到黑名单，关闭 Event #1 | Event #1: end_time=10:30 ✅ |
+| 10:30-11:00 | 微信（黑名单）| 持续跳过截图 | 无事件记录 |
+| 11:00 | VS Code | 正常截图 | Event #2: start_time=11:00, end_time=NULL |
+
+**注意事项：**
+- Chrome 的使用时长被正确记录为 30 分钟（10:00-10:30）
+- 微信的使用时间（10:30-11:00）不会被记录（隐私保护）
+- 时间线上会出现 30 分钟的空白（从 10:30 到 11:00）
+- 事件摘要会为 Chrome 事件自动生成（异步）
 
 ## API 接口
 
@@ -371,6 +405,187 @@ GROUP BY app_name;
 - 新截图都会关联到事件
 - 可以后续通过脚本迁移旧数据
 
+## AI智能摘要功能
+
+### 概述
+
+从2025年10月开始，LifeTrace支持为每个事件自动生成AI智能摘要，包括简洁的标题和描述性摘要。这一功能利用大语言模型（LLM）分析事件中所有截图的OCR文本内容，自动提取关键信息并生成易于理解的摘要。
+
+### 数据模型扩展
+
+**Event表新增字段：**
+- `ai_title`: 字符串字段，存储AI生成的事件标题（≤10字）
+- `ai_summary`: 文本字段，存储AI生成的事件摘要（≤30字，支持markdown粗体）
+
+### 核心功能
+
+#### 1. 自动生成机制
+
+**触发时机：** 当事件结束时（应用切换导致事件关闭）
+
+**工作流程：**
+1. 检测到事件关闭（`get_or_create_event`方法）
+2. 在后台线程中异步触发摘要生成
+3. 收集事件内所有截图的OCR文本
+4. 调用LLM生成标题和摘要
+5. 更新Event表的`ai_title`和`ai_summary`字段
+
+**实现位置：**
+- 服务类：`lifetrace_backend/event_summary_service.py`
+- 集成点：`lifetrace_backend/storage.py` 的 `get_or_create_event()`方法
+
+#### 2. LLM Prompt设计
+
+```
+你是一个活动摘要助手。根据用户在应用中的操作截图OCR文本，生成简洁的标题和摘要。
+
+应用名称：{app_name}
+窗口标题：{window_title}
+时间范围：{start_time} 至 {end_time}
+
+OCR文本内容：
+{ocr_texts}
+
+要求：
+1. 生成一个标题（不超过10个字），概括用户在做什么
+2. 生成一个摘要（不超过30个字），描述活动的关键内容，重点部分用**加粗**标记
+3. 标题要简洁有力，摘要要突出核心信息
+4. 如果OCR文本为空或无意义，基于应用名称和窗口标题生成
+
+请以JSON格式返回：
+{
+  "title": "标题内容",
+  "summary": "摘要内容，**重点部分**"
+}
+```
+
+#### 3. 后备方案
+
+当OCR数据不足或LLM不可用时，系统会使用后备方案：
+- 基于应用名称和窗口标题生成简单描述
+- 例如："Chrome使用" / "在**Chrome**中活动"
+
+#### 4. 前端展示
+
+**位置：** `lifetrace_backend/templates/chat.html` 的"忆往昔"面板
+
+**展示逻辑：**
+- 优先显示`ai_title`，如果为空则显示原始`window_title`
+- 优先显示`ai_summary`，如果为空则显示默认描述
+- Markdown格式的`**粗体**`自动转换为HTML的`<strong>`标签
+
+**实现代码：**
+```javascript
+// 优先使用AI生成的标题和摘要
+const displayTitle = event.ai_title || windowTitle;
+let displaySummary = event.ai_summary;
+
+if (!displaySummary) {
+    displaySummary = `应用: ${appName}<br>正在进行的活动记录和截图捕捉`;
+} else {
+    // 将markdown格式的**粗体**转换为HTML
+    displaySummary = displaySummary.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+```
+
+### API接口扩展
+
+#### 1. 事件列表和详情API更新
+
+**GET /api/events** 和 **GET /api/events/{event_id}**
+
+响应中新增字段：
+```json
+{
+  "id": 123,
+  "app_name": "chrome.exe",
+  "window_title": "LifeTrace文档",
+  "ai_title": "浏览文档",
+  "ai_summary": "查看**LifeTrace**项目的事件机制说明文档",
+  ...
+}
+```
+
+#### 2. 手动触发API
+
+**POST /api/events/{event_id}/generate-summary**
+
+允许用户手动触发单个事件的摘要生成或重新生成：
+
+**响应：**
+```json
+{
+  "success": true,
+  "event_id": 123,
+  "ai_title": "浏览文档",
+  "ai_summary": "查看**LifeTrace**项目的事件机制说明文档"
+}
+```
+
+### 批量生成工具
+
+**脚本：** `lifetrace_backend/event_summary_commands.py`
+
+#### 查看统计信息
+```bash
+python -m lifetrace_backend.event_summary_commands stats
+```
+
+输出示例：
+```
+事件摘要统计
+总事件数: 1250
+已结束事件: 1180
+已生成摘要: 850
+需要生成摘要: 330
+摘要覆盖率: 72.0%
+```
+
+#### 批量生成历史事件摘要
+```bash
+# 为所有未生成摘要的历史事件生成摘要
+python -m lifetrace_backend.event_summary_commands generate-summaries
+
+# 强制重新生成所有事件的摘要
+python -m lifetrace_backend.event_summary_commands generate-summaries --force
+
+# 限制处理数量（处理最近的100个事件）
+python -m lifetrace_backend.event_summary_commands generate-summaries --limit 100
+```
+
+### 技术特点
+
+#### 1. 异步处理
+- 使用后台线程生成摘要，不阻塞截图保存流程
+- 确保系统响应速度和用户体验
+
+#### 2. 智能容错
+- OCR数据不足时使用后备方案
+- LLM调用失败时降级处理
+- 不影响核心截图和事件管理功能
+
+#### 3. 增量更新
+- 只对新关闭的事件生成摘要
+- 已有摘要的事件不重复处理（除非手动触发）
+- 支持批量为历史数据补充摘要
+
+#### 4. 模型灵活性
+- 当前使用Qwen模型（阿里通义千问）
+- 兼容OpenAI API格式
+- 可轻松切换到其他大语言模型
+
+### 使用效果
+
+**传统展示：**
+- 标题：`LifeTrace - Chrome`
+- 描述：应用: chrome.exe / 正在进行的活动记录和截图捕捉
+
+**AI摘要展示：**
+- 标题：`浏览文档`
+- 描述：查看**LifeTrace**项目的事件机制说明文档
+
+AI生成的摘要更加简洁、易懂，突出关键信息，显著提升了用户浏览历史记录的效率。
+
 ## 未来扩展方向
 
 ### 1. 事件标签
@@ -392,14 +607,7 @@ GROUP BY app_name;
 - "编写代码" = VS Code + Chrome（查文档）+ Terminal
 - 通过时间关系和内容关联自动聚合
 
-### 4. 事件摘要
-
-为每个事件自动生成摘要：
-- 提取关键词（从OCR文本）
-- 识别主要活动（从应用类型）
-- 生成自然语言描述
-
-### 5. 智能时间间隔
+### 4. 智能时间间隔
 
 动态调整事件分割逻辑：
 - 短暂切换应用（<1分钟）不分割事件
@@ -419,9 +627,10 @@ GROUP BY app_name;
 
 ---
 
-**文档版本：** 1.0  
-**最后更新：** 2025-10-10  
-**维护者：** LifeTrace Team
+**文档版本：** 1.1  
+**最后更新：** 2025-10-11  
+**维护者：** LifeTrace Team  
+**更新内容：** 新增AI智能摘要功能说明
 
 
 

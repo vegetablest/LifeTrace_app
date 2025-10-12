@@ -19,6 +19,8 @@ class Event(Base):
     start_time = Column(DateTime, default=get_local_time)
     end_time = Column(DateTime)  # 事件结束时间（应用切换时填充）
     created_at = Column(DateTime, default=get_local_time)
+    ai_title = Column(String(50))  # LLM生成的事件标题（≤10字）
+    ai_summary = Column(Text)  # LLM生成的事件摘要（≤30字，支持markdown）
 
     def __repr__(self):
         return f"<Event(id={self.id}, app={self.app_name})>"

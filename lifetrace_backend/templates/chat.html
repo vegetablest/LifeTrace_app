@@ -1235,6 +1235,69 @@
             transform: rotate(45deg);
         }
 
+        /* 事件上下文标签容器 */
+        #eventContextContainer {
+            background: rgba(96, 165, 250, 0.05);
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem;
+        }
+
+        /* 事件上下文标签 */
+        .event-context-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            color: white;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+            transition: all 0.2s;
+        }
+
+        .event-context-tag:hover {
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .tag-icon {
+            font-size: 1rem;
+        }
+
+        .tag-text {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .tag-truncated {
+            opacity: 0.8;
+            cursor: help;
+        }
+
+        .tag-remove {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 0.25rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .tag-remove:hover {
+            opacity: 1;
+        }
+
+        #clearContextBtn:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
         /* 左侧内容区 */
         .events-item-left {
             flex: 1;
@@ -2841,6 +2904,19 @@
         <!-- Input Area -->
         <div class="chat-input-container">
             <div class="input-wrapper">
+                <!-- 事件上下文显示区域 -->
+                <div id="eventContextContainer" style="display: none; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.875rem; color: #6b7280; font-weight: 500;">
+                            📋 上下文事件 (<span id="contextEventCount">0</span>)
+                        </span>
+                        <button id="clearContextBtn" type="button" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: none; border-radius: 4px; cursor: pointer; transition: all 0.2s;">清空</button>
+                    </div>
+                    <div id="eventContextTags" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                        <!-- 动态生成的事件标签 -->
+                    </div>
+                </div>
+                
                 <form class="chat-input-form" id="chatForm">
                     <div class="input-container">
                         <textarea 
@@ -3326,12 +3402,29 @@
             }
             
             try {
-                const response = await fetch('/api/chat/stream', {
+                // 判断是否有事件上下文
+                const hasContext = selectedEventsContext.length > 0;
+                const endpoint = hasContext ? '/api/chat/stream-with-context' : '/api/chat/stream';
+
+                const payload = {
+                    message: payloadMessage
+                };
+
+                // 如果有上下文，添加到payload
+                if (hasContext) {
+                    payload.event_context = selectedEventsContext.map(ctx => ({
+                        event_id: ctx.eventId,
+                        text: ctx.text
+                    }));
+                    console.log(`[Chat] 使用事件上下文，事件数: ${payload.event_context.length}`);
+                }
+
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message: payloadMessage })
+                    body: JSON.stringify(payload)
                 });
                 
                 if (!response.ok) {
@@ -4170,6 +4263,18 @@
             const appName = event.app_name || '未知应用';
             const windowTitle = event.window_title || '未知窗口';
             
+            // 优先使用AI生成的标题和摘要
+            const displayTitle = event.ai_title || windowTitle;
+            let displaySummary = event.ai_summary;
+            
+            // 如果没有AI摘要，使用默认描述
+            if (!displaySummary) {
+                displaySummary = `应用: ${appName}<br>正在进行的活动记录和截图捕捉`;
+            } else {
+                // 将markdown格式的**粗体**转换为HTML的<strong>标签
+                displaySummary = displaySummary.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            }
+            
             // 获取应用图标配置
             const iconConfig = getAppIconConfig(appName);
             
@@ -4188,11 +4293,10 @@
                 <div class="events-item-left">
                     <div class="events-app-icon" style="background: linear-gradient(135deg, ${iconConfig.color[0]} 0%, ${iconConfig.color[1]} 100%);">${iconConfig.icon}</div>
                     <div class="events-item-info">
-                        <div class="events-window-title">${windowTitle}</div>
+                        <div class="events-window-title">${displayTitle}</div>
                         <div class="events-time-info">${timeInfo}</div>
                         <div class="events-description">
-                            <div class="events-description-line">应用: ${appName}</div>
-                            <div class="events-description-line">正在进行的活动记录和截图捕捉</div>
+                            <div class="events-description-line" style="line-height: 1.4;">${displaySummary}</div>
                     </div>
                     </div>
                 </div>
@@ -4360,6 +4464,120 @@
         function getSelectedEventIds() {
             const checkboxes = document.querySelectorAll('.event-checkbox:checked');
             return Array.from(checkboxes).map(cb => parseInt(cb.dataset.eventId));
+        }
+
+        // ======================================
+        // 事件上下文管理 - 用于聊天助手
+        // ======================================
+        
+        // 全局变量：存储选中事件的上下文信息
+        let selectedEventsContext = [];
+
+        // 监听事件选择变化
+        document.addEventListener('eventsSelectionChanged', async function(e) {
+            const selectedIds = e.detail.selectedIds;
+            await updateEventContext(selectedIds);
+        });
+
+        // 更新事件上下文
+        async function updateEventContext(eventIds) {
+            selectedEventsContext = [];
+            let totalTextLength = 0;
+            const MAX_CONTEXT_LENGTH = 30000;
+            
+            for (const eventId of eventIds) {
+                if (totalTextLength >= MAX_CONTEXT_LENGTH) break;
+                
+                try {
+                    const response = await fetch(`/api/events/${eventId}/context`);
+                    const data = await response.json();
+                    
+                    // 聚合OCR文本
+                    const eventText = data.ocr_texts.join('\n');
+                    const availableLength = MAX_CONTEXT_LENGTH - totalTextLength;
+                    const truncatedText = eventText.substring(0, availableLength);
+                    
+                    selectedEventsContext.push({
+                        eventId: eventId,
+                        appName: data.app_name,
+                        windowTitle: data.window_title,
+                        startTime: data.start_time,
+                        text: truncatedText,
+                        truncated: eventText.length > availableLength
+                    });
+                    
+                    totalTextLength += truncatedText.length;
+                } catch (error) {
+                    console.error(`获取事件${eventId}上下文失败:`, error);
+                }
+            }
+            
+            renderEventContextTags();
+        }
+
+        // 渲染事件标签
+        function renderEventContextTags() {
+            const container = document.getElementById('eventContextContainer');
+            const tagsDiv = document.getElementById('eventContextTags');
+            const countSpan = document.getElementById('contextEventCount');
+            
+            if (selectedEventsContext.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            
+            container.style.display = 'block';
+            countSpan.textContent = selectedEventsContext.length;
+            tagsDiv.innerHTML = '';
+            
+            selectedEventsContext.forEach((ctx, index) => {
+                const tag = document.createElement('div');
+                tag.className = 'event-context-tag';
+                tag.innerHTML = `
+                    <span class="tag-icon">📄</span>
+                    <span class="tag-text" title="${ctx.appName || '未知应用'} - ${ctx.windowTitle || ''}">${ctx.appName || '未知应用'}</span>
+                    ${ctx.truncated ? '<span class="tag-truncated" title="文本已截断">✂️</span>' : ''}
+                    <button class="tag-remove" onclick="removeEventContext(${index})" title="移除此事件">×</button>
+                `;
+                tagsDiv.appendChild(tag);
+            });
+        }
+
+        // 移除单个事件上下文
+        function removeEventContext(index) {
+            const eventId = selectedEventsContext[index].eventId;
+            selectedEventsContext.splice(index, 1);
+            renderEventContextTags();
+            
+            // 同步取消复选框
+            const checkbox = document.querySelector(`.event-checkbox[data-event-id="${eventId}"]`);
+            if (checkbox) {
+                checkbox.checked = false;
+                const item = checkbox.closest('.events-timeline-item');
+                if (item) item.classList.remove('selected');
+            }
+            
+            // 更新选中计数
+            updateSelectedEventsCount();
+        }
+
+        // 清空所有上下文
+        const clearContextBtn = document.getElementById('clearContextBtn');
+        if (clearContextBtn) {
+            clearContextBtn.addEventListener('click', function() {
+                selectedEventsContext = [];
+                renderEventContextTags();
+                
+                // 取消所有复选框
+                document.querySelectorAll('.event-checkbox:checked').forEach(cb => {
+                    cb.checked = false;
+                    const item = cb.closest('.events-timeline-item');
+                    if (item) item.classList.remove('selected');
+                });
+                
+                // 更新选中计数
+                updateSelectedEventsCount();
+            });
         }
     </script>
 

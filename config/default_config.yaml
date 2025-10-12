@@ -55,6 +55,13 @@ vector_db:
   auto_sync: true  # 自动同步
   sync_interval: 300  # 同步间隔（秒）
 
+# 多模态向量数据库配置（图像+文本联合嵌入）
+multimodal:
+  enabled: false  # 禁用多模态功能以节省内存（~600-800MB）
+  text_weight: 0.6  # 文本权重
+  image_weight: 0.4  # 图像权重
+  # 注意：启用多模态需要安装额外依赖：pip install torch transformers clip-by-openai
+
 # 同步服务配置
 sync_service:
   enable_file_monitor: true  # 启用文件监控

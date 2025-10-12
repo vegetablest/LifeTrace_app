@@ -45,23 +45,30 @@ class MultimodalVectorService:
         self.db_manager = db_manager
         self.logger = logging.getLogger(__name__)
         
-        # 初始化多模态嵌入器
-        self.multimodal_embedding = get_multimodal_embedding()
-        
         # 初始化向量数据库（扩展集合名称）
         self.text_vector_db = None
         self.image_vector_db = None
+        self.multimodal_embedding = None
         
         # 配置参数
         self.text_weight = config.get('multimodal.text_weight', 0.6)  # 文本权重
         self.image_weight = config.get('multimodal.image_weight', 0.4)  # 图像权重
-        self.enabled = config.get('multimodal.enabled', True)
+        self.enabled = config.get('multimodal.enabled', False)  # 默认禁用以节省内存
         
-        if self.enabled and self.multimodal_embedding.is_available():
-            self._initialize_vector_databases()
+        # 只有在启用时才初始化嵌入器和向量数据库
+        if self.enabled:
+            self.logger.info("正在初始化多模态向量服务...")
+            # 初始化多模态嵌入器（会加载 CLIP 模型，占用约 600-800MB 内存）
+            self.multimodal_embedding = get_multimodal_embedding()
+            
+            if self.multimodal_embedding.is_available():
+                self._initialize_vector_databases()
+                self.logger.info("多模态向量服务已启用")
+            else:
+                self.enabled = False
+                self.logger.warning("多模态向量服务不可用（缺少依赖或模型加载失败）")
         else:
-            self.enabled = False
-            self.logger.warning("多模态向量服务不可用")
+            self.logger.info("多模态向量服务已禁用（配置中设置为 multimodal.enabled=false）")
     
     def _initialize_vector_databases(self):
         """初始化向量数据库"""
@@ -147,7 +154,7 @@ class MultimodalVectorService:
     
     def is_enabled(self) -> bool:
         """检查多模态向量服务是否可用"""
-        return self.enabled and self.multimodal_embedding.is_available()
+        return self.enabled and self.multimodal_embedding is not None and self.multimodal_embedding.is_available()
     
     def add_multimodal_result(self, ocr_result: OCRResult, screenshot: Screenshot) -> bool:
         """添加多模态结果到向量数据库
@@ -598,7 +605,7 @@ class MultimodalVectorService:
         try:
             stats = {
                 "enabled": self.is_enabled(),
-                "multimodal_available": self.multimodal_embedding.is_available(),
+                "multimodal_available": self.multimodal_embedding is not None and self.multimodal_embedding.is_available(),
                 "text_weight": self.text_weight,
                 "image_weight": self.image_weight,
                 "text_database": {},
@@ -619,5 +626,13 @@ class MultimodalVectorService:
 
 
 def create_multimodal_vector_service(config, db_manager: DatabaseManager) -> MultimodalVectorService:
-    """创建多模态向量服务实例"""
+    """创建多模态向量服务实例
+    
+    如果配置中禁用了多模态功能，将创建一个禁用状态的服务实例，
+    不会加载任何模型，节省内存。
+    """
+    # 检查是否启用多模态功能
+    if not config.get('multimodal.enabled', False):
+        logging.info("多模态功能已在配置中禁用，跳过模型加载")
+    
     return MultimodalVectorService(config, db_manager)
