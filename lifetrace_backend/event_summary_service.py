@@ -280,3 +280,6 @@ def generate_event_summary_async(event_id: int):
     thread = threading.Thread(target=_generate, daemon=True)
     thread.start()
 
+
+
+

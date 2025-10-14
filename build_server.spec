@@ -19,8 +19,8 @@ a = Analysis(
         ('lifetrace_backend/*.py', 'lifetrace_backend'),
         # 包含模板文件 - 修复路径配置，包含整个templates目录
         ('lifetrace_backend/templates', 'lifetrace_backend/templates'),
-        # 包含静态文件（如果存在）
-        # ('lifetrace_backend/static', 'lifetrace_backend/static'),
+        # 包含静态文件（本地化的 JS 库）
+        ('lifetrace_backend/static', 'lifetrace_backend/static'),
     ],
     hiddenimports=[
         'lifetrace_backend.config',

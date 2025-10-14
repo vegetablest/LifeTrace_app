@@ -1,14 +1,4 @@
-# LifeTrace 依赖文件
-# 
-# 请根据你的操作系统选择对应的依赖文件：
-# 
-# Windows 用户:
-#   pip install -r requirements/requirements_windows.txt
-# 
-# macOS 用户:
-#   pip install -r requirements/requirements_macos.txt
-# 
-# 下面是通用依赖（不包含平台特定依赖）
+# LifeTrace Windows 完整依赖
 
 # Core dependencies
 fastapi>=0.100.0
@@ -50,9 +40,6 @@ torchaudio>=2.0.0
 # Transformers (Hugging Face CLIP模型)
 transformers>=4.21.0
 
-# 原版OpenAI CLIP (备选)
-#git+https://github.com/openai/CLIP.git
-
 # 数值计算
 scipy>=1.9.0
 
@@ -60,19 +47,12 @@ scipy>=1.9.0
 sentence-transformers>=2.2.0
 chromadb>=0.4.0
 
-# Google Generative AI (optional for generation)
-# google-generativeai>=0.3.0
-
 # OpenAI API
 openai>=1.0.0
 
 # Environment variables
 python-dotenv>=1.0.0
 
-# 可选：中文CLIP支持
-# git+https://github.com/OFA-Sys/Chinese-CLIP.git
+# Windows 特定依赖
+pywin32>=305
 
-# Note: ChromaDB is used for vector database functionality
-# Cross-encoder for reranking is included in sentence-transformers
-
-# 平台特定依赖请使用对应的 requirements_windows.txt 或 requirements_macos.txt

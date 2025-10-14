@@ -7,15 +7,15 @@
     <link rel="icon" type="image/png" href="/assets/logo.png">
     <!-- Markdown解析库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- Lucide Icons - 本地化版本 -->
+    <script src="/static/lucide.min.js"></script>
     <!-- Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <!-- Quill富文本编辑器 -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-    <!-- Turndown (HTML to Markdown) -->
-    <script src="https://unpkg.com/turndown/dist/turndown.js"></script>
+    <!-- Turndown (HTML to Markdown) - 本地化版本 -->
+    <script src="/static/turndown.min.js"></script>
     <style>
         :root {
             /* Updated color tokens to match v0 chat design */
@@ -3125,11 +3125,35 @@
         
 
         
-        // 初始化图标
-        document.addEventListener('DOMContentLoaded', function() {
+        // 初始化图标 - 改进的加载检测
+        function initIcons() {
             if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
+                try {
+                    lucide.createIcons();
+                    console.log('✓ Lucide icons loaded successfully');
+                } catch (e) {
+                    console.error('✗ Error creating icons:', e);
+                }
+            } else {
+                console.warn('✗ Lucide library not loaded, retrying in 1s...');
+                setTimeout(function() {
+                    if (typeof lucide !== 'undefined') {
+                        try {
+                            lucide.createIcons();
+                            console.log('✓ Lucide icons loaded successfully (retry)');
+                        } catch (e) {
+                            console.error('✗ Error creating icons on retry:', e);
+                        }
+                    } else {
+                        console.error('✗ Failed to load Lucide icons library. Please check your network connection.');
+                    }
+                }, 1000);
             }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initIcons();
+            
             // 按设置恢复主题
             const s = loadSettings();
             const shouldDark = !!s.darkMode;
@@ -3137,7 +3161,7 @@
                 document.documentElement.classList.add('dark');
                 if (themeIcon) {
                     themeIcon.setAttribute('data-lucide', 'sun');
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                    setTimeout(initIcons, 100); // 延迟重新初始化图标
                 }
             }
 
@@ -4437,7 +4461,7 @@
             const event = new CustomEvent('eventsSelectionChanged', {
                 detail: {
                     count: count,
-                    selectedIds: Array.from(checkboxes).map(cb => cb.dataset.eventId)
+                    selectedIds: Array.from(checkboxes).map(cb => parseInt(cb.dataset.eventId))
                 }
             });
             document.dispatchEvent(event);
@@ -4476,21 +4500,32 @@
         // 监听事件选择变化
         document.addEventListener('eventsSelectionChanged', async function(e) {
             const selectedIds = e.detail.selectedIds;
+            console.log('[事件上下文] 选择变化，事件IDs:', selectedIds);
             await updateEventContext(selectedIds);
         });
 
         // 更新事件上下文
         async function updateEventContext(eventIds) {
+            console.log('[事件上下文] 开始更新上下文，事件数:', eventIds.length);
             selectedEventsContext = [];
             let totalTextLength = 0;
             const MAX_CONTEXT_LENGTH = 30000;
             
             for (const eventId of eventIds) {
-                if (totalTextLength >= MAX_CONTEXT_LENGTH) break;
+                if (totalTextLength >= MAX_CONTEXT_LENGTH) {
+                    console.log('[事件上下文] 已达到最大长度限制，停止加载');
+                    break;
+                }
                 
                 try {
+                    console.log(`[事件上下文] 获取事件 ${eventId} 的上下文`);
                     const response = await fetch(`/api/events/${eventId}/context`);
+                    if (!response.ok) {
+                        console.error(`[事件上下文] API返回错误: ${response.status}`);
+                        continue;
+                    }
                     const data = await response.json();
+                    console.log(`[事件上下文] 事件 ${eventId} 上下文已获取，OCR文本数: ${data.ocr_texts.length}`);
                     
                     // 聚合OCR文本
                     const eventText = data.ocr_texts.join('\n');
@@ -4508,10 +4543,11 @@
                     
                     totalTextLength += truncatedText.length;
                 } catch (error) {
-                    console.error(`获取事件${eventId}上下文失败:`, error);
+                    console.error(`[事件上下文] 获取事件${eventId}上下文失败:`, error);
                 }
             }
             
+            console.log('[事件上下文] 上下文更新完成，总事件数:', selectedEventsContext.length);
             renderEventContextTags();
         }
 
@@ -4521,8 +4557,11 @@
             const tagsDiv = document.getElementById('eventContextTags');
             const countSpan = document.getElementById('contextEventCount');
             
+            console.log('[事件上下文] 渲染标签，事件数:', selectedEventsContext.length);
+            
             if (selectedEventsContext.length === 0) {
                 container.style.display = 'none';
+                console.log('[事件上下文] 无事件，隐藏容器');
                 return;
             }
             
@@ -4545,16 +4584,28 @@
 
         // 移除单个事件上下文
         function removeEventContext(index) {
+            console.log(`[事件上下文] 移除事件，索引: ${index}，当前事件数: ${selectedEventsContext.length}`);
+            
+            if (index < 0 || index >= selectedEventsContext.length) {
+                console.error(`[事件上下文] 无效的索引: ${index}`);
+                return;
+            }
+            
             const eventId = selectedEventsContext[index].eventId;
+            console.log(`[事件上下文] 移除事件ID: ${eventId}`);
+            
             selectedEventsContext.splice(index, 1);
             renderEventContextTags();
             
             // 同步取消复选框
             const checkbox = document.querySelector(`.event-checkbox[data-event-id="${eventId}"]`);
             if (checkbox) {
+                console.log(`[事件上下文] 找到复选框，取消选中`);
                 checkbox.checked = false;
                 const item = checkbox.closest('.events-timeline-item');
                 if (item) item.classList.remove('selected');
+            } else {
+                console.warn(`[事件上下文] 未找到事件${eventId}的复选框`);
             }
             
             // 更新选中计数
@@ -4565,11 +4616,15 @@
         const clearContextBtn = document.getElementById('clearContextBtn');
         if (clearContextBtn) {
             clearContextBtn.addEventListener('click', function() {
+                console.log('[事件上下文] 清空所有上下文');
+                const beforeCount = selectedEventsContext.length;
                 selectedEventsContext = [];
                 renderEventContextTags();
                 
                 // 取消所有复选框
-                document.querySelectorAll('.event-checkbox:checked').forEach(cb => {
+                const checkedBoxes = document.querySelectorAll('.event-checkbox:checked');
+                console.log(`[事件上下文] 取消选中 ${checkedBoxes.length} 个复选框`);
+                checkedBoxes.forEach(cb => {
                     cb.checked = false;
                     const item = cb.closest('.events-timeline-item');
                     if (item) item.classList.remove('selected');
@@ -4577,6 +4632,7 @@
                 
                 // 更新选中计数
                 updateSelectedEventsCount();
+                console.log(`[事件上下文] 已清空 ${beforeCount} 个事件上下文`);
             });
         }
     </script>

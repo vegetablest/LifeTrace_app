@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>应用使用分析 - LifeTrace</title>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- Lucide Icons - 本地化版本 -->
+    <script src="/static/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         :root {
@@ -463,7 +464,7 @@
         function updateTheme() {
             const isDark = body.getAttribute('data-theme') === 'dark';
             themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-            lucide.createIcons();
+            setTimeout(initIcons, 100);
         }
 
         themeToggle.addEventListener('click', () => {
@@ -891,8 +892,34 @@
         // 事件监听器
         document.getElementById('daysFilter').addEventListener('change', fetchAppUsageStats);
 
+        // 改进的图标初始化函数
+        function initIcons() {
+            if (typeof lucide !== 'undefined') {
+                try {
+                    lucide.createIcons();
+                    console.log('✓ Lucide icons loaded successfully');
+                } catch (e) {
+                    console.error('✗ Error creating icons:', e);
+                }
+            } else {
+                console.warn('✗ Lucide library not loaded, retrying in 1s...');
+                setTimeout(function() {
+                    if (typeof lucide !== 'undefined') {
+                        try {
+                            lucide.createIcons();
+                            console.log('✓ Lucide icons loaded successfully (retry)');
+                        } catch (e) {
+                            console.error('✗ Error creating icons on retry:', e);
+                        }
+                    } else {
+                        console.error('✗ Failed to load Lucide icons library. Please check your network connection.');
+                    }
+                }, 1000);
+            }
+        }
+
         // 初始化图标
-        lucide.createIcons();
+        initIcons();
 
         // 页面加载时获取数据
         document.addEventListener('DOMContentLoaded', () => {
