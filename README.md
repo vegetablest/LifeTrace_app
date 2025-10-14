@@ -4,7 +4,7 @@
 
 **Language**: [English](README.md) | [中文](README_CN.md)
 
-[📖 Documentation](doc/README.md) • [🚀 Quick Start](#quick-start) • [💡 Features](#core-features) • [🔧 API Reference](#web-api-service) • [🤝 Contributing](#contributing)
+[📖 Documentation](doc/README.md) • [🚀 Quick Start](#deployment-and-configuration) • [💡 Features](#core-features) • [🔧 Development](#development-guide) • [🤝 Contributing](#contributing)
 
 # LifeTrace - Intelligent Life Recording System
 
@@ -54,25 +54,23 @@ LifeTrace is an AI-powered intelligent life recording system that helps users re
 
 ### Environment Requirements
 - Python 3.13+
-- Supported OS: Windows, macOS, Linux
+- Supported OS: Windows, macOS
 - Optional: CUDA support (for GPU acceleration)
 
 ### Install Dependencies
 
-All dependency files are located in the `requirements/` directory:
+All dependency files are located in the `requirements/` directory.
 
+**For Windows:**
 ```bash
-# Install main dependencies
-pip install -r requirements/requirements.txt
+pip install -r requirements/requirements_windows.txt
 
-# Optional: Install multimodal feature dependencies
-pip install -r requirements/requirements_multimodal.txt
+```
 
-# Optional: Install RapidOCR dependencies
-pip install -r requirements/requirements_rapidocr.txt
+**For macOS:**
+```bash
+pip install -r requirements/requirements_macos.txt
 
-# Optional: Install vector database dependencies
-pip install -r requirements/requirements_vector.txt
 ```
 
 ### Initialize Database
