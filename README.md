@@ -2,6 +2,8 @@
 
 ![GitHub stars](https://img.shields.io/github/stars/tangyuanbo1/LifeTrace_app?style=social) ![GitHub forks](https://img.shields.io/github/forks/tangyuanbo1/LifeTrace_app?style=social) ![GitHub issues](https://img.shields.io/github/issues/tangyuanbo1/LifeTrace_app) ![GitHub license](https://img.shields.io/github/license/tangyuanbo1/LifeTrace_app) ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 
+**Language**: [English](README.md) | [中文](README_CN.md)
+
 [📖 Documentation](doc/README.md) • [🚀 Quick Start](#quick-start) • [💡 Features](#core-features) • [🔧 API Reference](#web-api-service) • [🤝 Contributing](#contributing)
 
 # LifeTrace - Intelligent Life Recording System
@@ -57,19 +59,19 @@ LifeTrace is an AI-powered intelligent life recording system that helps users re
 
 ### Install Dependencies
 
-所有依赖文件位于 `requirements/` 目录下：
+All dependency files are located in the `requirements/` directory:
 
 ```bash
-# 安装主要依赖
+# Install main dependencies
 pip install -r requirements/requirements.txt
 
-# 可选：安装多模态功能依赖
+# Optional: Install multimodal feature dependencies
 pip install -r requirements/requirements_multimodal.txt
 
-# 可选：安装 RapidOCR 依赖
+# Optional: Install RapidOCR dependencies
 pip install -r requirements/requirements_rapidocr.txt
 
-# 可选：安装向量数据库依赖
+# Optional: Install vector database dependencies
 pip install -r requirements/requirements_vector.txt
 ```
 
