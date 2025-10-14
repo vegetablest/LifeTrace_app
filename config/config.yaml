@@ -46,13 +46,10 @@ vector_db:
   batch_size: 32
   auto_sync: true
   sync_interval: 300
-
-# 多模态向量数据库配置（图像+文本联合嵌入）
 multimodal:
-  enabled: false  # 禁用多模态功能以节省内存（~600-800MB）
-  text_weight: 0.6  # 文本权重
-  image_weight: 0.4  # 图像权重
-
+  enabled: false
+  text_weight: 0.6
+  image_weight: 0.4
 sync_service:
   enable_file_monitor: true
   enable_consistency_check: true

@@ -262,9 +262,12 @@
             width: 2rem;
             align-items: center;
             justify-content: center;
-            border-radius: var(--radius);
-            background: var(--primary);
-            color: var(--primary-foreground);
+        }
+        
+        .header-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
         
         .header-title {
@@ -2580,7 +2583,7 @@
         <div class="header-content">
             <div class="header-left">
                 <div class="header-logo">
-                    <i data-lucide="bot"></i>
+                    <img src="/assets/logo.png" alt="LifeTrace Logo">
                 </div>
                 <span class="header-title">LifeTrace Chat</span>
             </div>
@@ -2859,15 +2862,15 @@
                 <div class="welcome-content">
                     <h1 class="welcome-title">我可以帮您做什么？</h1>
                     <div class="quick-actions">
-                        <button class="btn btn-outline" onclick="insertQuickQuery('查询今天的截图记录')">
+                        <button class="btn btn-outline" onclick="insertQuickQuery('我今天做了什么')">
                             <i data-lucide="plus"></i>
-                            查询截图记录
+                            数字镜像
                         </button>
-                        <button class="btn btn-outline" onclick="insertQuickQuery('分析我的应用使用情况')">
+                        <button class="btn btn-outline" onclick="insertQuickQuery('分析过去一周我的应用使用情况')">
                             <i data-lucide="brain"></i>
                             应用分析
                         </button>
-                        <button class="btn btn-outline" onclick="insertQuickQuery('搜索包含特定内容的截图')">
+                        <button class="btn btn-outline" onclick="insertQuickQuery('搜索包含特定内容的截图:')">
                             <i data-lucide="search"></i>
                             内容搜索
                         </button>

@@ -218,3 +218,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+/debug
+/build_server
+/dist_server
