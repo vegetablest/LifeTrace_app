@@ -34,3 +34,4 @@ lifetrace_backend/__pycache__/models.cpython-313.pyc
 lifetrace_backend/__pycache__/logging_config.cpython-313.pyc
 lifetrace_backend/__pycache__/config.cpython-313.pyc
 lifetrace_backend/__pycache__/__init__.cpython-313.pyc
+*.pyc

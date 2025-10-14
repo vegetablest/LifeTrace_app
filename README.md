@@ -1,6 +1,6 @@
 ![LifeTrace Logo](assets/rhn8yu8l.png)
 
-![GitHub stars](https://img.shields.io/github/stars/tangyuanbo1/LifeTrace_app?style=social) ![GitHub forks](https://img.shields.io/github/forks/tangyuanbo1/LifeTrace_app?style=social) ![GitHub issues](https://img.shields.io/github/issues/tangyuanbo1/LifeTrace_app) ![GitHub license](https://img.shields.io/github/license/tangyuanbo1/LifeTrace_app) ![Python version](https://img.shields.io/badge/python-3.8+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
+![GitHub stars](https://img.shields.io/github/stars/tangyuanbo1/LifeTrace_app?style=social) ![GitHub forks](https://img.shields.io/github/forks/tangyuanbo1/LifeTrace_app?style=social) ![GitHub issues](https://img.shields.io/github/issues/tangyuanbo1/LifeTrace_app) ![GitHub license](https://img.shields.io/github/license/tangyuanbo1/LifeTrace_app) ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 
 [📖 Documentation](doc/README.md) • [🚀 Quick Start](#quick-start) • [💡 Features](#core-features) • [🔧 API Reference](#web-api-service) • [🤝 Contributing](#contributing)
 
@@ -51,13 +51,26 @@ LifeTrace is an AI-powered intelligent life recording system that helps users re
 ## Deployment and Configuration
 
 ### Environment Requirements
-- Python 3.8+
+- Python 3.13+
 - Supported OS: Windows, macOS, Linux
 - Optional: CUDA support (for GPU acceleration)
 
 ### Install Dependencies
+
+所有依赖文件位于 `requirements/` 目录下：
+
 ```bash
-pip install -r requirements.txt
+# 安装主要依赖
+pip install -r requirements/requirements.txt
+
+# 可选：安装多模态功能依赖
+pip install -r requirements/requirements_multimodal.txt
+
+# 可选：安装 RapidOCR 依赖
+pip install -r requirements/requirements_rapidocr.txt
+
+# 可选：安装向量数据库依赖
+pip install -r requirements/requirements_vector.txt
 ```
 
 ### Initialize Database
@@ -192,5 +205,19 @@ Copyright © 2024 LifeTrace.org
 
 The content of this repository is bound by the following licenses:
 
-• The computer software is licensed under the [MIT](LICENSE) license.
+• The computer software is licensed under the [Apache License 2.0](LICENSE).
 • The learning resources in the `/doc` directory including their subdirectories thereon are copyright © 2024 LifeTrace.org
+
+### Apache License 2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

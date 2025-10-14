@@ -454,7 +454,43 @@ async def shutdown_event():
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    """主页"""
+    """主页 - 聊天界面"""
+    if templates:
+        return templates.TemplateResponse("chat.html", {"request": request})
+    else:
+        return HTMLResponse("""
+        <html>
+            <head><title>LifeTrace Chat</title></head>
+            <body>
+                <h1>聊天功能暂不可用</h1>
+                <p>模板文件未找到</p>
+                <p><a href="/old_index">返回旧版首页</a></p>
+            </body>
+        </html>
+        """)
+
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page(request: Request):
+    """聊天页面 - 重定向到主页"""
+    if templates:
+        return templates.TemplateResponse("chat.html", {"request": request})
+    else:
+        return HTMLResponse("""
+        <html>
+            <head><title>LifeTrace Chat</title></head>
+            <body>
+                <h1>聊天功能暂不可用</h1>
+                <p>模板文件未找到</p>
+                <p><a href="/">返回首页</a></p>
+            </body>
+        </html>
+        """)
+
+
+@app.get("/old_index", response_class=HTMLResponse)
+async def old_index(request: Request):
+    """旧版首页"""
     if templates:
         return templates.TemplateResponse("index.html", {"request": request})
     else:
@@ -466,25 +502,7 @@ async def index(request: Request):
                 <p><a href="/api/docs">API 文档</a></p>
                 <p><a href="/api/screenshots">查看截图</a></p>
                 <p><a href="/api/statistics">系统统计</a></p>
-                <p><a href="/chat">智能聊天</a></p>
-            </body>
-        </html>
-        """)
-
-
-@app.get("/chat", response_class=HTMLResponse)
-async def chat_page(request: Request):
-    """聊天页面"""
-    if templates:
-        return templates.TemplateResponse("chat.html", {"request": request})
-    else:
-        return HTMLResponse("""
-        <html>
-            <head><title>LifeTrace Chat</title></head>
-            <body>
-                <h1>聊天功能暂不可用</h1>
-                <p>模板文件未找到</p>
-                <p><a href="/">返回首页</a></p>
+                <p><a href="/">智能聊天</a></p>
             </body>
         </html>
         """)
