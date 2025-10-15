@@ -73,10 +73,9 @@ def get_or_create_event(self, app_name: Optional[str],
                        timestamp: Optional[datetime] = None) -> Optional[int]:
     """按当前前台应用和窗口标题维护事件。
     
-    智能切分策略：
-    - 应用切换时创建新事件
-    - 浏览器等标题敏感应用：标题变化大时创建新事件
-    - 编辑器等应用：同一应用内保持同一事件
+    事件切分规则：
+    - 应用名相同 + 窗口标题相同 → 复用现有事件
+    - 应用名不同 或 窗口标题不同 → 创建新事件
     """
 ```
 
@@ -88,7 +87,7 @@ def get_or_create_event(self, app_name: Optional[str],
    ```
    - 查询 `end_time` 为 `NULL` 的最新事件
 
-2. **智能判断是否复用事件**
+2. **判断是否复用事件**
    ```python
    should_reuse = self._should_reuse_event(
        old_app=last_event.app_name,
@@ -98,42 +97,24 @@ def get_or_create_event(self, app_name: Optional[str],
    )
    ```
    
-   **判断策略：**
-   - ❌ 应用名不同 → 不复用，创建新事件
-   - 🌐 浏览器类应用（Chrome、Edge、Firefox等）：
-     - 计算标题相似度
-     - 相似度 < 0.3 → 不复用（认为是不同网页/主题）
-     - 相似度 ≥ 0.3 → 复用
-   - 📝 编辑器类应用（VSCode、Word等）：
-     - 始终复用（同一应用内的不同文件算同一事件）
-   - 📁 文件管理器（Explorer）：
-     - 按标题相似度判断（不同目录可能是不同任务）
-
-3. **标题相似度计算**
-   ```python
-   def _calculate_title_similarity(self, title1, title2):
-       # 完全相同 → 1.0
-       # 提取关键部分（网站名/应用主题）相同 → 0.8
-       # 字符串包含关系 → 0.5
-       # 共同词占比 → 0.0-1.0
-   ```
+   **判断逻辑（非常简单）：**
+   - 应用名相同 + 窗口标题相同 → 复用事件
+   - 应用名不同 或 窗口标题不同 → 创建新事件
    
-   **示例：**
-   - "GitHub - LifeTrace" vs "GitHub - Projects" → 0.8（相同网站）
-   - "Google Search" vs "YouTube Music" → 0.0（不同网站）
-   - "文档1.docx - Word" vs "文档2.docx - Word" → 0.8（相同应用）
+   **应用场景示例：**
+   - 🌐 **浏览器**：访问不同网页（标题不同）→ 创建新事件
+   - 📝 **编辑器**：打开不同文件（标题不同）→ 创建新事件
+   - 📁 **文件管理器**：切换目录（标题不同）→ 创建新事件
+   - ✅ **持续编辑同一文件**（标题相同）→ 复用同一事件
 
-4. **复用事件**
+3. **复用事件**
    ```python
    if should_reuse:
-       # 更新窗口标题
-       if window_title != last_event.window_title:
-           last_event.window_title = window_title
+       # 应用名和标题都相同，继续使用同一事件
        return last_event.id
    ```
-   - 保持同一事件，更新窗口标题
 
-5. **创建新事件**
+4. **创建新事件**
    ```python
    # 关闭旧事件
    last_event.end_time = now_ts
@@ -314,60 +295,66 @@ if self._is_app_blacklisted(app_name, window_title):
 
 **实现位置：** `lifetrace_backend/server.py:search_events()`
 
-## 智能切分效果示例
+## 事件切分效果示例
 
-### 浏览器场景（自动切分）
+### 浏览器场景（不同网页 = 不同事件）
 
 ```
 时间   应用          窗口标题                      行为             事件ID
 ──────────────────────────────────────────────────────────────────────
 10:00  chrome.exe   "GitHub - LifeTrace"         创建事件1         1
-10:05  chrome.exe   "GitHub - Issues"            复用事件1         1
-                    相似度=0.8 (同一网站)
-10:10  chrome.exe   "YouTube - Music"            创建事件2         2
-                    相似度=0.0 (不同网站)
-10:15  chrome.exe   "YouTube - Trending"         复用事件2         2
-                    相似度=0.8 (同一网站)
-10:20  code.exe     "main.py - VSCode"           创建事件3         3
-                    应用切换
+10:02  chrome.exe   "GitHub - LifeTrace"         复用事件1         1
+                    (标题相同，继续浏览同一页面)
+10:05  chrome.exe   "GitHub - Issues"            创建事件2         2
+                    (标题不同，切换到Issues页面)
+10:10  chrome.exe   "YouTube - Music"            创建事件3         3
+                    (标题不同，访问YouTube)
+10:12  chrome.exe   "YouTube - Music"            复用事件3         3
+                    (标题相同，继续观看)
+10:20  code.exe     "main.py - VSCode"           创建事件4         4
+                    (应用切换)
 ```
 
 **结果：**
-- ✅ 事件1：浏览GitHub（包含多个GitHub页面）
-- ✅ 事件2：观看YouTube（包含多个YouTube页面）
-- ✅ 事件3：编写代码
+- ✅ 事件1：浏览 GitHub - LifeTrace 页面
+- ✅ 事件2：浏览 GitHub - Issues 页面
+- ✅ 事件3：观看 YouTube 音乐
+- ✅ 事件4：编写 main.py
 
-### 编辑器场景（保持同一事件）
+### 编辑器场景（不同文件 = 不同事件）
 
 ```
 时间   应用          窗口标题                      行为             事件ID
 ──────────────────────────────────────────────────────────────────────
 11:00  code.exe     "main.py - VSCode"           创建事件1         1
-11:05  code.exe     "utils.py - VSCode"          复用事件1         1
-                    编辑器应用，保持同一事件
-11:10  code.exe     "config.yaml - VSCode"       复用事件1         1
-11:15  chrome.exe   "Stack Overflow"             创建事件2         2
-                    应用切换
+11:03  code.exe     "main.py - VSCode"           复用事件1         1
+                    (标题相同，继续编辑同一文件)
+11:05  code.exe     "utils.py - VSCode"          创建事件2         2
+                    (标题不同，切换到utils.py)
+11:10  code.exe     "config.yaml - VSCode"       创建事件3         3
+                    (标题不同，切换到config.yaml)
+11:15  chrome.exe   "Stack Overflow"             创建事件4         4
+                    (应用切换)
 ```
 
 **结果：**
-- ✅ 事件1：使用VSCode编写代码（包含编辑多个文件）
-- ✅ 事件2：查阅Stack Overflow
+- ✅ 事件1：编辑 main.py
+- ✅ 事件2：编辑 utils.py
+- ✅ 事件3：编辑 config.yaml
+- ✅ 事件4：查阅 Stack Overflow
 
 ## 使用场景
 
 ### 1. 工作回顾
 
 用户可以按事件查看历史记录，而不是逐张浏览截图：
-- "今天上午我在 VS Code 里做了什么？"
-- "昨天下午在 Chrome 浏览器里看了哪些网页？"
+- "今天上午我在 VS Code 里编辑了哪些文件？"
+- "昨天下午在 Chrome 浏览器里访问了哪些网页？"
 
-得益于智能切分，浏览器中的不同主题会被自动分为不同事件：
-- ✅ "浏览GitHub仓库" - 1个事件
-- ✅ "搜索技术资料" - 1个事件
-- ✅ "观看YouTube视频" - 1个事件
-
-而不是所有浏览器活动混在一起。
+得益于精确的事件切分，每个不同的页面/文件都会被记录为独立的事件：
+- ✅ 每个网页 = 1个事件
+- ✅ 每个编辑的文件 = 1个事件
+- ✅ 持续编辑同一文件 = 同一事件（不会被过度切分）
 
 ### 2. 行为统计
 

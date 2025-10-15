@@ -164,72 +164,18 @@ class DatabaseManager:
         """获取最后一个未结束的事件"""
         return session.query(Event).filter(Event.end_time.is_(None)).order_by(Event.start_time.desc()).first()
     
-    def _calculate_title_similarity(self, title1: Optional[str], title2: Optional[str]) -> float:
-        """计算两个标题的相似度（0-1）
-        
-        Args:
-            title1: 第一个标题
-            title2: 第二个标题
-            
-        Returns:
-            相似度值（0.0-1.0）
-        """
-        if not title1 or not title2:
-            return 0.0
-        
-        title1 = title1.strip()
-        title2 = title2.strip()
-        
-        if not title1 or not title2:
-            return 0.0
-        
-        # 完全相同
-        if title1 == title2:
-            return 1.0
-        
-        # 提取关键部分（对于浏览器标题，通常格式是 "页面标题 - 网站名"）
-        def extract_key_parts(title):
-            # 尝试提取网站名或应用主题
-            if ' - ' in title:
-                parts = title.split(' - ')
-                # 返回最后一部分（通常是网站名或应用名）
-                return parts[-1].lower().strip()
-            elif '|' in title:
-                parts = title.split('|')
-                return parts[-1].lower().strip()
-            return title.lower().strip()
-        
-        key1 = extract_key_parts(title1)
-        key2 = extract_key_parts(title2)
-        
-        # 关键部分相同
-        if key1 == key2:
-            return 0.8
-        
-        # 计算字符串包含关系
-        if key1 in key2 or key2 in key1:
-            return 0.5
-        
-        # 计算共同词数量（简单相似度）
-        words1 = set(key1.split())
-        words2 = set(key2.split())
-        if words1 and words2:
-            common = words1 & words2
-            union = words1 | words2
-            if union:
-                return len(common) / len(union)
-        
-        return 0.0
-    
     def _should_reuse_event(self, old_app: Optional[str], old_title: Optional[str], 
                            new_app: Optional[str], new_title: Optional[str]) -> bool:
         """判断是否应该复用事件
         
-        策略：
-        1. 应用名不同 → 不复用
-        2. 浏览器类应用 + 标题变化大 → 不复用
-        3. 编辑器类应用 → 复用
-        4. 其他应用 → 复用
+        简单规则：
+        - 应用名相同 + 窗口标题相同 → 复用事件
+        - 应用名不同 或 窗口标题不同 → 创建新事件
+        
+        这样：
+        - 浏览器访问不同网页 → 不同事件
+        - 编辑器打开不同文件 → 不同事件  
+        - 同一文件持续编辑 → 同一事件
         
         Args:
             old_app: 旧应用名
@@ -240,46 +186,31 @@ class DatabaseManager:
         Returns:
             是否应该复用事件
         """
-        # 应用不同，不复用
-        if (old_app or "").lower() != (new_app or "").lower():
+        # 标准化处理
+        old_app_norm = (old_app or "").strip().lower()
+        new_app_norm = (new_app or "").strip().lower()
+        old_title_norm = (old_title or "").strip()
+        new_title_norm = (new_title or "").strip()
+        
+        # 应用名不同 → 不复用
+        if old_app_norm != new_app_norm:
+            logging.debug(f"应用切换: {old_app} → {new_app}")
             return False
         
-        # 定义需要细粒度切分的应用（标题敏感应用）
-        TITLE_SENSITIVE_APPS = [
-            'chrome.exe', 'msedge.exe', 'firefox.exe', 'edge.exe',  # 浏览器
-            'brave.exe', 'opera.exe', 'safari.exe',
-            'explorer.exe',  # 文件管理器
-            'wechat.exe', 'weixin.exe',  # 微信（聊天对象切换）
-        ]
+        # 窗口标题不同 → 不复用
+        if old_title_norm != new_title_norm:
+            logging.debug(f"窗口标题变化: {old_title} → {new_title}")
+            return False
         
-        app_lower = (new_app or "").lower()
-        
-        # 判断是否是标题敏感应用
-        is_title_sensitive = any(app in app_lower for app in TITLE_SENSITIVE_APPS)
-        
-        if is_title_sensitive:
-            # 对于浏览器等应用，检查标题变化
-            similarity = self._calculate_title_similarity(old_title, new_title)
-            # 相似度 < 0.3 认为是不同主题，创建新事件
-            threshold = 0.3
-            should_reuse = similarity >= threshold
-            
-            logging.debug(f"标题敏感应用 {app_lower}: 相似度={similarity:.2f}, 阈值={threshold}, 复用={should_reuse}")
-            logging.debug(f"  旧标题: {old_title}")
-            logging.debug(f"  新标题: {new_title}")
-            
-            return should_reuse
-        
-        # 其他应用（如VSCode、Word等）保持复用
+        # 应用名和标题都相同 → 复用
         return True
 
     def get_or_create_event(self, app_name: Optional[str], window_title: Optional[str], timestamp: Optional[datetime] = None) -> Optional[int]:
         """按当前前台应用和窗口标题维护事件。
         
-        智能切分策略：
-        - 应用切换时创建新事件
-        - 浏览器等标题敏感应用：标题变化大时创建新事件
-        - 编辑器等应用：同一应用内保持同一事件
+        事件切分规则：
+        - 应用名相同 + 窗口标题相同 → 复用现有事件
+        - 应用名不同 或 窗口标题不同 → 创建新事件
         
         Args:
             app_name: 应用名称
