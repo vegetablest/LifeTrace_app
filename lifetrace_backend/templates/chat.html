@@ -135,8 +135,10 @@
         }
         
         .nav-icon-btn.active {
-            background: var(--primary);
-            color: var(--primary-foreground);
+            background: var(--muted);
+            color: var(--foreground);
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
         }
         
         .nav-icon-btn.active::after {
@@ -1321,9 +1323,27 @@
             justify-content: center;
             color: white;
             font-size: 1.5rem;
+            overflow: hidden;
+            position: relative;
             font-weight: 600;
             line-height: 1;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .events-app-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 4px;
+            background: white;
+        }
+        
+        .events-app-icon .icon-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         /* 事件信息区 */
@@ -4235,23 +4255,36 @@
         };
         
         // 获取应用图标配置
+        // 获取应用图标URL
+        function getAppIconUrl(appName) {
+            if (!appName) return null;
+            
+            // URL编码应用名称
+            const encodedName = encodeURIComponent(appName);
+            return `/api/app-icon/${encodedName}`;
+        }
+
+        // 获取应用图标配置（保留作为备用方案）
         function getAppIconConfig(appName) {
             if (!appName) {
-                return { icon: '📱', color: ['#6c757d', '#5a6268'] };
+                return { icon: '📱', color: ['#6c757d', '#5a6268'], url: null };
             }
             
             // 转为小写并去除多余空格
             const normalizedName = appName.toLowerCase().trim();
             
+            // 获取图标URL
+            const iconUrl = getAppIconUrl(appName);
+            
             // 尝试精确匹配
             if (APP_ICON_MAP[normalizedName]) {
-                return APP_ICON_MAP[normalizedName];
+                return { ...APP_ICON_MAP[normalizedName], url: iconUrl };
             }
             
             // 尝试部分匹配
             for (const [key, value] of Object.entries(APP_ICON_MAP)) {
                 if (normalizedName.includes(key) || key.includes(normalizedName)) {
-                    return value;
+                    return { ...value, url: iconUrl };
                 }
             }
             
@@ -4259,7 +4292,8 @@
             const initial = appName.charAt(0).toUpperCase();
             return {
                 icon: initial,
-                color: ['#667eea', '#764ba2']  // 默认紫色渐变
+                color: ['#667eea', '#764ba2'],  // 默认紫色渐变
+                url: iconUrl
             };
         }
 
@@ -4313,18 +4347,37 @@
                 timeInfo += ' (进行中)';
             }
             
+            // 创建图标HTML（使用真实图标或emoji备用）
+            let iconHtml;
+            if (iconConfig.url) {
+                iconHtml = `
+                    <img src="${iconConfig.url}" 
+                         alt="${appName}" 
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="icon-fallback" style="display: none; background: linear-gradient(135deg, ${iconConfig.color[0]} 0%, ${iconConfig.color[1]} 100%);">
+                        ${iconConfig.icon}
+                    </div>
+                `;
+            } else {
+                iconHtml = `
+                    <div class="icon-fallback" style="background: linear-gradient(135deg, ${iconConfig.color[0]} 0%, ${iconConfig.color[1]} 100%);">
+                        ${iconConfig.icon}
+                    </div>
+                `;
+            }
+            
             item.innerHTML = `
                 <div class="events-item-checkbox">
                     <input type="checkbox" data-event-id="${event.id}" class="event-checkbox" title="选择此事件">
-                        </div>
+                </div>
                 <div class="events-item-left">
-                    <div class="events-app-icon" style="background: linear-gradient(135deg, ${iconConfig.color[0]} 0%, ${iconConfig.color[1]} 100%);">${iconConfig.icon}</div>
+                    <div class="events-app-icon">${iconHtml}</div>
                     <div class="events-item-info">
                         <div class="events-window-title">${displayTitle}</div>
                         <div class="events-time-info">${timeInfo}</div>
                         <div class="events-description">
                             <div class="events-description-line" style="line-height: 1.4;">${displaySummary}</div>
-                    </div>
+                        </div>
                     </div>
                 </div>
                 <div class="events-screenshots-stack" id="events-screenshots-${event.id}">

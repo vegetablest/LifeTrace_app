@@ -29,6 +29,7 @@ from lifetrace_backend.logging_config import setup_logging
 from lifetrace_backend.simple_heartbeat import SimpleHeartbeatSender
 from lifetrace_backend.rag_service import RAGService
 from lifetrace_backend.behavior_tracker import behavior_tracker
+from lifetrace_backend.app_icon_mapping import get_icon_filename
 
 # 导入系统资源分析模块
 import psutil
@@ -523,6 +524,14 @@ async def chat_settings_page(request: Request):
             </body>
         </html>
         """)
+
+@app.get("/test-icons", response_class=HTMLResponse)
+async def test_icons_page(request: Request):
+    """图标测试页面"""
+    if templates:
+        return templates.TemplateResponse("test_icons.html", {"request": request})
+    else:
+        return HTMLResponse("<h1>测试页面未找到</h1>")
 
 @app.get("/events", response_class=HTMLResponse)
 async def events_page(request: Request):
@@ -1430,6 +1439,49 @@ async def get_screenshot_path(screenshot_id: int):
         "file_path": file_path,
         "exists": True
     }
+
+
+@app.get("/api/app-icon/{app_name}")
+async def get_app_icon(app_name: str):
+    """
+    获取应用图标
+    根据映射表返回对应的图标文件
+    
+    Args:
+        app_name: 应用名称
+    
+    Returns:
+        图标文件
+    """
+    try:
+        # 根据映射表获取图标文件名
+        icon_filename = get_icon_filename(app_name)
+        
+        if not icon_filename:
+            raise HTTPException(status_code=404, detail="图标未找到")
+        
+        # 构建图标文件路径
+        # 获取项目根目录
+        current_dir = Path(__file__).parent
+        project_root = current_dir.parent
+        icon_path = project_root / "assets" / "icons" / "apps" / icon_filename
+        
+        if not icon_path.exists():
+            logger.warning(f"图标文件不存在: {icon_path}")
+            raise HTTPException(status_code=404, detail="图标文件不存在")
+        
+        # 返回图标文件
+        return FileResponse(
+            str(icon_path),
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=86400"}  # 缓存1天
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取应用图标失败 {app_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"获取图标失败: {str(e)}")
 
 
 @app.post("/api/ocr/process")
