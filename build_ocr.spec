@@ -33,7 +33,7 @@ a = Analysis(
     ],
     hiddenimports=[
         'lifetrace_backend.config',
-        'lifetrace_backend.utils', 
+        'lifetrace_backend.utils',
         'lifetrace_backend.storage',
         'lifetrace_backend.logging_config',
         'lifetrace_backend.simple_heartbeat',

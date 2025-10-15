@@ -29,13 +29,13 @@ def setup_logging():
 def test_multimodal_embedding():
     """测试多模态嵌入模�?""
     print("\n🔍 测试多模态嵌入模�?..")
-    
+
     try:
         # 测试嵌入器初始化
         embedding = get_multimodal_embedding()
         print(f"�?多模态嵌入器初始化成�?)
         print(f"�?可用�? {embedding.is_available()}")
-        
+
         if embedding.is_available():
             # 测试文本编码
             text_vector = embedding.encode_text("测试文本")
@@ -43,9 +43,9 @@ def test_multimodal_embedding():
                 print(f"�?文本编码成功，向量维�? {text_vector.shape}")
             else:
                 print("�?文本编码失败")
-        
+
         return embedding.is_available()
-        
+
     except Exception as e:
         print(f"�?多模态嵌入模块测试失�? {e}")
         return False
@@ -54,13 +54,13 @@ def test_multimodal_embedding():
 def test_multimodal_service():
     """测试多模态向量服�?""
     print("\n🔍 测试多模态向量服�?..")
-    
+
     try:
         # 创建多模态向量服�?
         service = create_multimodal_vector_service(config, db_manager)
         print(f"�?多模态向量服务创建成�?)
         print(f"�?服务启用状�? {service.is_enabled()}")
-        
+
         if service.is_enabled():
             # 获取统计信息
             stats = service.get_stats()
@@ -68,7 +68,7 @@ def test_multimodal_service():
             print(f"  - 多模态可�? {stats.get('multimodal_available')}")
             print(f"  - 文本权重: {stats.get('text_weight')}")
             print(f"  - 图像权重: {stats.get('image_weight')}")
-            
+
             # 测试搜索功能
             try:
                 results = service.multimodal_search(
@@ -78,9 +78,9 @@ def test_multimodal_service():
                 print(f"�?多模态搜索测试成功，返回 {len(results)} 个结�?)
             except Exception as search_error:
                 print(f"�?多模态搜索测试失�? {search_error}")
-        
+
         return service.is_enabled()
-        
+
     except Exception as e:
         print(f"�?多模态向量服务测试失�? {e}")
         return False
@@ -89,16 +89,16 @@ def test_multimodal_service():
 def test_config():
     """测试配置"""
     print("\n🔍 测试配置...")
-    
+
     try:
         print(f"�?多模态启�? {config.get('multimodal.enabled')}")
         print(f"�?文本权重: {config.get('multimodal.text_weight')}")
         print(f"�?图像权重: {config.get('multimodal.image_weight')}")
         print(f"�?模型名称: {config.get('multimodal.model_name')}")
         print(f"�?向量数据库启�? {config.get('vector_db.enabled')}")
-        
+
         return True
-        
+
     except Exception as e:
         print(f"�?配置测试失败: {e}")
         return False
@@ -107,7 +107,7 @@ def test_config():
 def test_dependencies():
     """测试依赖�?""
     print("\n🔍 测试依赖�?..")
-    
+
     dependencies = [
         ('torch', 'PyTorch'),
         ('transformers', 'Transformers'),
@@ -115,9 +115,9 @@ def test_dependencies():
         ('PIL', 'Pillow'),
         ('numpy', 'NumPy')
     ]
-    
+
     all_available = True
-    
+
     for module, name in dependencies:
         try:
             __import__(module)
@@ -125,17 +125,17 @@ def test_dependencies():
         except ImportError:
             print(f"�?{name} 不可�?)
             all_available = False
-    
+
     return all_available
 
 
 def main():
     """主函�?""
     setup_logging()
-    
+
     print("🚀 LifeTrace 多模态搜索问题诊�?)
     print("=" * 50)
-    
+
     # 测试步骤
     tests = [
         ("依赖�?, test_dependencies),
@@ -143,9 +143,9 @@ def main():
         ("多模态嵌�?, test_multimodal_embedding),
         ("多模态服�?, test_multimodal_service)
     ]
-    
+
     results = []
-    
+
     for test_name, test_func in tests:
         print(f"\n📋 测试 {test_name}...")
         try:
@@ -154,18 +154,18 @@ def main():
         except Exception as e:
             print(f"�?{test_name} 测试异常: {e}")
             results.append((test_name, False))
-    
+
     # 总结
     print("\n" + "=" * 50)
     print("📊 测试结果总结:")
-    
+
     all_passed = True
     for test_name, result in results:
         status = "�?通过" if result else "�?失败"
         print(f"  {test_name}: {status}")
         if not result:
             all_passed = False
-    
+
     if all_passed:
         print("\n🎉 所有测试通过！多模态功能应该可以正常工作�?)
     else:

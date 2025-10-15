@@ -25,4 +25,3 @@ pyobjc-framework-Quartz>=9.0
 
 # 打包工具
 pyinstaller>=5.0.0
-

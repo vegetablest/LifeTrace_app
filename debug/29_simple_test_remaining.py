@@ -6,9 +6,9 @@ import json
 
 def test_api():
     base_url = "http://127.0.0.1:8842/api"
-    
+
     print("=== LifeTrace API Test ===")
-    
+
     # 1. Health check
     print("\n1. Health check...")
     try:
@@ -22,7 +22,7 @@ def test_api():
     except Exception as e:
         print(f"Error: {e}")
         return
-    
+
     # 2. Statistics
     print("\n2. Get statistics...")
     try:
@@ -34,7 +34,7 @@ def test_api():
             print(f"Failed: {response.status_code}")
     except Exception as e:
         print(f"Error: {e}")
-    
+
     # 3. Traditional search
     print("\n3. Traditional search...")
     try:
@@ -49,7 +49,7 @@ def test_api():
             print(f"Failed: {response.status_code}")
     except Exception as e:
         print(f"Error: {e}")
-    
+
     # 4. Semantic search
     print("\n4. Semantic search...")
     try:
@@ -64,7 +64,7 @@ def test_api():
             print(f"Failed: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"Error: {e}")
-    
+
     # 5. Multimodal search
     print("\n5. Multimodal search...")
     try:
@@ -82,7 +82,7 @@ def test_api():
             print(f"Failed: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"Error: {e}")
-    
+
     # 6. Vector stats
     print("\n6. Vector database status...")
     try:
@@ -94,7 +94,7 @@ def test_api():
             print(f"Failed: {response.status_code}")
     except Exception as e:
         print(f"Error: {e}")
-    
+
     # 7. Multimodal stats
     print("\n7. Multimodal status...")
     try:
@@ -107,7 +107,7 @@ def test_api():
             print(f"Failed: {response.status_code}")
     except Exception as e:
         print(f"Error: {e}")
-    
+
     print("\n=== Test Complete ===")
 
 if __name__ == "__main__":

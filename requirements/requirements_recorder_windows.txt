@@ -24,4 +24,3 @@ pywin32>=305
 
 # 打包工具
 pyinstaller>=5.0.0
-

@@ -22,27 +22,27 @@ def check_backend_health():
 def start_backend():
     """启动后端服务"""
     print("启动 LifeTrace 后端服务...")
-    
+
     # 检查虚拟环境
     venv_python = Path("venv/Scripts/python.exe")
     if not venv_python.exists():
         print("❌ 找不到虚拟环境，请先运行: python -m venv venv")
         return None
-    
+
     # 启动后端服务
     try:
         process = subprocess.Popen([
             str(venv_python),
             "-m", "lifetrace_backend.server",
             "--port", "8840"
-        ], 
+        ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
         )
-        
+
         print("⏳ 等待后端服务启动...")
-        
+
         # 等待服务启动
         for i in range(30):  # 最多等待30秒
             if check_backend_health():
@@ -50,11 +50,11 @@ def start_backend():
                 return process
             time.sleep(1)
             print(f"   等待中... ({i+1}/30)")
-        
+
         print("❌ 后端服务启动超时")
         process.terminate()
         return None
-        
+
     except Exception as e:
         print(f"❌ 启动后端服务失败: {e}")
         return None
@@ -173,18 +173,18 @@ def create_frontend_html():
                 <span id="status-text">检查服务状态...</span>
             </div>
         </div>
-        
+
         <div class="search-box">
             <input type="text" id="searchInput" class="search-input" placeholder="输入搜索关键词..." />
         </div>
-        
+
         <div class="tabs">
             <button class="tab active" data-type="all">全部搜索</button>
             <button class="tab" data-type="traditional">传统搜索</button>
             <button class="tab" data-type="semantic">语义搜索</button>
             <button class="tab" data-type="multimodal">多模态搜索</button>
         </div>
-        
+
         <div class="results">
             <div class="results-panel">
                 <h3>搜索结果</h3>
@@ -286,7 +286,7 @@ def create_frontend_html():
         // 显示搜索结果
         function displayResults(results) {
             const resultsDiv = document.getElementById('results');
-            
+
             if (results.length === 0) {
                 resultsDiv.innerHTML = '<p>暂无搜索结果</p>';
                 return;
@@ -314,7 +314,7 @@ def create_frontend_html():
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
             checkStatus();
-            
+
             // 搜索输入框
             const searchInput = document.getElementById('searchInput');
             searchInput.addEventListener('input', function() {
@@ -330,7 +330,7 @@ def create_frontend_html():
                     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                     this.classList.add('active');
                     currentSearchType = this.dataset.type;
-                    
+
                     const query = searchInput.value;
                     if (query.trim()) {
                         performSearch(query, currentSearchType);
@@ -344,34 +344,34 @@ def create_frontend_html():
     </script>
 </body>
 </html>"""
-    
+
     demo_path = Path("frontend_demo.html")
     with open(demo_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
-    
+
     return demo_path
 
 def main():
     """主函数"""
     print("LifeTrace 前后端集成演示")
     print("=" * 50)
-    
+
     # 启动后端服务
     backend_process = start_backend()
     if not backend_process:
         print("❌ 无法启动后端服务，演示终止")
         return
-    
+
     try:
         # 创建前端演示页面
         print("📄 创建前端演示页面...")
         demo_path = create_frontend_html()
         print(f"✅ 演示页面创建成功: {demo_path}")
-        
+
         # 打开浏览器
         print("🌐 打开浏览器演示页面...")
         webbrowser.open(f"file://{demo_path.absolute()}")
-        
+
         print("\n" + "=" * 50)
         print("🎉 演示启动完成!")
         print(f"📍 后端API地址: http://127.0.0.1:8840")
@@ -381,11 +381,11 @@ def main():
         print("  • 语义搜索: 基于文本语义相似度")
         print("  • 多模态搜索: 综合文本和图像相似度")
         print("\n按 Ctrl+C 停止服务...")
-        
+
         # 保持运行
         while True:
             time.sleep(1)
-            
+
     except KeyboardInterrupt:
         print("\n\n🛑 正在停止服务...")
         backend_process.terminate()
