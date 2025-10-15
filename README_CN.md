@@ -54,25 +54,21 @@ LifeTrace 是一个基于 AI 的智能生活记录系统，通过自动截图捕
 
 ### 环境要求
 - Python 3.13+
-- 支持的操作系统：Windows、macOS、Linux
+- 支持的操作系统：Windows、macOS
 - 可选：CUDA 支持（用于 GPU 加速）
 
 ### 安装依赖
 
 所有依赖文件位于 `requirements/` 目录下：
 
+**For Windows:**
 ```bash
-# 安装主要依赖
-pip install -r requirements/requirements.txt
+pip install -r requirements/requirements_windows.txt
+```
 
-# 可选：安装多模态功能依赖
-pip install -r requirements/requirements_multimodal.txt
-
-# 可选：安装 RapidOCR 依赖
-pip install -r requirements/requirements_rapidocr.txt
-
-# 可选：安装向量数据库依赖
-pip install -r requirements/requirements_vector.txt
+**For macOS:**
+```bash
+pip install -r requirements/requirements_macos.txt
 ```
 
 ### 初始化数据库
