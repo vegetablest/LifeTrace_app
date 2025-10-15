@@ -163,11 +163,131 @@ class DatabaseManager:
     def _get_last_open_event(self, session: Session) -> Optional[Event]:
         """获取最后一个未结束的事件"""
         return session.query(Event).filter(Event.end_time.is_(None)).order_by(Event.start_time.desc()).first()
+    
+    def _calculate_title_similarity(self, title1: Optional[str], title2: Optional[str]) -> float:
+        """计算两个标题的相似度（0-1）
+        
+        Args:
+            title1: 第一个标题
+            title2: 第二个标题
+            
+        Returns:
+            相似度值（0.0-1.0）
+        """
+        if not title1 or not title2:
+            return 0.0
+        
+        title1 = title1.strip()
+        title2 = title2.strip()
+        
+        if not title1 or not title2:
+            return 0.0
+        
+        # 完全相同
+        if title1 == title2:
+            return 1.0
+        
+        # 提取关键部分（对于浏览器标题，通常格式是 "页面标题 - 网站名"）
+        def extract_key_parts(title):
+            # 尝试提取网站名或应用主题
+            if ' - ' in title:
+                parts = title.split(' - ')
+                # 返回最后一部分（通常是网站名或应用名）
+                return parts[-1].lower().strip()
+            elif '|' in title:
+                parts = title.split('|')
+                return parts[-1].lower().strip()
+            return title.lower().strip()
+        
+        key1 = extract_key_parts(title1)
+        key2 = extract_key_parts(title2)
+        
+        # 关键部分相同
+        if key1 == key2:
+            return 0.8
+        
+        # 计算字符串包含关系
+        if key1 in key2 or key2 in key1:
+            return 0.5
+        
+        # 计算共同词数量（简单相似度）
+        words1 = set(key1.split())
+        words2 = set(key2.split())
+        if words1 and words2:
+            common = words1 & words2
+            union = words1 | words2
+            if union:
+                return len(common) / len(union)
+        
+        return 0.0
+    
+    def _should_reuse_event(self, old_app: Optional[str], old_title: Optional[str], 
+                           new_app: Optional[str], new_title: Optional[str]) -> bool:
+        """判断是否应该复用事件
+        
+        策略：
+        1. 应用名不同 → 不复用
+        2. 浏览器类应用 + 标题变化大 → 不复用
+        3. 编辑器类应用 → 复用
+        4. 其他应用 → 复用
+        
+        Args:
+            old_app: 旧应用名
+            old_title: 旧窗口标题
+            new_app: 新应用名
+            new_title: 新窗口标题
+            
+        Returns:
+            是否应该复用事件
+        """
+        # 应用不同，不复用
+        if (old_app or "").lower() != (new_app or "").lower():
+            return False
+        
+        # 定义需要细粒度切分的应用（标题敏感应用）
+        TITLE_SENSITIVE_APPS = [
+            'chrome.exe', 'msedge.exe', 'firefox.exe', 'edge.exe',  # 浏览器
+            'brave.exe', 'opera.exe', 'safari.exe',
+            'explorer.exe',  # 文件管理器
+            'wechat.exe', 'weixin.exe',  # 微信（聊天对象切换）
+        ]
+        
+        app_lower = (new_app or "").lower()
+        
+        # 判断是否是标题敏感应用
+        is_title_sensitive = any(app in app_lower for app in TITLE_SENSITIVE_APPS)
+        
+        if is_title_sensitive:
+            # 对于浏览器等应用，检查标题变化
+            similarity = self._calculate_title_similarity(old_title, new_title)
+            # 相似度 < 0.3 认为是不同主题，创建新事件
+            threshold = 0.3
+            should_reuse = similarity >= threshold
+            
+            logging.debug(f"标题敏感应用 {app_lower}: 相似度={similarity:.2f}, 阈值={threshold}, 复用={should_reuse}")
+            logging.debug(f"  旧标题: {old_title}")
+            logging.debug(f"  新标题: {new_title}")
+            
+            return should_reuse
+        
+        # 其他应用（如VSCode、Word等）保持复用
+        return True
 
     def get_or_create_event(self, app_name: Optional[str], window_title: Optional[str], timestamp: Optional[datetime] = None) -> Optional[int]:
-        """按当前前台应用维护事件。
-        若存在未结束事件且应用名一致，则复用并可更新窗口标题；若应用变更，则关闭上一个事件并创建新事件。
-        返回事件ID。
+        """按当前前台应用和窗口标题维护事件。
+        
+        智能切分策略：
+        - 应用切换时创建新事件
+        - 浏览器等标题敏感应用：标题变化大时创建新事件
+        - 编辑器等应用：同一应用内保持同一事件
+        
+        Args:
+            app_name: 应用名称
+            window_title: 窗口标题
+            timestamp: 时间戳
+            
+        Returns:
+            事件ID
         """
         try:
             closed_event_id = None  # 记录被关闭的事件ID
@@ -176,18 +296,27 @@ class DatabaseManager:
                 now_ts = timestamp or datetime.now()
                 last_event = self._get_last_open_event(session)
 
-                # 应用未变更，复用事件
-                if last_event and (last_event.app_name or "") == (app_name or ""):
-                    if window_title and window_title != last_event.window_title:
-                        last_event.window_title = window_title
-                    session.flush()
-                    return last_event.id
-
-                # 应用变更或没有正在进行的事件：关闭旧事件
-                if last_event and last_event.end_time is None:
-                    last_event.end_time = now_ts
-                    closed_event_id = last_event.id  # 记录被关闭的事件ID
-                    session.flush()
+                # 判断是否应该复用事件
+                if last_event:
+                    should_reuse = self._should_reuse_event(
+                        old_app=last_event.app_name,
+                        old_title=last_event.window_title,
+                        new_app=app_name,
+                        new_title=window_title
+                    )
+                    
+                    if should_reuse:
+                        # 复用事件，更新窗口标题
+                        if window_title and window_title != last_event.window_title:
+                            last_event.window_title = window_title
+                        session.flush()
+                        return last_event.id
+                    else:
+                        # 不复用，关闭旧事件
+                        last_event.end_time = now_ts
+                        closed_event_id = last_event.id
+                        session.flush()
+                        logging.info(f"关闭事件 {closed_event_id}: {last_event.app_name} - {last_event.window_title}")
 
                 # 创建新事件
                 new_event = Event(
@@ -198,6 +327,7 @@ class DatabaseManager:
                 session.add(new_event)
                 session.flush()
                 new_event_id = new_event.id
+                logging.info(f"创建新事件 {new_event_id}: {app_name} - {window_title}")
             
             # 在session关闭后，异步生成已关闭事件的摘要
             if closed_event_id:
