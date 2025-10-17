@@ -569,9 +569,9 @@
       </div>
       <div class="card-c">
         <div class="col" style="gap:.5rem">
-          <div class="label">API Key</div>
-          <input id="apiKey" type="text" placeholder="输入您的 API Key" style="min-width:100%; font-family: monospace;"/>
-          <div class="hint">您的 LLM API 密钥，例如通义千问 API Key</div>
+          <div class="label">LLM Key</div>
+          <input id="llmKey" type="text" placeholder="输入您的 LLM Key" style="min-width:100%; font-family: monospace;"/>
+          <div class="hint">您的 LLM 密钥，例如通义千问的密钥</div>
         </div>
         <div class="sep"></div>
         <div class="col" style="gap:.5rem">
@@ -772,7 +772,7 @@
       soundEnabled: true,
       autoSave: true,
       // API配置
-      apiKey: '',
+      llmKey: '',
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
       llmModel: 'qwen3-max',
       // 服务器配置
@@ -821,7 +821,7 @@
       notifications: $('notifications'), soundEnabled: $('soundEnabled'), autoSave: $('autoSave'),
       localHistory: $('localHistory'), historyLimit: $('historyLimit'), historyLimitLabel: $('historyLimitLabel'),
       // API配置
-      apiKey: $('apiKey'), baseUrl: $('baseUrl'), llmModel: $('llmModel'),
+      llmKey: $('llmKey'), baseUrl: $('baseUrl'), llmModel: $('llmModel'),
       // 服务器配置
       serverHost: $('serverHost'), serverPort: $('serverPort'),
       clearChats: $('clearChats'), resetSettings: $('resetSettings')
@@ -878,7 +878,7 @@
       setSwitch(els.deduplicateEnabled, state.deduplicateEnabled);
 
       // API配置
-      if(els.apiKey) els.apiKey.value = state.apiKey || '';
+      if(els.llmKey) els.llmKey.value = state.llmKey || '';
       if(els.baseUrl) els.baseUrl.value = state.baseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
       if(els.llmModel) els.llmModel.value = state.llmModel || 'qwen3-max';
       
@@ -1030,7 +1030,7 @@
     if(els.deduplicateEnabled) els.deduplicateEnabled.addEventListener('click', () => { const on = !els.deduplicateEnabled.classList.contains('on'); setSwitch(els.deduplicateEnabled, on); state.deduplicateEnabled = on; persist(); });
 
     // API配置事件
-    if(els.apiKey) els.apiKey.addEventListener('input', e => { state.apiKey = e.target.value; persist(); });
+    if(els.llmKey) els.llmKey.addEventListener('input', e => { state.llmKey = e.target.value; persist(); });
     if(els.baseUrl) els.baseUrl.addEventListener('input', e => { state.baseUrl = e.target.value; persist(); });
     if(els.llmModel) els.llmModel.addEventListener('input', e => { state.llmModel = e.target.value; persist(); });
     

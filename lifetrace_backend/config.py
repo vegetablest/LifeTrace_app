@@ -394,8 +394,8 @@ class LifeTraceConfig:
     # LLM配置属性
     @property
     def llm_api_key(self) -> str:
-        """LLM API密钥"""
-        return self.get('llm.api_key', '')
+        """LLM 密钥"""
+        return self.get('llm.llm_key', '')
     
     @property
     def llm_base_url(self) -> str:
@@ -443,13 +443,13 @@ class LifeTraceConfig:
         """检查LLM配置是否已完成
         
         Returns:
-            bool: 如果API key和base_url都已配置（不是占位符或空），返回True
+            bool: 如果llm_key和base_url都已配置（不是占位符或空），返回True
         """
-        api_key = self.llm_api_key
+        llm_key = self.llm_api_key
         base_url = self.llm_base_url
         # 检查是否为空或占位符
-        invalid_values = ['', 'xxx', 'YOUR_API_KEY_HERE', 'YOUR_BASE_URL_HERE']
-        return (api_key not in invalid_values and 
+        invalid_values = ['', 'xxx', 'YOUR_API_KEY_HERE', 'YOUR_BASE_URL_HERE', 'YOUR_LLM_KEY_HERE']
+        return (llm_key not in invalid_values and 
                 base_url not in invalid_values)
     
     # ==================== 配置热重载相关方法 ====================

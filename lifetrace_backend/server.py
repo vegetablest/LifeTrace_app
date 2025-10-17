@@ -675,16 +675,16 @@ async def test_llm_config(config_data: Dict[str, str]):
     try:
         from openai import OpenAI
         
-        api_key = config_data.get('apiKey', '')
+        llm_key = config_data.get('llmKey', '')
         base_url = config_data.get('baseUrl', '')
         model = config_data.get('model', 'qwen3-max')
         
-        if not api_key or not base_url:
-            return {"success": False, "error": "API Key 和 Base URL 不能为空"}
+        if not llm_key or not base_url:
+            return {"success": False, "error": "LLM Key 和 Base URL 不能为空"}
         
         # 创建临时客户端进行测试
         client = OpenAI(
-            api_key=api_key,
+            api_key=llm_key,
             base_url=base_url
         )
         
@@ -729,7 +729,7 @@ async def get_config():
                 "maxDays": config.get('storage.max_days', 30),
                 "deduplicateEnabled": config.get('storage.deduplicate', True),
                 # LLM配置
-                "apiKey": config.llm_api_key,
+                "llmKey": config.llm_api_key,
                 "baseUrl": config.llm_base_url,
                 "llmModel": config.llm_model,
                 "model": config.llm_model,
@@ -755,14 +755,14 @@ async def save_and_init_llm(config_data: Dict[str, str]):
     
     try:
         # 验证必需字段
-        required_fields = ['apiKey', 'baseUrl', 'model']
+        required_fields = ['llmKey', 'baseUrl', 'model']
         missing_fields = [f for f in required_fields if not config_data.get(f)]
         if missing_fields:
             return {"success": False, "error": f"缺少必需字段: {', '.join(missing_fields)}"}
         
         # 验证字段类型和内容
-        if not isinstance(config_data.get('apiKey'), str) or not config_data.get('apiKey').strip():
-            return {"success": False, "error": "API Key必须是非空字符串"}
+        if not isinstance(config_data.get('llmKey'), str) or not config_data.get('llmKey').strip():
+            return {"success": False, "error": "LLM Key必须是非空字符串"}
         
         if not isinstance(config_data.get('baseUrl'), str) or not config_data.get('baseUrl').strip():
             return {"success": False, "error": "Base URL必须是非空字符串"}
@@ -777,7 +777,7 @@ async def save_and_init_llm(config_data: Dict[str, str]):
         
         # 2. 保存配置到文件
         save_result = await save_config({
-            'apiKey': config_data.get('apiKey'),
+            'llmKey': config_data.get('llmKey'),
             'baseUrl': config_data.get('baseUrl'),
             'llmModel': config_data.get('model')
         })
@@ -850,7 +850,7 @@ async def save_config(settings: Dict[str, Any]):
             'localHistory': 'chat.local_history',
             'historyLimit': 'chat.history_limit',
             # API配置
-            'apiKey': 'llm.api_key',
+            'llmKey': 'llm.llm_key',
             'baseUrl': 'llm.base_url',
             'llmModel': 'llm.model',
             # 服务器配置

@@ -107,7 +107,7 @@ logging:
 
 # LLM配置
 llm:
-  api_key: 'YOUR_API_KEY_HERE'  # LLM API密钥，需要用户配置
+  llm_key: 'YOUR_LLM_KEY_HERE'  # LLM 密钥，需要用户配置
   base_url: 'YOUR_BASE_URL_HERE'  # LLM API基础URL
   model: 'qwen3-max'  # 使用的模型名称
   temperature: 0.7  # 温度参数

@@ -28,9 +28,9 @@ class LLMClient:
                 self.model = model or config.llm_model or "qwen3-max"
                 
                 # 检查关键配置是否为空或默认占位符
-                invalid_values = ['xxx', 'YOUR_API_KEY_HERE', 'YOUR_BASE_URL_HERE']
+                invalid_values = ['xxx', 'YOUR_API_KEY_HERE', 'YOUR_BASE_URL_HERE', 'YOUR_LLM_KEY_HERE']
                 if not self.api_key or self.api_key in invalid_values:
-                    logger.warning("API Key未配置或为默认占位符，LLM功能可能不可用")
+                    logger.warning("LLM Key未配置或为默认占位符，LLM功能可能不可用")
                 if not self.base_url or self.base_url in invalid_values:
                     logger.warning("Base URL未配置或为默认占位符，LLM功能可能不可用")
             except Exception as e:
