@@ -431,6 +431,39 @@ def heartbeat_task_func():
         heartbeat_sender.stop()
 
 
+def on_config_change(old_config: dict, new_config: dict):
+    """配置变更回调函数"""
+    global is_llm_configured, rag_service
+    
+    try:
+        # 检查LLM配置是否变更
+        old_llm = old_config.get('llm', {})
+        new_llm = new_config.get('llm', {})
+        
+        if old_llm != new_llm:
+            logger.info("检测到LLM配置变更")
+            
+            # 更新配置状态
+            is_llm_configured = config.is_configured()
+            logger.info(f"LLM配置状态已更新: {'已配置' if is_llm_configured else '未配置'}")
+            
+            # 注意：根据计划，不重新初始化RAG服务
+            logger.info("配置已更新，RAG服务将使用新配置（不重新初始化）")
+        
+        # 记录其他配置变更
+        if old_config.get('server') != new_config.get('server'):
+            logger.info("检测到服务器配置变更")
+        
+        if old_config.get('record') != new_config.get('record'):
+            logger.info("检测到录制配置变更")
+            
+        if old_config.get('ocr') != new_config.get('ocr'):
+            logger.info("检测到OCR配置变更")
+            
+    except Exception as e:
+        logger.error(f"处理配置变更失败: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     """应用启动事件"""
@@ -439,6 +472,11 @@ async def startup_event():
     heartbeat_stop_event.clear()
     heartbeat_thread = threading.Thread(target=heartbeat_task_func, daemon=True)
     heartbeat_thread.start()
+    
+    # 启动配置文件监听
+    config.register_callback(on_config_change)
+    config.start_watching()
+    logger.info("已启动配置文件监听")
 
 
 @app.on_event("shutdown")
@@ -447,6 +485,10 @@ async def shutdown_event():
     global heartbeat_thread
     logger.info("Web服务器关闭，停止心跳记录")
     heartbeat_stop_event.set()
+    
+    # 停止配置文件监听
+    config.stop_watching()
+    logger.info("已停止配置文件监听")
 
 
 # 添加配置检测中间件
@@ -703,7 +745,7 @@ async def get_config():
         }
     except Exception as e:
         logger.error(f"获取配置失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取配置失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取配置失败: {str(e)}") from e
 
 
 @app.post("/api/save-and-init-llm")
@@ -712,6 +754,22 @@ async def save_and_init_llm(config_data: Dict[str, str]):
     global is_llm_configured, rag_service
     
     try:
+        # 验证必需字段
+        required_fields = ['apiKey', 'baseUrl', 'model']
+        missing_fields = [f for f in required_fields if not config_data.get(f)]
+        if missing_fields:
+            return {"success": False, "error": f"缺少必需字段: {', '.join(missing_fields)}"}
+        
+        # 验证字段类型和内容
+        if not isinstance(config_data.get('apiKey'), str) or not config_data.get('apiKey').strip():
+            return {"success": False, "error": "API Key必须是非空字符串"}
+        
+        if not isinstance(config_data.get('baseUrl'), str) or not config_data.get('baseUrl').strip():
+            return {"success": False, "error": "Base URL必须是非空字符串"}
+        
+        if not isinstance(config_data.get('model'), str) or not config_data.get('model').strip():
+            return {"success": False, "error": "模型名称必须是非空字符串"}
+        
         # 1. 先测试配置
         test_result = await test_llm_config(config_data)
         if not test_result['success']:
@@ -822,7 +880,7 @@ async def save_config(settings: Dict[str, Any]):
         
     except Exception as e:
         logger.error(f"保存配置失败: {e}")
-        raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}") from e
 
 
 @app.post("/api/chat", response_model=ChatResponse, response_class=UTF8JSONResponse)

@@ -831,8 +831,14 @@
 
     // 初始化 UI
     function setSwitch(el, on){ if(el) el.classList.toggle('on', !!on); }
-    function setDisabledWhenRecording(disabled){ els.recordInterval.disabled = disabled; els.screenSelection.disabled = disabled; }
-    function setDisabledWhenStorage(disabled){ els.maxDays.disabled = disabled; if(els.deduplicateEnabled) els.deduplicateEnabled.classList.toggle('disabled', disabled); }
+    function setDisabledWhenRecording(disabled){ 
+      if(els.recordInterval) els.recordInterval.disabled = disabled; 
+      if(els.screenSelection) els.screenSelection.disabled = disabled; 
+    }
+    function setDisabledWhenStorage(disabled){ 
+      if(els.maxDays) els.maxDays.disabled = disabled; 
+      if(els.deduplicateEnabled) els.deduplicateEnabled.classList.toggle('disabled', disabled); 
+    }
 
     // 初始化所有UI元素
     function initUI(state) {

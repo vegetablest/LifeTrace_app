@@ -26,11 +26,19 @@ class LLMClient:
                 self.api_key = api_key or config.llm_api_key or "sk-ef4b56e3bc9c4693b596415dd364af56"
                 self.base_url = base_url or config.llm_base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
                 self.model = model or config.llm_model or "qwen3-max"
+                
+                # 检查关键配置是否为空或默认占位符
+                if not self.api_key or self.api_key == 'xxx':
+                    logger.warning("API Key未配置或为默认占位符，LLM功能可能不可用")
+                if not self.base_url or self.base_url == 'xxx':
+                    logger.warning("Base URL未配置或为默认占位符，LLM功能可能不可用")
             except Exception as e:
-                logger.warning(f"无法从配置文件读取LLM配置，使用默认值: {e}")
+                logger.error(f"无法从配置文件读取LLM配置: {e}")
+                # 使用默认值但记录警告
                 self.api_key = api_key or "sk-ef4b56e3bc9c4693b596415dd364af56"
                 self.base_url = base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
                 self.model = model or "qwen3-max"
+                logger.warning("使用硬编码默认值初始化LLM客户端")
         else:
             self.api_key = api_key
             self.base_url = base_url

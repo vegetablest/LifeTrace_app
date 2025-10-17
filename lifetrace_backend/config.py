@@ -2,7 +2,18 @@ import os
 import sys
 import yaml
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Callable
+import threading
+import time
+import logging
+
+# 尝试导入watchdog，如果不可用则优雅降级
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+    WATCHDOG_AVAILABLE = True
+except ImportError:
+    WATCHDOG_AVAILABLE = False
 
 class LifeTraceConfig:
     """LifeTrace配置管理类"""
@@ -10,6 +21,14 @@ class LifeTraceConfig:
     def __init__(self, config_path: Optional[str] = None):
         self.config_path = config_path or self._get_default_config_path()
         self._config = self._load_config()
+        
+        # 配置热重载相关
+        self._callbacks = []  # 配置变更回调列表
+        self._config_lock = threading.RLock()  # 线程安全锁
+        self._observer = None  # watchdog观察者
+        self._watching = False  # 是否正在监听
+        self._last_reload_time = 0  # 最后重载时间（用于防抖）
+        self._debounce_delay = 0.5  # 防抖延迟（秒）
     
     def _get_application_path(self) -> str:
         """获取应用程序路径，兼容PyInstaller打包"""
@@ -430,6 +449,145 @@ class LifeTraceConfig:
         base_url = self.llm_base_url
         return (api_key not in ['', 'xxx'] and 
                 base_url not in ['', 'xxx'])
+    
+    # ==================== 配置热重载相关方法 ====================
+    
+    def reload(self) -> bool:
+        """重新加载配置文件
+        
+        Returns:
+            bool: 是否成功重载
+        """
+        try:
+            with self._config_lock:
+                # 保存旧配置的深拷贝
+                import copy
+                old_config = copy.deepcopy(self._config)
+                
+                # 重新加载配置
+                new_config = self._load_config()
+                
+                # 检查配置是否有变化
+                if new_config == old_config:
+                    logging.debug("配置文件未发生变化，跳过重载")
+                    return True
+                
+                # 更新配置
+                self._config = new_config
+                
+                logging.info("配置文件已重新加载")
+                
+                # 触发回调
+                for callback in self._callbacks:
+                    try:
+                        callback(old_config, new_config)
+                    except Exception as e:
+                        logging.error(f"配置变更回调执行失败: {e}")
+                
+                return True
+                
+        except Exception as e:
+            logging.error(f"配置重载失败: {e}")
+            return False
+    
+    def register_callback(self, callback: Callable[[dict, dict], None]):
+        """注册配置变更回调
+        
+        Args:
+            callback: 回调函数，接收两个参数：(old_config, new_config)
+        """
+        if callback not in self._callbacks:
+            self._callbacks.append(callback)
+            logging.debug(f"已注册配置变更回调: {callback.__name__}")
+    
+    def unregister_callback(self, callback: Callable[[dict, dict], None]):
+        """取消注册配置变更回调
+        
+        Args:
+            callback: 要取消的回调函数
+        """
+        if callback in self._callbacks:
+            self._callbacks.remove(callback)
+            logging.debug(f"已取消配置变更回调: {callback.__name__}")
+    
+    def start_watching(self):
+        """启动配置文件监听"""
+        if not WATCHDOG_AVAILABLE:
+            logging.warning("watchdog库不可用，无法启动配置文件监听")
+            return False
+        
+        if self._watching:
+            logging.debug("配置文件监听已在运行")
+            return True
+        
+        try:
+            # 创建配置文件监听处理器
+            event_handler = ConfigFileEventHandler(self)
+            
+            # 创建观察者
+            self._observer = Observer()
+            
+            # 监听配置文件所在目录
+            config_dir = os.path.dirname(self.config_path)
+            if not config_dir:
+                config_dir = '.'
+            
+            self._observer.schedule(event_handler, config_dir, recursive=False)
+            self._observer.start()
+            
+            self._watching = True
+            logging.info(f"已启动配置文件监听: {self.config_path}")
+            return True
+            
+        except Exception as e:
+            logging.error(f"启动配置文件监听失败: {e}")
+            return False
+    
+    def stop_watching(self):
+        """停止配置文件监听"""
+        if not self._watching:
+            return
+        
+        try:
+            if self._observer:
+                self._observer.stop()
+                self._observer.join(timeout=2)
+                self._observer = None
+            
+            self._watching = False
+            logging.info("已停止配置文件监听")
+            
+        except Exception as e:
+            logging.error(f"停止配置文件监听失败: {e}")
+    
+    def _should_reload(self) -> bool:
+        """检查是否应该重载配置（防抖）"""
+        current_time = time.time()
+        if current_time - self._last_reload_time < self._debounce_delay:
+            return False
+        self._last_reload_time = current_time
+        return True
+
+
+class ConfigFileEventHandler(FileSystemEventHandler):
+    """配置文件变更事件处理器"""
+    
+    def __init__(self, config: LifeTraceConfig):
+        super().__init__()
+        self.config = config
+    
+    def on_modified(self, event):
+        """文件修改事件"""
+        if event.is_directory:
+            return
+        
+        # 只处理配置文件的修改
+        if os.path.abspath(event.src_path) == os.path.abspath(self.config.config_path):
+            if self.config._should_reload():
+                logging.info(f"检测到配置文件变更: {event.src_path}")
+                # 延迟一小段时间，确保文件写入完成
+                threading.Timer(0.1, self.config.reload).start()
+
 
 # 全局配置实例
 config = LifeTraceConfig()
