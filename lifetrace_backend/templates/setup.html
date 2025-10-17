@@ -7,11 +7,19 @@
   <script src="/static/lucide.min.js"></script>
   <style>
     :root {
-      --gradient-start: #667eea;
-      --gradient-end: #764ba2;
-      --success-color: #10b981;
-      --error-color: #ef4444;
-      --warning-color: #f59e0b;
+      /* 与chat页面保持一致的配色 */
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.145 0 0);
+      --card: oklch(0.985 0 0);
+      --card-foreground: oklch(0.145 0 0);
+      --muted: oklch(0.97 0 0);
+      --muted-foreground: oklch(0.556 0 0);
+      --border: oklch(0.922 0 0);
+      --accent: oklch(0.646 0.222 264.376);
+      --accent-foreground: oklch(0.985 0 0);
+      --success-color: oklch(0.65 0.15 145);
+      --error-color: oklch(0.577 0.245 27.325);
+      --radius: 0.625rem;
     }
     
     * {
@@ -22,7 +30,8 @@
     
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background-color: var(--background);
+      color: var(--foreground);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -31,19 +40,20 @@
     }
     
     .setup-container {
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       max-width: 600px;
       width: 100%;
       overflow: hidden;
-      animation: slideUp 0.5s ease-out;
+      animation: slideUp 0.4s ease-out;
     }
     
     @keyframes slideUp {
       from {
         opacity: 0;
-        transform: translateY(30px);
+        transform: translateY(20px);
       }
       to {
         opacity: 1;
@@ -52,47 +62,52 @@
     }
     
     .setup-header {
-      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-      color: white;
-      padding: 40px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      color: var(--foreground);
+      padding: 32px 40px;
       text-align: center;
     }
     
     .setup-header h1 {
-      font-size: 2rem;
-      margin-bottom: 10px;
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin-bottom: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 15px;
+      gap: 12px;
+      color: var(--foreground);
     }
     
     .setup-header p {
-      opacity: 0.95;
-      font-size: 1rem;
+      color: var(--muted-foreground);
+      font-size: 0.95rem;
     }
     
     .setup-body {
       padding: 40px;
+      background: var(--background);
     }
     
     .welcome-text {
       text-align: center;
-      color: #666;
-      margin-bottom: 30px;
+      color: var(--muted-foreground);
+      margin-bottom: 32px;
       line-height: 1.6;
+      font-size: 0.95rem;
     }
     
     .form-group {
-      margin-bottom: 25px;
+      margin-bottom: 24px;
     }
     
     .form-label {
       display: block;
-      font-weight: 600;
-      color: #333;
+      font-weight: 500;
+      color: var(--foreground);
       margin-bottom: 8px;
-      font-size: 0.95rem;
+      font-size: 0.875rem;
     }
     
     .form-label .required {
@@ -102,28 +117,31 @@
     
     .form-input, .form-select {
       width: 100%;
-      padding: 12px 16px;
-      border: 2px solid #e5e7eb;
-      border-radius: 10px;
-      font-size: 1rem;
-      transition: all 0.3s ease;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) - 2px);
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
       font-family: monospace;
+      background: var(--background);
+      color: var(--foreground);
     }
     
     .form-input:focus, .form-select:focus {
       outline: none;
-      border-color: var(--gradient-start);
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.1);
     }
     
     .form-hint {
-      font-size: 0.85rem;
-      color: #6b7280;
+      font-size: 0.8rem;
+      color: var(--muted-foreground);
       margin-top: 6px;
+      line-height: 1.5;
     }
     
     .form-hint a {
-      color: var(--gradient-start);
+      color: var(--accent);
       text-decoration: none;
     }
     
@@ -133,46 +151,46 @@
     
     .btn {
       width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-      color: white;
+      padding: 12px;
+      background: var(--foreground);
+      color: var(--background);
       border: none;
-      border-radius: 10px;
-      font-size: 1.1rem;
-      font-weight: 600;
+      border-radius: calc(var(--radius) - 2px);
+      font-size: 0.95rem;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.2s ease;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
+      gap: 8px;
     }
     
     .btn:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+      opacity: 0.9;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
     
     .btn:active:not(:disabled) {
-      transform: translateY(0);
+      transform: scale(0.98);
     }
     
     .btn:disabled {
-      opacity: 0.6;
+      opacity: 0.5;
       cursor: not-allowed;
     }
     
     .btn-icon {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
     }
     
     .spinner {
-      border: 3px solid rgba(255, 255, 255, 0.3);
-      border-top: 3px solid white;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid white;
       border-radius: 50%;
-      width: 20px;
-      height: 20px;
+      width: 16px;
+      height: 16px;
       animation: spin 1s linear infinite;
     }
     
@@ -182,13 +200,14 @@
     }
     
     .alert {
-      padding: 14px 18px;
-      border-radius: 10px;
+      padding: 12px 16px;
+      border-radius: calc(var(--radius) - 2px);
       margin-bottom: 20px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       animation: slideDown 0.3s ease-out;
+      font-size: 0.9rem;
     }
     
     @keyframes slideDown {
@@ -203,26 +222,26 @@
     }
     
     .alert-success {
-      background: #d1fae5;
-      color: #065f46;
-      border: 1px solid var(--success-color);
+      background: oklch(from var(--success-color) l c h / 0.1);
+      color: var(--success-color);
+      border: 1px solid oklch(from var(--success-color) l c h / 0.3);
     }
     
     .alert-error {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid var(--error-color);
+      background: oklch(from var(--error-color) l c h / 0.1);
+      color: var(--error-color);
+      border: 1px solid oklch(from var(--error-color) l c h / 0.3);
     }
     
     .alert-info {
-      background: #dbeafe;
-      color: #1e40af;
-      border: 1px solid #3b82f6;
+      background: oklch(from var(--accent) l c h / 0.1);
+      color: var(--accent);
+      border: 1px solid oklch(from var(--accent) l c h / 0.3);
     }
     
     .alert-icon {
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
       flex-shrink: 0;
     }
     
@@ -231,17 +250,19 @@
     }
     
     .info-box {
-      background: #f3f4f6;
-      border-left: 4px solid var(--gradient-start);
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
       padding: 16px;
-      border-radius: 8px;
-      margin-top: 30px;
+      border-radius: calc(var(--radius) - 2px);
+      margin-top: 28px;
     }
     
     .info-box h3 {
-      color: #374151;
-      font-size: 1rem;
-      margin-bottom: 10px;
+      color: var(--foreground);
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -253,18 +274,19 @@
     }
     
     .info-box li {
-      color: #6b7280;
-      font-size: 0.9rem;
-      margin-bottom: 8px;
-      padding-left: 24px;
+      color: var(--muted-foreground);
+      font-size: 0.85rem;
+      margin-bottom: 6px;
+      padding-left: 20px;
       position: relative;
+      line-height: 1.5;
     }
     
     .info-box li::before {
-      content: "✓";
+      content: "•";
       position: absolute;
-      left: 0;
-      color: var(--success-color);
+      left: 8px;
+      color: var(--accent);
       font-weight: bold;
     }
   </style>
@@ -273,10 +295,10 @@
   <div class="setup-container">
     <div class="setup-header">
       <h1>
-        <i data-lucide="sparkles" style="width: 32px; height: 32px;"></i>
-        欢迎使用 LifeTrace
+        <i data-lucide="settings" style="width: 24px; height: 24px;"></i>
+        LifeTrace 初始配置
       </h1>
-      <p>开始之前，让我们先配置您的 AI 助手</p>
+      <p>配置 LLM API 以使用智能对话功能</p>
     </div>
     
     <div class="setup-body">
