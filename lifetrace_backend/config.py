@@ -371,6 +371,65 @@ class LifeTraceConfig:
     def heartbeat_reset_count_interval(self) -> int:
         """重启计数重置间隔（秒）"""
         return self.get('heartbeat.auto_restart.reset_count_interval', 3600)
+    
+    # LLM配置属性
+    @property
+    def llm_api_key(self) -> str:
+        """LLM API密钥"""
+        return self.get('llm.api_key', '')
+    
+    @property
+    def llm_base_url(self) -> str:
+        """LLM API基础URL"""
+        return self.get('llm.base_url', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
+    
+    @property
+    def llm_model(self) -> str:
+        """LLM模型名称"""
+        return self.get('llm.model', 'qwen3-max')
+    
+    @property
+    def llm_temperature(self) -> float:
+        """LLM温度参数"""
+        return self.get('llm.temperature', 0.7)
+    
+    @property
+    def llm_max_tokens(self) -> int:
+        """LLM最大token数"""
+        return self.get('llm.max_tokens', 2048)
+    
+    # 服务器配置属性
+    @property
+    def server_host(self) -> str:
+        """服务器主机地址"""
+        return self.get('server.host', '127.0.0.1')
+    
+    @property
+    def server_port(self) -> int:
+        """服务器端口"""
+        return self.get('server.port', 8840)
+    
+    # 聊天配置属性
+    @property
+    def chat_local_history(self) -> bool:
+        """是否启用本地历史记录"""
+        return self.get('chat.local_history', True)
+    
+    @property
+    def chat_history_limit(self) -> int:
+        """历史记录条数限制"""
+        return self.get('chat.history_limit', 6)
+    
+    def is_configured(self) -> bool:
+        """检查LLM配置是否已完成
+        
+        Returns:
+            bool: 如果API key和base_url都已配置（不是'xxx'或空），返回True
+        """
+        api_key = self.llm_api_key
+        base_url = self.llm_base_url
+        return (api_key not in ['', 'xxx'] and 
+                base_url not in ['', 'xxx'])
 
 # 全局配置实例
 config = LifeTraceConfig()

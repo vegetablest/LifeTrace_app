@@ -561,25 +561,61 @@
       </div>
     </section>
 
-    <!-- AI 模型设置 -->
+    <!-- API 配置 -->
     <section class="card card-ai">
       <div class="card-h">
-        <div class="card-t"><i data-lucide="sparkles"></i>AI 模型设置</div>
-        <div class="card-d">配置 AI 助手的行为和参数</div>
+        <div class="card-t"><i data-lucide="key"></i>API 配置</div>
+        <div class="card-d">配置 LLM API 密钥和服务器地址</div>
       </div>
       <div class="card-c">
         <div class="col" style="gap:.5rem">
-          <div class="label">模型选择</div>
-          <div class="select-wrap">
-            <select id="model" class="select">
-              <option value="doubao-pro">豆包 Pro</option>
-              <option value="doubao-lite">豆包 Lite</option>
-              <option value="doubao-creative">豆包 Creative</option>
-            </select>
-            <i class="select-icon" data-lucide="chevron-down"></i>
-          </div>
+          <div class="label">API Key</div>
+          <input id="apiKey" type="text" placeholder="输入您的 API Key" style="min-width:100%; font-family: monospace;"/>
+          <div class="hint">您的 LLM API 密钥，例如通义千问 API Key</div>
         </div>
         <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="label">API Base URL</div>
+          <input id="baseUrl" type="text" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" style="min-width:100%;"/>
+          <div class="hint">API 服务的基础地址</div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="label">模型名称</div>
+          <input id="llmModel" type="text" placeholder="qwen3-max" />
+          <div class="hint">使用的 LLM 模型名称</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 服务器配置 -->
+    <section class="card card-recording">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="server"></i>服务器配置</div>
+        <div class="card-d">配置本地服务器的访问地址和端口</div>
+      </div>
+      <div class="card-c">
+        <div class="col" style="gap:.5rem">
+          <div class="label">服务器地址</div>
+          <input id="serverHost" type="text" placeholder="127.0.0.1" />
+          <div class="hint">服务器监听地址，默认为本地地址</div>
+        </div>
+        <div class="sep"></div>
+        <div class="col" style="gap:.5rem">
+          <div class="label">服务器端口</div>
+          <input id="serverPort" type="number" placeholder="8840" min="1024" max="65535" />
+          <div class="hint">服务器监听端口，修改后需要重启服务</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI 模型设置 -->
+    <section class="card card-ai">
+      <div class="card-h">
+        <div class="card-t"><i data-lucide="sparkles"></i>AI 模型参数</div>
+        <div class="card-d">配置 AI 助手的行为参数</div>
+      </div>
+      <div class="card-c">
         <div class="col" style="gap:.5rem">
           <div class="row" style="align-items:center">
             <div class="label">创造性 (Temperature)</div>
@@ -735,6 +771,13 @@
       notifications: true,
       soundEnabled: true,
       autoSave: true,
+      // API配置
+      apiKey: '',
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      llmModel: 'qwen3-max',
+      // 服务器配置
+      serverHost: '127.0.0.1',
+      serverPort: 8840,
       // 与 chat.html 兼容的键（保留）
       darkMode: false,
       fontSize: 'md',
@@ -744,7 +787,27 @@
       localHistory: true,
       historyLimit: 6,
     };
-    function load(){ try{ return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch{ return { ...defaults }; } }
+    // 从服务器加载配置
+    async function loadFromServer() {
+      try {
+        const response = await fetch('/api/get-config');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.config) {
+            return { ...defaults, ...data.config };
+          }
+        }
+      } catch (error) {
+        console.error('从服务器加载配置失败:', error);
+      }
+      // 如果服务器加载失败，从localStorage加载
+      try {
+        return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
+      } catch {
+        return { ...defaults };
+      }
+    }
+    
     function save(s){ localStorage.setItem(KEY, JSON.stringify(s)); }
     const $ = id => document.getElementById(id);
     const els = {
@@ -754,62 +817,96 @@
       blacklistEnabled: $('blacklistEnabled'), blacklistApps: $('blacklistApps'),
       recordingEnabled: $('recordingEnabled'), recordInterval: $('recordInterval'), recordIntervalLabel: $('recordIntervalLabel'), screenSelection: $('screenSelection'),
       storageEnabled: $('storageEnabled'), maxDays: $('maxDays'), maxDaysLabel: $('maxDaysLabel'), deduplicateEnabled: $('deduplicateEnabled'),
-      model: $('model'), temperature: $('temperature'), temperatureLabel: $('temperatureLabel'), maxTokens: $('maxTokens'), maxTokensLabel: $('maxTokensLabel'),
+      temperature: $('temperature'), temperatureLabel: $('temperatureLabel'), maxTokens: $('maxTokens'), maxTokensLabel: $('maxTokensLabel'),
       notifications: $('notifications'), soundEnabled: $('soundEnabled'), autoSave: $('autoSave'),
       localHistory: $('localHistory'), historyLimit: $('historyLimit'), historyLimitLabel: $('historyLimitLabel'),
+      // API配置
+      apiKey: $('apiKey'), baseUrl: $('baseUrl'), llmModel: $('llmModel'),
+      // 服务器配置
+      serverHost: $('serverHost'), serverPort: $('serverPort'),
       clearChats: $('clearChats'), resetSettings: $('resetSettings')
     };
 
-    let state = load();
+    let state = {};
 
     // 初始化 UI
-    function setSwitch(el, on){ el.classList.toggle('on', !!on); }
+    function setSwitch(el, on){ if(el) el.classList.toggle('on', !!on); }
     function setDisabledWhenRecording(disabled){ els.recordInterval.disabled = disabled; els.screenSelection.disabled = disabled; }
-    function setDisabledWhenStorage(disabled){ els.maxDays.disabled = disabled; els.deduplicateEnabled.classList.toggle('disabled', disabled); }
+    function setDisabledWhenStorage(disabled){ els.maxDays.disabled = disabled; if(els.deduplicateEnabled) els.deduplicateEnabled.classList.toggle('disabled', disabled); }
 
-    // 同步到文档主题（与 chat.html 兼容）
-    document.documentElement.classList.toggle('dark', !!(state.isDark || state.darkMode));
+    // 初始化所有UI元素
+    function initUI(state) {
+      // 同步到文档主题（与 chat.html 兼容）
+      document.documentElement.classList.toggle('dark', !!(state.isDark || state.darkMode));
 
-    // 外观
-    setSwitch(els.isDark, state.isDark || state.darkMode);
-    els.language.value = state.language;
+      // 外观
+      setSwitch(els.isDark, state.isDark || state.darkMode);
+      if(els.language) els.language.value = state.language;
 
-    // 自动排除设置
-    setSwitch(els.autoExcludeSelf, state.autoExcludeSelf);
+      // 自动排除设置
+      setSwitch(els.autoExcludeSelf, state.autoExcludeSelf);
 
-    // 黑名单
-    setSwitch(els.blacklistEnabled, state.blacklistEnabled);
-    els.blacklistApps.value = state.blacklistApps;
-    els.blacklistApps.disabled = !state.blacklistEnabled;
+      // 黑名单
+      setSwitch(els.blacklistEnabled, state.blacklistEnabled);
+      if(els.blacklistApps) {
+        els.blacklistApps.value = state.blacklistApps;
+        els.blacklistApps.disabled = !state.blacklistEnabled;
+      }
 
-    // 录制
-    setSwitch(els.recordingEnabled, state.recordingEnabled);
-    els.recordInterval.value = String(state.recordInterval);
-    els.recordIntervalLabel.textContent = state.recordInterval + ' 秒';
-    setDisabledWhenRecording(!state.recordingEnabled);
-    els.screenSelection.value = state.screenSelection;
+      // 录制
+      setSwitch(els.recordingEnabled, state.recordingEnabled);
+      if(els.recordInterval) {
+        els.recordInterval.value = String(state.recordInterval);
+        els.recordIntervalLabel.textContent = state.recordInterval + ' 秒';
+      }
+      setDisabledWhenRecording(!state.recordingEnabled);
+      if(els.screenSelection) els.screenSelection.value = state.screenSelection;
 
-    // 存储
-    setSwitch(els.storageEnabled, state.storageEnabled);
-    els.maxDays.value = String(state.maxDays);
-    els.maxDaysLabel.textContent = state.maxDays + ' 天';
-    setDisabledWhenStorage(!state.storageEnabled);
-    setSwitch(els.deduplicateEnabled, state.deduplicateEnabled);
+      // 存储
+      setSwitch(els.storageEnabled, state.storageEnabled);
+      if(els.maxDays) {
+        els.maxDays.value = String(state.maxDays);
+        els.maxDaysLabel.textContent = state.maxDays + ' 天';
+      }
+      setDisabledWhenStorage(!state.storageEnabled);
+      setSwitch(els.deduplicateEnabled, state.deduplicateEnabled);
 
-    // 模型
-    els.model.value = state.model;
-    els.temperature.value = String(state.temperature);
-    els.temperatureLabel.textContent = String(state.temperature);
-    els.maxTokens.value = String(state.maxTokens);
-    els.maxTokensLabel.textContent = state.maxTokens + ' tokens';
+      // API配置
+      if(els.apiKey) els.apiKey.value = state.apiKey || '';
+      if(els.baseUrl) els.baseUrl.value = state.baseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+      if(els.llmModel) els.llmModel.value = state.llmModel || 'qwen3-max';
+      
+      // 服务器配置
+      if(els.serverHost) els.serverHost.value = state.serverHost || '127.0.0.1';
+      if(els.serverPort) els.serverPort.value = String(state.serverPort || 8840);
 
-    // 通知与隐私
-    setSwitch(els.notifications, state.notifications);
-    setSwitch(els.soundEnabled, state.soundEnabled);
-    setSwitch(els.autoSave, state.autoSave);
-    setSwitch(els.localHistory, state.localHistory);
-    els.historyLimit.value = String(state.historyLimit);
-    els.historyLimitLabel.textContent = state.historyLimit + ' 轮';
+      // 模型参数
+      if(els.temperature) {
+        els.temperature.value = String(state.temperature);
+        els.temperatureLabel.textContent = String(state.temperature);
+      }
+      if(els.maxTokens) {
+        els.maxTokens.value = String(state.maxTokens);
+        els.maxTokensLabel.textContent = state.maxTokens + ' tokens';
+      }
+
+      // 通知与隐私
+      setSwitch(els.notifications, state.notifications);
+      setSwitch(els.soundEnabled, state.soundEnabled);
+      setSwitch(els.autoSave, state.autoSave);
+      setSwitch(els.localHistory, state.localHistory);
+      if(els.historyLimit) {
+        els.historyLimit.value = String(state.historyLimit);
+        els.historyLimitLabel.textContent = state.historyLimit + ' 轮';
+      }
+    }
+
+    // 异步初始化
+    (async function() {
+      state = await loadFromServer();
+      initUI(state);
+      initIcons();
+    })();
 
     // 事件与保存
     const persist = async () => {
@@ -899,36 +996,45 @@
       state.isDark = on; state.darkMode = on; persist();
     });
 
-    els.language.addEventListener('change', e => { state.language = e.target.value; persist(); });
+    if(els.language) els.language.addEventListener('change', e => { state.language = e.target.value; persist(); });
 
-    els.autoExcludeSelf.addEventListener('click', () => {
+    if(els.autoExcludeSelf) els.autoExcludeSelf.addEventListener('click', () => {
       const on = !els.autoExcludeSelf.classList.contains('on');
       setSwitch(els.autoExcludeSelf, on); state.autoExcludeSelf = on; persist();
     });
 
-    els.blacklistEnabled.addEventListener('click', () => {
+    if(els.blacklistEnabled) els.blacklistEnabled.addEventListener('click', () => {
       const on = !els.blacklistEnabled.classList.contains('on');
-      setSwitch(els.blacklistEnabled, on); state.blacklistEnabled = on; els.blacklistApps.disabled = !on; persist();
+      setSwitch(els.blacklistEnabled, on); state.blacklistEnabled = on; if(els.blacklistApps) els.blacklistApps.disabled = !on; persist();
     });
-    els.blacklistApps.addEventListener('input', e => { state.blacklistApps = e.target.value; persist(); });
+    if(els.blacklistApps) els.blacklistApps.addEventListener('input', e => { state.blacklistApps = e.target.value; persist(); });
 
-    els.recordingEnabled.addEventListener('click', () => {
+    if(els.recordingEnabled) els.recordingEnabled.addEventListener('click', () => {
       const on = !els.recordingEnabled.classList.contains('on');
       setSwitch(els.recordingEnabled, on); state.recordingEnabled = on; setDisabledWhenRecording(!on); persist();
     });
-    els.recordInterval.addEventListener('input', e => { const v = parseInt(e.target.value||'1'); els.recordIntervalLabel.textContent = v + ' 秒'; state.recordInterval = v; persist(); });
-    els.screenSelection.addEventListener('change', e => { state.screenSelection = e.target.value; persist(); });
+    if(els.recordInterval) els.recordInterval.addEventListener('input', e => { const v = parseInt(e.target.value||'1'); els.recordIntervalLabel.textContent = v + ' 秒'; state.recordInterval = v; persist(); });
+    if(els.screenSelection) els.screenSelection.addEventListener('change', e => { state.screenSelection = e.target.value; persist(); });
 
-    els.storageEnabled.addEventListener('click', () => {
+    if(els.storageEnabled) els.storageEnabled.addEventListener('click', () => {
       const on = !els.storageEnabled.classList.contains('on');
       setSwitch(els.storageEnabled, on); state.storageEnabled = on; setDisabledWhenStorage(!on); persist();
     });
-    els.maxDays.addEventListener('input', e => { const v = parseInt(e.target.value||'30'); els.maxDaysLabel.textContent = v + ' 天'; state.maxDays = v; persist(); });
-    els.deduplicateEnabled.addEventListener('click', () => { const on = !els.deduplicateEnabled.classList.contains('on'); setSwitch(els.deduplicateEnabled, on); state.deduplicateEnabled = on; persist(); });
+    if(els.maxDays) els.maxDays.addEventListener('input', e => { const v = parseInt(e.target.value||'30'); els.maxDaysLabel.textContent = v + ' 天'; state.maxDays = v; persist(); });
+    if(els.deduplicateEnabled) els.deduplicateEnabled.addEventListener('click', () => { const on = !els.deduplicateEnabled.classList.contains('on'); setSwitch(els.deduplicateEnabled, on); state.deduplicateEnabled = on; persist(); });
 
-    els.model.addEventListener('change', e => { state.model = e.target.value; persist(); });
-    els.temperature.addEventListener('input', e => { const v = parseFloat(e.target.value||'0.7'); els.temperatureLabel.textContent = String(v); state.temperature = v; persist(); });
-    els.maxTokens.addEventListener('input', e => { const v = parseInt(e.target.value||'2048'); els.maxTokensLabel.textContent = v + ' tokens'; state.maxTokens = v; persist(); });
+    // API配置事件
+    if(els.apiKey) els.apiKey.addEventListener('input', e => { state.apiKey = e.target.value; persist(); });
+    if(els.baseUrl) els.baseUrl.addEventListener('input', e => { state.baseUrl = e.target.value; persist(); });
+    if(els.llmModel) els.llmModel.addEventListener('input', e => { state.llmModel = e.target.value; persist(); });
+    
+    // 服务器配置事件
+    if(els.serverHost) els.serverHost.addEventListener('input', e => { state.serverHost = e.target.value; persist(); });
+    if(els.serverPort) els.serverPort.addEventListener('input', e => { state.serverPort = parseInt(e.target.value||'8840'); persist(); });
+
+    // 模型参数事件
+    if(els.temperature) els.temperature.addEventListener('input', e => { const v = parseFloat(e.target.value||'0.7'); els.temperatureLabel.textContent = String(v); state.temperature = v; persist(); });
+    if(els.maxTokens) els.maxTokens.addEventListener('input', e => { const v = parseInt(e.target.value||'2048'); els.maxTokensLabel.textContent = v + ' tokens'; state.maxTokens = v; persist(); });
 
     els.notifications.addEventListener('click', () => { const on = !els.notifications.classList.contains('on'); setSwitch(els.notifications, on); state.notifications = on; persist(); });
     els.soundEnabled.addEventListener('click', () => { const on = !els.soundEnabled.classList.contains('on'); setSwitch(els.soundEnabled, on); state.soundEnabled = on; persist(); });

@@ -15,7 +15,7 @@ if __name__ == '__main__':
 from fastapi import FastAPI, HTTPException, Query, Depends, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse, RedirectResponse
 from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -318,19 +318,18 @@ multimodal_vector_service = create_multimodal_vector_service(config, db_manager)
 # 初始化UDP心跳发送器
 heartbeat_sender = SimpleHeartbeatSender('server')
 
-# 初始化RAG服务
+# 初始化RAG服务 - 从配置文件读取API配置
 rag_service = RAGService(
     db_manager=db_manager,
-    # 原有Claude配置（已注释）
-    # api_key="sk-8l2Kkkjshq5tqIgKg7BOL6boFCZbXAZy0tYsWrK1m7lAEk29",
-    # base_url="https://api.openai-proxy.org/v1",
-    # model="claude-sonnet-4-20250514"
-    
-    # 新的Qwen配置
-    api_key="sk-ef4b56e3bc9c4693b596415dd364af56",
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model="qwen3-max"
+    api_key=config.llm_api_key,
+    base_url=config.llm_base_url,
+    model=config.llm_model
 )
+logger.info(f"RAG服务初始化完成 - 模型: {config.llm_model}, Base URL: {config.llm_base_url}")
+
+# 全局配置状态标志
+is_llm_configured = config.is_configured()
+logger.info(f"LLM配置状态: {'已配置' if is_llm_configured else '未配置，需要引导配置'}")
 
 # 心跳任务控制
 import asyncio
@@ -448,9 +447,28 @@ async def shutdown_event():
     global heartbeat_thread
     logger.info("Web服务器关闭，停止心跳记录")
     heartbeat_stop_event.set()
-    if heartbeat_thread and heartbeat_thread.is_alive():
-        heartbeat_thread.join(timeout=2.0)
-    heartbeat_sender.send_heartbeat({'status': 'stopped', 'reason': 'shutdown'})
+
+
+# 添加配置检测中间件
+@app.middleware("http")
+async def check_configuration_middleware(request: Request, call_next):
+    """检查LLM配置状态，未配置时重定向到setup页面"""
+    global is_llm_configured
+    
+    # 允许访问的路径（不需要LLM配置）
+    allowed_paths = ['/setup', '/api/test-llm-config', '/api/save-and-init-llm', 
+                    '/static', '/assets', '/api/get-config', '/api/save-config']
+    
+    # 如果未配置LLM
+    if not is_llm_configured:
+        path = request.url.path
+        # 检查是否访问允许的路径
+        if not any(path.startswith(allowed) for allowed in allowed_paths):
+            # 重定向到setup页面
+            return RedirectResponse(url='/setup', status_code=302)
+    
+    response = await call_next(request)
+    return response
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -507,6 +525,15 @@ async def old_index(request: Request):
             </body>
         </html>
         """)
+
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page(request: Request):
+    """初始配置引导页面"""
+    if templates:
+        return templates.TemplateResponse("setup.html", {"request": request})
+    else:
+        return HTMLResponse("<h1>配置页面加载失败</h1>")
+
 
 @app.get("/chat/settings", response_class=HTMLResponse)
 async def chat_settings_page(request: Request):
@@ -600,6 +627,131 @@ async def get_config():
     )
 
 
+@app.post("/api/test-llm-config")
+async def test_llm_config(config_data: Dict[str, str]):
+    """测试LLM配置是否可用（仅验证认证）"""
+    try:
+        from openai import OpenAI
+        
+        api_key = config_data.get('apiKey', '')
+        base_url = config_data.get('baseUrl', '')
+        model = config_data.get('model', 'qwen3-max')
+        
+        if not api_key or not base_url:
+            return {"success": False, "error": "API Key 和 Base URL 不能为空"}
+        
+        # 创建临时客户端进行测试
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url
+        )
+        
+        # 发送最小化测试请求验证认证
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "test"}],
+            max_tokens=5
+        )
+        
+        logger.info(f"LLM配置测试成功 - 模型: {model}")
+        return {"success": True, "message": "配置验证成功"}
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"LLM配置测试失败: {error_msg}")
+        return {"success": False, "error": error_msg}
+
+
+@app.get("/api/get-config")
+async def get_config():
+    """获取当前配置"""
+    try:
+        return {
+            "success": True,
+            "config": {
+                # UI配置
+                "isDark": config.get('ui.dark_mode', False),
+                "language": config.get('ui.language', 'zh-CN'),
+                "notifications": config.get('ui.notifications', True),
+                "soundEnabled": config.get('ui.sound_enabled', True),
+                "autoSave": config.get('ui.auto_save', True),
+                # 录制配置
+                "autoExcludeSelf": config.get('record.auto_exclude_self', True),
+                "blacklistEnabled": config.get('record.blacklist.enabled', False),
+                "blacklistApps": config.get('record.blacklist.apps', ''),
+                "recordingEnabled": config.get('record.enabled', True),
+                "recordInterval": config.get('record.interval', 1),
+                "screenSelection": config.get('record.screens', 'all'),
+                # 存储配置
+                "storageEnabled": config.get('storage.enabled', True),
+                "maxDays": config.get('storage.max_days', 30),
+                "deduplicateEnabled": config.get('storage.deduplicate', True),
+                # LLM配置
+                "apiKey": config.llm_api_key,
+                "baseUrl": config.llm_base_url,
+                "llmModel": config.llm_model,
+                "model": config.llm_model,
+                "temperature": config.llm_temperature,
+                "maxTokens": config.llm_max_tokens,
+                # 服务器配置
+                "serverHost": config.server_host,
+                "serverPort": config.server_port,
+                # 聊天配置
+                "localHistory": config.chat_local_history,
+                "historyLimit": config.chat_history_limit
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取配置失败: {str(e)}")
+
+
+@app.post("/api/save-and-init-llm")
+async def save_and_init_llm(config_data: Dict[str, str]):
+    """保存配置并重新初始化LLM服务"""
+    global is_llm_configured, rag_service
+    
+    try:
+        # 1. 先测试配置
+        test_result = await test_llm_config(config_data)
+        if not test_result['success']:
+            return test_result
+        
+        # 2. 保存配置到文件
+        save_result = await save_config({
+            'apiKey': config_data.get('apiKey'),
+            'baseUrl': config_data.get('baseUrl'),
+            'llmModel': config_data.get('model')
+        })
+        
+        if not save_result.get('success'):
+            return {"success": False, "error": "保存配置失败"}
+        
+        # 3. 重新加载配置
+        config._config = config._load_config()
+        logger.info("配置已重新加载")
+        
+        # 4. 重新初始化RAG服务
+        rag_service = RAGService(
+            db_manager=db_manager,
+            api_key=config.llm_api_key,
+            base_url=config.llm_base_url,
+            model=config.llm_model
+        )
+        logger.info(f"RAG服务已重新初始化 - 模型: {config.llm_model}")
+        
+        # 5. 更新配置状态
+        is_llm_configured = True
+        logger.info("LLM配置状态已更新为：已配置")
+        
+        return {"success": True, "message": "配置保存成功，正在跳转..."}
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"保存并初始化LLM失败: {error_msg}")
+        return {"success": False, "error": error_msg}
+
+
 @app.post("/api/save-config")
 async def save_config(settings: Dict[str, Any]):
     """保存配置到config.yaml文件"""
@@ -638,7 +790,15 @@ async def save_config(settings: Dict[str, Any]):
             'soundEnabled': 'ui.sound_enabled',
             'autoSave': 'ui.auto_save',
             'localHistory': 'chat.local_history',
-            'historyLimit': 'chat.history_limit'
+            'historyLimit': 'chat.history_limit',
+            # API配置
+            'apiKey': 'llm.api_key',
+            'baseUrl': 'llm.base_url',
+            'llmModel': 'llm.model',
+            # 服务器配置
+            'serverHost': 'server.host',
+            'serverPort': 'server.port',
+            'autoExcludeSelf': 'record.auto_exclude_self'
         }
         
         # 更新配置
