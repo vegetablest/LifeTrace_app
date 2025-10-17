@@ -443,12 +443,14 @@ class LifeTraceConfig:
         """检查LLM配置是否已完成
         
         Returns:
-            bool: 如果API key和base_url都已配置（不是'xxx'或空），返回True
+            bool: 如果API key和base_url都已配置（不是占位符或空），返回True
         """
         api_key = self.llm_api_key
         base_url = self.llm_base_url
-        return (api_key not in ['', 'xxx'] and 
-                base_url not in ['', 'xxx'])
+        # 检查是否为空或占位符
+        invalid_values = ['', 'xxx', 'YOUR_API_KEY_HERE', 'YOUR_BASE_URL_HERE']
+        return (api_key not in invalid_values and 
+                base_url not in invalid_values)
     
     # ==================== 配置热重载相关方法 ====================
     

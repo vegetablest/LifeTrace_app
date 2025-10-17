@@ -88,8 +88,8 @@ ui:
   sound_enabled: true
   auto_save: true
 llm:
-  api_key: xxx
-  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key: YOUR_API_KEY_HERE
+  base_url: YOUR_BASE_URL_HERE
   model: qwen3-max
   temperature: 0.7
   max_tokens: 2048
