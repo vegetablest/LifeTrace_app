@@ -453,6 +453,42 @@ def main():
         print(f"错误: 数据库未初始化，请先运行: lifetrace init")
         return
     
+    # 检查间隔变量（使用列表以便在回调中修改）
+    check_interval_ref = [config.get('ocr.check_interval', 5)]
+    
+    # 配置变更回调函数
+    def on_config_change(old_config: dict, new_config: dict):
+        """配置变更回调函数"""
+        try:
+            # 更新OCR检查间隔
+            new_interval = new_config.get('ocr', {}).get('check_interval', 5)
+            old_interval = check_interval_ref[0]
+            if new_interval != old_interval:
+                check_interval_ref[0] = new_interval
+                logger.info(f"OCR检查间隔已更新: {old_interval}s -> {new_interval}s")
+            
+            # 记录其他OCR配置变更
+            old_ocr = old_config.get('ocr', {})
+            new_ocr = new_config.get('ocr', {})
+            
+            if old_ocr.get('enabled') != new_ocr.get('enabled'):
+                enabled = new_ocr.get('enabled', True)
+                logger.info(f"OCR功能已{'启用' if enabled else '禁用'}")
+            
+            if old_ocr.get('confidence_threshold') != new_ocr.get('confidence_threshold'):
+                threshold = new_ocr.get('confidence_threshold', 0.5)
+                logger.info(f"OCR置信度阈值已更新: {threshold}")
+                
+        except Exception as e:
+            logger.error(f"处理配置变更失败: {e}")
+    
+    # 注册配置变更回调
+    config.register_callback(on_config_change)
+    
+    # 启动配置文件监听
+    config.start_watching()
+    logger.info("已启动配置文件监听")
+    
     # 初始化RapidOCR
     print("正在初始化RapidOCR引擎...")
     logger.info("正在初始化RapidOCR引擎...")
@@ -554,13 +590,12 @@ def main():
         print("向量数据库服务未启用或不可用")
         logger.info("向量数据库服务未启用或不可用")
     
-    # 获取检查间隔配置
-    check_interval = config.get('ocr.check_interval', 5)  # 默认5秒检查一次
-    print(f"数据库检查间隔: {check_interval}秒")
+    # 获取检查间隔配置（使用check_interval_ref）
+    print(f"数据库检查间隔: {check_interval_ref[0]}秒")
     
     print("开始基于数据库的OCR处理...")
     print("按 Ctrl+C 停止服务")
-    logger.info(f"OCR服务启动完成，检查间隔: {check_interval}秒")
+    logger.info(f"OCR服务启动完成，检查间隔: {check_interval_ref[0]}秒")
     
     # 启动UDP心跳发送
     heartbeat_sender.start(interval=1.0)
@@ -574,7 +609,7 @@ def main():
             heartbeat_sender.send_heartbeat({
                 'status': 'running',
                 'processed_count': processed_count,
-                'check_interval': check_interval
+                'check_interval': check_interval_ref[0]
             })
             
             # 从数据库获取未处理的截图
@@ -595,7 +630,7 @@ def main():
                         time.sleep(0.1)
             else:
                 # 没有未处理的截图，等待一段时间再检查
-                time.sleep(check_interval)
+                time.sleep(check_interval_ref[0])
                 
     except KeyboardInterrupt:
         print("\n收到停止信号，正在退出...")
@@ -607,6 +642,9 @@ def main():
         heartbeat_sender.send_heartbeat({'status': 'error', 'error': str(e)})
         raise
     finally:
+        # 停止配置文件监听
+        config.stop_watching()
+        logger.info("已停止配置文件监听")
         print("OCR服务已停止")
         heartbeat_sender.stop()
 

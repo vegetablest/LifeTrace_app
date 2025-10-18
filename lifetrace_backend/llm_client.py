@@ -15,19 +15,35 @@ class LLMClient:
         初始化LLM客户端
         
         Args:
-            api_key: API密钥
-            base_url: API基础URL
-            model: 使用的模型名称
+            api_key: API密钥，如果未提供则从配置文件读取
+            base_url: API基础URL，如果未提供则从配置文件读取
+            model: 使用的模型名称，如果未提供则从配置文件读取
         """
-        # 原有Claude配置（已注释）
-        # self.api_key = api_key or "sk-8l2Kkkjshq5tqIgKg7BOL6boFCZbXAZy0tYsWrK1m7lAEk29"
-        # self.base_url = base_url or "https://api.openai-proxy.org/v1"
-        # self.model = model or "claude-sonnet-4-20250514"
-        
-        # 新的Qwen配置
-        self.api_key = api_key or "sk-ef4b56e3bc9c4693b596415dd364af56"
-        self.base_url = base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        self.model = model or "qwen3-max"
+        # 如果未传入参数，从配置文件读取
+        if api_key is None or base_url is None or model is None:
+            try:
+                from lifetrace_backend.config import config
+                self.api_key = api_key or config.llm_api_key or "sk-ef4b56e3bc9c4693b596415dd364af56"
+                self.base_url = base_url or config.llm_base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                self.model = model or config.llm_model or "qwen3-max"
+                
+                # 检查关键配置是否为空或默认占位符
+                invalid_values = ['xxx', 'YOUR_API_KEY_HERE', 'YOUR_BASE_URL_HERE', 'YOUR_LLM_KEY_HERE']
+                if not self.api_key or self.api_key in invalid_values:
+                    logger.warning("LLM Key未配置或为默认占位符，LLM功能可能不可用")
+                if not self.base_url or self.base_url in invalid_values:
+                    logger.warning("Base URL未配置或为默认占位符，LLM功能可能不可用")
+            except Exception as e:
+                logger.error(f"无法从配置文件读取LLM配置: {e}")
+                # 使用默认值但记录警告
+                self.api_key = api_key or "sk-ef4b56e3bc9c4693b596415dd364af56"
+                self.base_url = base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                self.model = model or "qwen3-max"
+                logger.warning("使用硬编码默认值初始化LLM客户端")
+        else:
+            self.api_key = api_key
+            self.base_url = base_url
+            self.model = model
         
         try:
             self.client = OpenAI(
@@ -35,6 +51,7 @@ class LLMClient:
                 api_key=self.api_key
             )
             logger.info(f"LLM客户端初始化成功，使用模型: {self.model}")
+            logger.info(f"API Base URL: {self.base_url}")
         except Exception as e:
             logger.error(f"LLM客户端初始化失败: {e}")
             self.client = None

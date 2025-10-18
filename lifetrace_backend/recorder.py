@@ -101,6 +101,58 @@ class ScreenRecorder:
         logger.info(f"超时配置 - 文件I/O: {self.file_io_timeout}s, 数据库: {self.db_timeout}s, 窗口信息: {self.window_info_timeout}s")
         
         logger.info(f"屏幕录制器初始化完成，监控屏幕: {self.screens}")
+        
+        # 注册配置变更回调
+        self.config.register_callback(self._on_config_change)
+    
+    def _on_config_change(self, old_config: dict, new_config: dict):
+        """配置变更回调函数"""
+        try:
+            # 更新截图间隔
+            new_interval = new_config.get('record', {}).get('interval', 1)
+            if new_interval != self.interval:
+                old_interval = self.interval
+                self.interval = new_interval
+                logger.info(f"截图间隔已更新: {old_interval}s -> {new_interval}s")
+            
+            # 更新监控屏幕列表
+            old_screens_config = old_config.get('record', {}).get('screens', 'all')
+            new_screens_config = new_config.get('record', {}).get('screens', 'all')
+            if old_screens_config != new_screens_config:
+                old_screens = self.screens
+                self.screens = self._get_screen_list()
+                logger.info(f"监控屏幕已更新: {old_screens} -> {self.screens}")
+            
+            # 更新去重配置
+            new_deduplicate = new_config.get('storage', {}).get('deduplicate', True)
+            if new_deduplicate != self.deduplicate:
+                self.deduplicate = new_deduplicate
+                logger.info(f"去重功能已{'启用' if new_deduplicate else '禁用'}")
+            
+            # 更新去重阈值
+            new_threshold = new_config.get('storage', {}).get('hash_threshold', 5)
+            if new_threshold != self.hash_threshold:
+                old_threshold = self.hash_threshold
+                self.hash_threshold = new_threshold
+                logger.info(f"去重阈值已更新: {old_threshold} -> {new_threshold}")
+            
+            # 更新黑名单配置
+            old_blacklist = old_config.get('record', {}).get('blacklist', {})
+            new_blacklist = new_config.get('record', {}).get('blacklist', {})
+            if old_blacklist != new_blacklist:
+                logger.info("黑名单配置已更新")
+                if new_blacklist.get('enabled') != old_blacklist.get('enabled'):
+                    enabled = new_blacklist.get('enabled', False)
+                    logger.info(f"黑名单功能已{'启用' if enabled else '禁用'}")
+            
+            # 更新超时配置
+            new_file_io_timeout = new_config.get('record', {}).get('file_io_timeout', 15)
+            if new_file_io_timeout != self.file_io_timeout:
+                self.file_io_timeout = new_file_io_timeout
+                logger.info(f"文件I/O超时已更新: {new_file_io_timeout}s")
+                
+        except Exception as e:
+            logger.error(f"处理配置变更失败: {e}")
     
     def _save_screenshot(self, screenshot, file_path: str) -> bool:
         """保存截图到文件"""
@@ -480,6 +532,10 @@ class ScreenRecorder:
         """开始录制"""
         logger.info("开始屏幕录制...")
         
+        # 启动配置文件监听
+        self.config.start_watching()
+        logger.info("已启动配置文件监听")
+        
         # 启动UDP心跳发送
         self.heartbeat_sender.start(interval=1.0)
         
@@ -519,6 +575,9 @@ class ScreenRecorder:
             self._print_final_stats()
             raise
         finally:
+            # 停止配置文件监听
+            self.config.stop_watching()
+            logger.info("已停止配置文件监听")
             # 停止心跳发送
             self.heartbeat_sender.stop()
     

@@ -1,4 +1,4 @@
-# LifeTrace macOS 完整依赖
+# LifeTrace macOS Requirements
 
 # Core dependencies
 fastapi>=0.100.0
@@ -33,15 +33,15 @@ python-dateutil>=2.8.0
 # Command line interface
 rich>=13.0.0
 
-# PyTorch (CLIP需要)
+# PyTorch (Required by CLIP)
 torch>=2.0.0
 torchvision>=0.15.0
 torchaudio>=2.0.0
 
-# Transformers (Hugging Face CLIP模型)
+# Transformers (Hugging Face CLIP model)
 transformers>=4.21.0
 
-# 数值计算
+# Numerical computing
 scipy>=1.9.0
 
 # Embedding models and vector database
@@ -54,7 +54,7 @@ openai>=1.0.0
 # Environment variables
 python-dotenv>=1.0.0
 
-# macOS 特定依赖
+# macOS specific dependencies
 pyobjc-framework-Cocoa>=9.0
 pyobjc-framework-Quartz>=9.0
 

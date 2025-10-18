@@ -224,3 +224,4 @@ __marimo__/
 /debug
 /build_server
 /dist_server
+# config/config.yaml
