@@ -4,53 +4,28 @@
 
 **Language**: [English](README.md) | [中文](README_CN.md)
 
-[📖 Documentation](doc/README.md) • [🚀 Quick Start](#deployment-and-configuration) • [💡 Features](#core-features) • [🔧 Development](#development-guide) • [🤝 Contributing](#contributing)
+[📖 Documentation](https://freeyou.club/lifetrace/introduction.html) • [🚀 Quick Start](#deployment-and-configuration) • [💡 Features](#core-features) • [🔧 Development](#development-guide) • [🤝 Contributing](#contributing)
 
 # LifeTrace - Intelligent Life Recording System
 
 ## Project Overview
 
-LifeTrace is an AI-powered intelligent life recording system that helps users record and retrieve daily activities through automatic screenshot capture, OCR text recognition, and multimodal search technologies. The system supports traditional keyword search, semantic search, and multimodal search, providing powerful life trajectory tracking capabilities.
+LifeTrace is an AI-based intelligent life recording system that can automatically manage your personal task context. Through technologies such as automatic screenshots, OCR text recognition, vector retrieval, and multimodal search, LifeTrace helps you record, organize, and retrieve daily activity traces.
 
 ## Core Features
 
 - **Automatic Screenshot Recording**: Timed automatic screen capture to record user activities
 - **Intelligent OCR Recognition**: Uses RapidOCR to extract text content from screenshots
-- **Multimodal Search**: Supports text, image, and semantic search
-- **Vector Database**: Efficient vector storage and retrieval based on ChromaDB
+- **Smart Event Management**: Automatically aggregate screenshots into intelligent events based on context
+- **Information Retrieval**: Help users trace back and retrieve important information fragments from the past
+<!-- - **Multimodal Search**: Supports text, image, and semantic search -->
+<!-- - **Vector Database**: Efficient vector storage and retrieval based on ChromaDB -->
 - **Web API Service**: Provides complete RESTful API interfaces
 - **Frontend Integration**: Supports integration with various frontend frameworks
 
-## 📋 TODO & Roadmap
-
-### 🚀 High Priority
 
 
-- ☐ **User Experience Improvements**
-  - ☐ Implement keyboard shortcuts for power users
-  - ☐ Create interactive onboarding tutorial
-
-
-  
-
-### 💡 Future Ideas
-
-
-- ☐ **Mobile & Cross-Platform**
-  - ☐ Develop mobile companion app
-  - ☐ Add tablet-optimized interface
-  - ☐ Create web-based version
-
-
-### ✅ Recently Completed
-- ☑ **Core Infrastructure** - Basic screenshot recording and OCR functionality
-
-
----
-
-> 💡 **Want to contribute?** Check out our [Contributing Guidelines](#contributing) and pick up any TODO item that interests you!
-
-## Deployment and Configuration
+## Get started
 
 ### Environment Requirements
 - Python 3.13+
@@ -85,6 +60,10 @@ python init_database.py
 python start_all_services.py
 ```
 
+Once all services are running, open your browser and navigate to `http://localhost:8840` to enjoy LifeTrace! 🎉
+
+
+<!-- 
 #### Start Web Service Only
 ```bash
 python -m lifetrace_backend.server --port 8840
@@ -100,7 +79,38 @@ python -m lifetrace_backend.processor
 
 # Start OCR service
 python -m lifetrace_backend.simple_ocr
-```
+``` -->
+
+
+## 📋 TODO & Roadmap
+
+### 🚀 High Priority
+
+
+- ☐ **User Experience Improvements**
+  - ☐ Implement keyboard shortcuts for power users
+  - ☐ Create interactive onboarding tutorial
+
+
+  
+
+### 💡 Future Ideas
+
+
+- ☐ **Mobile & Cross-Platform**
+  - ☐ Develop mobile companion app
+  - ☐ Add tablet-optimized interface
+  - ☐ Create web-based version
+
+
+### ✅ Recently Completed
+- ☑ **Core Infrastructure** - Basic screenshot recording and OCR functionality
+
+
+---
+
+> 💡 **Want to contribute?** Check out our [Contributing Guidelines](#contributing) and pick up any TODO item that interests you!
+
 
 ## Development Guide
 
@@ -189,7 +199,34 @@ The LifeTrace community is possible thanks to thousands of kind volunteers like 
 
 We appreciate all contributions, no matter how small! 🙏
 
+## Join Our Community
 
+Connect with us and other LifeTrace users! Scan the QR codes below to join our community groups:
+
+<table>
+  <tr>
+    <th>WeChat Group</th>
+    <th>Feishu Group</th>
+    <th>Xiaohongshu</th>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="assets/wechat.jpg" alt="WeChat QR Code" width="200"/>
+      <br/>
+      <em>Scan to join WeChat group</em>
+    </td>
+    <td align="center">
+      <img src="assets/feishu.png" alt="Feishu QR Code" width="200"/>
+      <br/>
+      <em>Scan to join Feishu group</em>
+    </td>
+    <td align="center">
+      <img src="assets/xhs.jpg" alt="Xiaohongshu QR Code" width="200"/>
+      <br/>
+      <em>Follow us on Xiaohongshu</em>
+    </td>
+  </tr>
+</table>
 
 ## Document
 We use deepwiki to manage our docs, please ref to this [**website.**](https://deepwiki.com/tangyuanbo1/LifeTrace_app/6.2-deployment-and-setup)
@@ -201,12 +238,12 @@ We use deepwiki to manage our docs, please ref to this [**website.**](https://de
 
 ## License
 
-Copyright © 2024 LifeTrace.org
+Copyright © 2025 LifeTrace.org
 
 The content of this repository is bound by the following licenses:
 
 • The computer software is licensed under the [Apache License 2.0](LICENSE).
-• The learning resources in the `/doc` directory including their subdirectories thereon are copyright © 2024 LifeTrace.org
+• The learning resources in the `/doc` directory including their subdirectories thereon are copyright © 2025 LifeTrace.org
 
 ### Apache License 2.0
 
